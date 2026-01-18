@@ -1,0 +1,389 @@
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: hsla(230, 25%, 5%, 0.85);
+    /* Slightly darker */
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--spacing-lg);
+    animation: fadeIn var(--transition-base);
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 1000px;
+    /* Wider for 2 columns */
+    height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Manage scrolling internally */
+    animation: slideIn var(--transition-base);
+    background: var(--bg-dark);
+    /* Solid bg for modal */
+    border: 1px solid var(--border);
+}
+
+.modal-header {
+    background: var(--bg-card);
+    padding: var(--spacing-md) var(--spacing-lg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-form {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-body-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Left Column: Selection */
+.modal-left {
+    padding-right: var(--spacing-md);
+}
+
+.section-header h3 {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--spacing-md);
+}
+
+/* Tables Grid */
+.table-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.table-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.table-btn:hover {
+    border-color: var(--primary);
+    background: var(--bg-card-hover);
+}
+
+.table-btn.selected {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: 0 0 15px var(--primary-glow);
+    transform: scale(1.05);
+}
+
+/* Menu Grid */
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.menu-item {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    min-height: 120px;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+}
+
+.menu-item:hover {
+    border-color: var(--primary-light);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+}
+
+.menu-item .item-icon {
+    font-size: 1.5rem;
+    margin-bottom: var(--spacing-xs);
+}
+
+.menu-item .item-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    line-height: 1.3;
+}
+
+.menu-item .item-price {
+    font-weight: 700;
+    color: var(--primary-light);
+    margin-top: var(--spacing-xs);
+}
+
+.add-icon {
+    position: absolute;
+    bottom: var(--spacing-sm);
+    right: var(--spacing-sm);
+    width: 24px;
+    height: 24px;
+    background: var(--border);
+    color: var(--text-primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all var(--transition-fast);
+}
+
+.menu-item:hover .add-icon {
+    background: var(--primary);
+    color: white;
+}
+
+/* Right Column: Summary */
+.modal-right {
+    display: flex;
+    flex-direction: column;
+}
+
+.order-summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+}
+
+.order-summary-card h3 {
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border);
+    font-size: 1.1rem;
+}
+
+.cart-items {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding-right: 4px;
+    /* for scrollbar */
+    max-height: 400px;
+}
+
+.cart-item {
+    background: var(--bg-darker);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+}
+
+.cart-item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.cart-item-price {
+    color: var(--primary-light);
+    font-weight: 700;
+}
+
+.cart-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.qty-mini {
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.qty-mini:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.remove-mini {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0 4px;
+}
+
+.cart-footer {
+    margin-top: auto;
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border);
+}
+
+.cart-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.cart-total .amount {
+    color: var(--accent);
+    font-size: 1.4rem;
+}
+
+.btn-block {
+    width: 100%;
+}
+
+.btn-lg {
+    padding: var(--spacing-md);
+    font-size: 1.1rem;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .modal-body-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-right {
+        order: -1;
+        /* Summary first on mobile? or last? Let's keep it simpler */
+        order: 2;
+    }
+
+    .modal-content {
+        max-height: 95vh;
+    }
+}
+
+/* Checklist in Modal */
+.checklist-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+}
+
+.helper-text {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.checklist-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+}
+
+.checklist-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.checklist-row:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.checklist-row label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    flex: 1;
+}
+
+.checklist-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.checklist-row.checked {
+    opacity: 0.7;
+    background: rgba(var(--primary-rgb), 0.1);
+}
+
+.checklist-row.checked span {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+.remove-mini-icon {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 5px;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.remove-mini-icon:hover {
+    opacity: 1;
+}
