@@ -1,0 +1,30 @@
+# Gestión de Pedidos - Restaurante de Comida Rápida
+
+## 1. Configuración del Proyecto
+- [/] Inicializar proyecto Node.js y estructura de carpetas
+- [ ] Configurar servidor Backend (Express)
+- [ ] Configurar cliente Frontend (Vite + React)
+- [ ] Instalar dependencias (sqlite3, cors, body-parser, etc.)
+
+## 2. Base de Datos (SQLite)
+- [ ] Diseñar esquema (Usuarios, Ordenes, DetallesOrden)
+- [ ] Crear script de inicialización de la base de datos
+- [ ] Implementar capa de acceso a datos (DAO)
+
+## 3. Backend API
+- [ ] Implementar autenticación simple (Login)
+- [ ] API: Crear nueva orden
+- [ ] API: Listar ordenes activas
+- [ ] API: Actualizar estado de orden
+- [ ] API: Historial de ordenes
+
+## 4. Frontend UI/UX
+- [ ] Implementar diseño base y sistema de estilos (CSS Moderno)
+- [ ] Pantalla de Login
+- [ ] Dashboard principal (Creación y visualización de ordenes)
+- [ ] Componente de tarjeta de orden con gestión de estados
+- [ ] Notificaciones y feedback visual
+
+## 5. Verificación
+- [ ] Verificar flujo completo de inicio a fin
+- [ ] Probar persistencia de datos

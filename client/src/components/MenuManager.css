@@ -1,0 +1,145 @@
+/* Add to existing AdminDashboard.css or create new file */
+
+.menu-manager {
+    animation: fadeIn 0.3s ease;
+}
+
+.menu-modal-enhanced {
+    max-width: 800px;
+    /* Wider modal */
+    width: 90%;
+}
+
+.menu-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.form-left,
+.form-right {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Modern Input Styles */
+.menu-form-grid input,
+.menu-form-grid select,
+.menu-form-grid textarea {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text-primary);
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.menu-form-grid input:focus,
+.menu-form-grid select:focus,
+.menu-form-grid textarea:focus {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    outline: none;
+}
+
+/* Checkbox specific */
+.checkbox-group {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.image-preview-container {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    min-height: 200px;
+    position: relative;
+}
+
+.image-preview-container:hover {
+    border-color: var(--primary);
+}
+
+.image-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.image-preview:hover {
+    transform: scale(1.05);
+}
+
+.full-width {
+    grid-column: 1 / -1;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .menu-form-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        /* Reduce gap on mobile */
+    }
+
+    .menu-modal-enhanced {
+        width: 100%;
+        max-width: none;
+    }
+
+    .image-preview-container {
+        min-height: 150px;
+        /* Smaller preview on mobile */
+    }
+
+    .form-row {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .full-width {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .menu-form-grid {
+        gap: 0.75rem;
+    }
+
+    .image-preview-container {
+        min-height: 120px;
+    }
+
+    .form-left,
+    .form-right {
+        gap: 1rem;
+    }
+
+    .menu-form-grid input,
+    .menu-form-grid select,
+    .menu-form-grid textarea {
+        padding: 8px 10px;
+        font-size: 0.95rem;
+    }
+}
