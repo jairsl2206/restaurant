@@ -47,18 +47,43 @@ A web-based application for managing restaurant orders, menu items, and users.
 
 ### Running the Application
 
-1.  Start the backend server (from the root directory):
+There are two ways to run the application:
+
+#### 1. Development Mode (For coding)
+Run the backend and frontend separately to enable hot-reloading.
+
+**Step 1: Start Backend** (Root directory)
+```bash
+npm run server
+```
+- Server/API runs on: `http://localhost:3001`
+- Keep this terminal open.
+
+**Step 2: Start Frontend** (Client directory)
+Open a new terminal:
+```bash
+cd client
+npm run dev
+```
+- Client runs on: `http://localhost:5173`
+- The client is configured to talk to the backend on port 3001 automatically.
+
+#### 2. Production Mode (For actual usage)
+Build the frontend into static files served by the backend.
+
+1.  **Build Frontend:**
+    ```bash
+    cd client
+    npm run build
+    cd ..
+    ```
+
+2.  **Start Server:**
     ```bash
     npm run server
     ```
-    The server runs on `http://localhost:3001`.
-
-2.  Start the frontend client (from a new terminal in the `client` directory):
-    ```bash
-    cd client
-    npm run dev
-    ```
-    The client runs on `http://localhost:5173`.
+    - The entire application (App + API) runs on: `http://localhost:3001`
+    - You do NOT need to run `npm run dev` in this mode.
 
 ## Environment Variables
 
