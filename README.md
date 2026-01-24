@@ -32,11 +32,17 @@ A web-based application for managing restaurant orders, menu items, and users.
     cd Restaurant
     ```
 
-2.  Install dependencies for both client and server:
+2.  Install dependencies:
+
+    **Backend (Root directory):**
     ```bash
     npm install
-    cd client && npm install
-    cd ../server && npm install
+    ```
+
+    **Frontend (Client directory):**
+    ```bash
+    cd client
+    npm install
     ```
 
 ### Running the Application

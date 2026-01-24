@@ -147,23 +147,36 @@ function Dashboard({ user, onLogout, settings }) {
 
     const getColumns = () => {
         if (isCook) {
-            // Cook views FIFO queue
-            const cooking = orders.filter(o => o.status === 'Creado' || o.status === 'En Cocina');
-            // Sort by time (oldest first)
-            cooking.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            // Cook views FIFO queue - only orders in "En Cocina" status
+            const cooking = orders.filter(o => o.status === 'En Cocina');
+            // Sort by updated_at (oldest first - FIFO)
+            cooking.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
 
             return {
                 'Cola de Cocina': cooking
             };
         }
 
-        // Waiter views everything grouped
+        // Waiter views everything grouped - all columns use FIFO
+        const creado = orders.filter(o => o.status === 'Creado');
+        const enCocina = orders.filter(o => o.status === 'En Cocina');
+        const listoParaServir = orders.filter(o => o.status === 'Listo para Servir');
+        const servido = orders.filter(o => o.status === 'Servido');
+        const pagado = orders.filter(o => o.status === 'Pagado');
+
+        // Sort all by updated_at (oldest first - FIFO)
+        creado.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        enCocina.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        listoParaServir.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        servido.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        pagado.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+
         return {
-            'Creado': orders.filter(o => o.status === 'Creado'),
-            'En Cocina': orders.filter(o => o.status === 'En Cocina'),
-            'Listo para Servir': orders.filter(o => o.status === 'Listo para Servir'),
-            'Servido': orders.filter(o => o.status === 'Servido'),
-            'Pagado': orders.filter(o => o.status === 'Pagado'),
+            'Creado': creado,
+            'En Cocina': enCocina,
+            'Listo para Servir': listoParaServir,
+            'Servido': servido,
+            'Pagado': pagado,
         };
     };
 
