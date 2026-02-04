@@ -11,6 +11,8 @@ function SettingsManager({ settings, onSettingsUpdate }) {
     });
     const [whatsappStatus, setWhatsappStatus] = useState({ isReady: false, qrCode: null });
     const [whatsappNumber, setWhatsappNumber] = useState('');
+    const [whatsappGroups, setWhatsappGroups] = useState([]);
+    const [loadingGroups, setLoadingGroups] = useState(false);
 
     useEffect(() => {
         if (settings) {
@@ -39,6 +41,43 @@ function SettingsManager({ settings, onSettingsUpdate }) {
         const interval = setInterval(checkStatus, 3000);
         return () => clearInterval(interval);
     }, []);
+
+    // Fetch Groups when ready
+    useEffect(() => {
+        if (whatsappStatus.isReady && !loadingGroups && whatsappGroups.length === 0) {
+            fetchGroups();
+        }
+    }, [whatsappStatus.isReady]);
+
+    const fetchGroups = async () => {
+        if (loadingGroups) return;
+        setLoadingGroups(true);
+        try {
+            const res = await fetch(API_BASE_URL + '/whatsapp/groups');
+            const data = await res.json();
+            setWhatsappGroups(data);
+        } catch (err) {
+            console.error('Error fetching groups', err);
+        } finally {
+            setLoadingGroups(false);
+        }
+    };
+
+    const handleResetWhatsapp = async () => {
+        if (!window.confirm('¿Estás seguro de reiniciar la sesión de WhatsApp? Esto cerrará la conexión actual.')) return;
+
+        try {
+            const res = await fetch(API_BASE_URL + '/whatsapp/reset', {
+                method: 'POST',
+                headers: { 'x-role': 'admin' }
+            });
+            if (res.ok) {
+                alert('Reinicio iniciado. Por favor espera el nuevo código QR.');
+            }
+        } catch (err) {
+            console.error('Error resetting WhatsApp', err);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -134,29 +173,102 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                                 </label>
 
                                 <div style={{ marginBottom: '1rem' }}>
-                                    <label style={{ fontSize: '0.8rem' }}>Número Destino (con código de país, e.g., 521...)</label>
-                                    <input
-                                        type="text"
-                                        value={whatsappNumber}
-                                        onChange={e => setWhatsappNumber(e.target.value)}
-                                        placeholder="5215512345678"
-                                    />
+                                    <label style={{ fontSize: '0.8rem' }}>Destinatario de Notificaciones</label>
+
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '0.25rem', borderRadius: '6px' }}>
+                                        <button
+                                            type="button"
+                                            className={`btn ${!whatsappNumber.includes('@g.us') ? 'btn-primary' : 'btn-secondary'}`}
+                                            onClick={() => setWhatsappNumber('')}
+                                            style={{ flex: 1, padding: '4px', fontSize: '0.75rem' }}
+                                        >
+                                            📞 Número
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn ${whatsappNumber.includes('@g.us') ? 'btn-primary' : 'btn-secondary'}`}
+                                            onClick={() => whatsappGroups.length > 0 && setWhatsappNumber(whatsappGroups[0].id)}
+                                            style={{ flex: 1, padding: '4px', fontSize: '0.75rem' }}
+                                            disabled={!whatsappStatus.isReady || whatsappGroups.length === 0}
+                                        >
+                                            👥 Grupo
+                                        </button>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                        {!whatsappNumber.includes('@g.us') ? (
+                                            <input
+                                                type="text"
+                                                value={whatsappNumber}
+                                                onChange={e => setWhatsappNumber(e.target.value)}
+                                                placeholder="Número (e.g. 521...)"
+                                                style={{ flex: 1 }}
+                                            />
+                                        ) : (
+                                            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flex: 1 }}>
+                                                <select
+                                                    style={{ flex: 1 }}
+                                                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                                                    value={whatsappNumber}
+                                                >
+                                                    {whatsappGroups.map(group => (
+                                                        <option key={group.id} value={group.id}>{group.name}</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={fetchGroups}
+                                                    className="btn btn-secondary"
+                                                    disabled={loadingGroups}
+                                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                                    title="Actualizar lista de grupos"
+                                                >
+                                                    {loadingGroups ? '⏳' : '🔄'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <small style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                                        {!whatsappNumber.includes('@g.us')
+                                            ? "Ingresa el número con código de país sin el símbolo +."
+                                            : "Selecciona el grupo de WhatsApp donde llegarán los avisos."}
+                                    </small>
                                 </div>
 
-                                <div className="whatsapp-status">
-                                    <p>Estado: <strong>{whatsappStatus.isReady ? '✅ Conectado' : '❌ Desconectado'}</strong></p>
-
-                                    {!whatsappStatus.isReady && whatsappStatus.qrCode && (
-                                        <div style={{ background: 'white', padding: '10px', width: 'fit-content', borderRadius: '8px', margin: '1rem auto' }}>
-                                            <img src={whatsappStatus.qrCode} alt="WhatsApp QR" style={{ width: '200px', height: '200px' }} />
-                                            <p style={{ color: 'black', textAlign: 'center', margin: '5px 0 0 0', fontSize: '0.8rem' }}>Escanea con WhatsApp</p>
-                                        </div>
-                                    )}
-
-                                    {!whatsappStatus.isReady && !whatsappStatus.qrCode && (
-                                        <p style={{ fontSize: '0.8rem', color: '#aaa' }}>Cargando código QR...</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <p style={{ margin: 0 }}>Estado: <strong>{whatsappStatus.isReady ? '✅ Conectado' : '❌ Desconectado'}</strong></p>
+                                    {whatsappStatus.isReady && (
+                                        <button
+                                            type="button"
+                                            onClick={handleResetWhatsapp}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '4px 8px', fontSize: '0.7rem', background: '#dc3545' }}
+                                        >
+                                            🔄 Reiniciar Sesión
+                                        </button>
                                     )}
                                 </div>
+
+                                {!whatsappStatus.isReady && whatsappStatus.qrCode && (
+                                    <div style={{ background: 'white', padding: '10px', width: 'fit-content', borderRadius: '8px', margin: '1rem auto' }}>
+                                        <img src={whatsappStatus.qrCode} alt="WhatsApp QR" style={{ width: '200px', height: '200px' }} />
+                                        <p style={{ color: 'black', textAlign: 'center', margin: '5px 0 0 0', fontSize: '0.8rem' }}>Escanea con WhatsApp</p>
+                                    </div>
+                                )}
+
+                                {!whatsappStatus.isReady && !whatsappStatus.qrCode && (
+                                    <div style={{ textAlign: 'center', padding: '1rem' }}>
+                                        <p style={{ fontSize: '0.8rem', color: '#aaa', margin: 0 }}>Cargando código QR...</p>
+                                        <button
+                                            type="button"
+                                            onClick={handleResetWhatsapp}
+                                            className="btn btn-secondary"
+                                            style={{ marginTop: '0.5rem', padding: '4px 8px', fontSize: '0.7rem' }}
+                                        >
+                                            Intentar Reinicio
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

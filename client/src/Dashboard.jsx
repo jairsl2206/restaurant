@@ -58,18 +58,18 @@ function Dashboard({ user, onLogout, settings }) {
             if (user.role === 'waiter' && prevOrdersRef.current.length > 0) {
                 const newReadyOrders = data.filter(o => o.status === 'Listo para Servir');
                 // Check against prevOrders
-                const justReady = newReadyOrders.find(newOrder => {
+                const justReadyOrders = newReadyOrders.filter(newOrder => {
                     const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
                     return !oldOrder || oldOrder.status !== 'Listo para Servir';
                 });
 
-                if (justReady) {
+                justReadyOrders.forEach(order => {
                     addNotification(
-                        `¡Orden #${justReady.id} (Mesa ${justReady.table_number}) lista para servir!`,
+                        `¡Orden #${order.id} (Mesa ${order.table_number}) lista para servir!`,
                         'success',
-                        justReady.id
+                        order.id
                     );
-                }
+                });
             }
 
             // Notification for Cooks: Sent to Kitchen (En Cocina)

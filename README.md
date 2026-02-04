@@ -39,6 +39,8 @@ Sistema completo de gestión de pedidos para restaurantes con interfaz web moder
 - ✅ Gestión de usuarios (crear, editar roles, eliminar)
 - ✅ Configuración del restaurante (nombre, logo)
 - ✅ Panel de administración completo
+- ✅ Reportes de Ventas (diario, resumen, top productos)
+- ✅ Notificaciones automáticas por WhatsApp
 
 ### Características Técnicas
 - 🔄 Actualización automática cada 5 segundos
@@ -61,6 +63,8 @@ Sistema completo de gestión de pedidos para restaurantes con interfaz web moder
 - **SQLite3** 5.1.7 - Base de datos
 - **bcryptjs** 2.4.3 - Encriptación de contraseñas
 - **Multer** 1.4.5-lts.1 - Manejo de archivos
+- **whatsapp-web.js** - Integración con WhatsApp
+- **qrcode** - Generación de códigos QR
 
 ### Herramientas de Desarrollo
 - **ESLint** - Linting de código
@@ -163,6 +167,19 @@ El servidor estará disponible en:
 #### Cocinero
 - **Usuario**: `cocinero`
 - **Contraseña**: `cocinero123`
+
+### 📱 Configuración de WhatsApp
+
+1. Ir a **Panel de Administración > Configuración**.
+2. Buscar la sección **"Notificaciones WhatsApp"**.
+3. Escanear el **Código QR** con la app de WhatsApp de tu celular.
+4. Ingresar el **Número Destino** (incluyendo código de país, ej: `521...`) donde se recibirán las alertas.
+5. Guardar cambios.
+
+El sistema enviará alertas automáticas para:
+- 🆕 Nueva Orden Creada
+- ❌ Orden Cancelada
+- 💵 Orden Pagada
 
 ## 🏗️ Arquitectura
 
@@ -268,6 +285,8 @@ Interfaz intuitiva para crear órdenes.
 - Clean Architecture (módulo de órdenes)
 - Interfaz responsive
 - Diseño monocromático con etiquetas de colores
+- Reportes y estadísticas
+- Notificaciones WhatsApp
 
 ### En Progreso 🚧
 - Migración completa a Clean Architecture
@@ -275,7 +294,6 @@ Interfaz intuitiva para crear órdenes.
 - Documentación de API con Swagger
 
 ### Planificado 📋
-- Reportes y estadísticas
 - Notificaciones en tiempo real (WebSockets)
 - Impresión de tickets
 - Modo offline
