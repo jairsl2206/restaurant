@@ -555,76 +555,85 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    /* Summary Card - Sticky at top */
+    /* Summary Card - Make it more accessible on mobile */
     .modal-right {
         order: -1;
         max-height: none;
-        position: sticky;
-        top: 0;
+        position: relative;
+        /* Changed from sticky */
+        margin-bottom: 20px;
         z-index: 5;
-        margin-bottom: 8px;
     }
 
     .order-summary-card {
-        padding: 12px;
+        padding: 16px;
         background: var(--bg-card);
         border: 1px solid var(--border);
-        max-height: 35vh;
+        max-height: 50vh;
+        /* Allow more height on mobile if needed */
+        display: flex;
+        flex-direction: column;
     }
 
     .order-summary-card h3 {
-        font-size: 0.95rem;
-        margin-bottom: 10px;
-        padding-bottom: 10px;
+        font-size: 1rem;
+        margin-bottom: 12px;
+        padding-bottom: 12px;
     }
 
     .helper-text {
-        font-size: 0.8rem;
-        margin-bottom: 6px;
+        font-size: 0.85rem;
+        margin-bottom: 8px;
     }
 
     .checklist-scroll {
-        max-height: 150px;
-        gap: 6px;
+        max-height: 250px;
+        /* Increased to avoid feeling too small */
+        gap: 8px;
+        overflow-y: auto;
     }
 
     .checklist-row {
-        padding: 10px;
-        border-radius: 6px;
+        padding: 12px;
+        border-radius: 8px;
     }
 
     .checklist-row label {
-        gap: 8px;
-        font-size: 0.9rem;
+        gap: 10px;
+        font-size: 1rem;
     }
 
     .checklist-row input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
-        min-width: 18px;
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
     }
 
     .remove-mini-icon {
-        font-size: 1.4rem;
-        min-width: 32px;
-        height: 32px;
+        font-size: 1.5rem;
+        min-width: 36px;
+        height: 36px;
         padding: 0;
     }
 
     .cart-total {
-        font-size: 1rem;
-        margin-bottom: 10px;
+        font-size: 1.1rem;
+        margin-top: 10px;
+        margin-bottom: 15px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
     }
 
     .cart-total .amount {
-        font-size: 1.3rem;
+        font-size: 1.5rem;
     }
 
     .btn-lg {
-        padding: 14px;
-        font-size: 1rem;
+        padding: 16px;
+        font-size: 1.1rem;
         font-weight: 700;
-        border-radius: 8px;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     }
 
     /* Left Column - Selection */
