@@ -113,56 +113,58 @@ function MenuManager() {
 
     return (
         <div className="menu-manager">
-            <div className="manager-header">
-                <h2>🍔 Gestión de Menú</h2>
-                <button className="btn btn-primary" onClick={() => openModal()}>
-                    + Agregar Artículo
-                </button>
-            </div>
-
-            {loading ? <p>Cargando...</p> : (
-                <div className="data-table-wrapper">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Imagen</th>
-                                <th>Nombre</th>
-                                <th>Categoría</th>
-                                <th>Precio</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.map(item => (
-                                <tr key={item.id}>
-                                    <td>
-                                        {item.image_url ? (
-                                            <img src={item.image_url} alt={item.name} className="item-thumbnail" />
-                                        ) : (
-                                            <span className="no-img">📷</span>
-                                        )}
-                                    </td>
-                                    <td>
-                                        <strong>{item.name}</strong>
-                                        <p className="text-muted text-sm">{item.description}</p>
-                                    </td>
-                                    <td><span className="badge">{item.category}</span></td>
-                                    <td>${item.price.toFixed(2)}</td>
-                                    <td>
-                                        <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
-                                        {item.available ? 'Disponible' : 'Agotado'}
-                                    </td>
-                                    <td>
-                                        <button className="action-btn edit-btn" onClick={() => openModal(item)}>✏️</button>
-                                        <button className="action-btn delete-btn" onClick={() => handleDelete(item.id)}>🗑️</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+            <div className="manager-content" style={{ padding: '2rem' }}>
+                <div className="manager-header">
+                    <h2>🍔 Gestión de Menú</h2>
+                    <button className="btn btn-primary" onClick={() => openModal()}>
+                        + Agregar Artículo
+                    </button>
                 </div>
-            )}
+
+                {loading ? <p>Cargando...</p> : (
+                    <div className="data-table-wrapper">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Imagen</th>
+                                    <th>Nombre</th>
+                                    <th>Categoría</th>
+                                    <th>Precio</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {items.map(item => (
+                                    <tr key={item.id}>
+                                        <td>
+                                            {item.image_url ? (
+                                                <img src={item.image_url} alt={item.name} className="item-thumbnail" />
+                                            ) : (
+                                                <span className="no-img">📷</span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <strong>{item.name}</strong>
+                                            <p className="text-muted text-sm">{item.description}</p>
+                                        </td>
+                                        <td><span className="badge">{item.category}</span></td>
+                                        <td>${item.price.toFixed(2)}</td>
+                                        <td>
+                                            <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
+                                            {item.available ? 'Disponible' : 'Agotado'}
+                                        </td>
+                                        <td>
+                                            <button className="action-btn edit-btn" onClick={() => openModal(item)}>✏️</button>
+                                            <button className="action-btn delete-btn" onClick={() => handleDelete(item.id)}>🗑️</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
 
             {showModal && (
                 <div className="modal-overlay">

@@ -57,6 +57,19 @@ router.get('/orders/all', (req, res) => {
     });
 });
 
+// Helper to send WhatsApp
+const notifyWhatsApp = (req, message) => {
+    if (!req.whatsapp) return;
+
+    db.getSettings((err, settingsMap) => {
+        if (err || !settingsMap) return;
+        const phone = settingsMap['whatsapp_number'];
+        if (phone) {
+            req.whatsapp.sendMessage(phone, message);
+        }
+    });
+};
+
 // Create new order
 router.post('/orders', (req, res) => {
     const { tableNumber, items } = req.body;
@@ -74,6 +87,15 @@ router.post('/orders', (req, res) => {
             if (err) {
                 return res.status(500).json({ error: 'Order created but failed to retrieve' });
             }
+
+            // Notify WhatsApp
+            const maxLen = 25;
+            const itemDetails = items.map(i => `- ${i.quantity}x ${i.name.length > maxLen ? i.name.substring(0, maxLen) + '...' : i.name}`).join('\n');
+            const total = items.reduce((sum, i) => sum + (i.price * i.quantity), 0).toFixed(2);
+
+            const msg = `🧾 *NUEVA ORDEN #${order.id}*\n🪑 Mesa: ${tableNumber}\n\n${itemDetails}\n\n💰 Total: $${total}\n🕒 ${new Date().toLocaleTimeString()}`;
+            notifyWhatsApp(req, msg);
+
             res.status(201).json(order);
         });
     });
@@ -106,7 +128,7 @@ router.put('/orders/:id/status', (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado'];
+    const validStatuses = ['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado', 'Cancelado'];
 
     if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
@@ -135,6 +157,16 @@ router.put('/orders/:id/status', (req, res) => {
             if (err) {
                 return res.status(500).json({ error: 'Order updated but failed to retrieve' });
             }
+
+            // --- WhatsApp Notification Logic ---
+            if (status === 'Cancelado') {
+                const msg = `❌ *Orden Cancelada*\nOrden #${order.id}\nMesa: ${order.table_number}\nTotal: $${order.total}`;
+                notifyWhatsApp(req, msg);
+            } else if (status === 'Pagado') {
+                const msg = `✅ *Pago Recibido*\nOrden #${order.id}\nMesa: ${order.table_number}\nTotal: $${order.total}\nGracias por su compra!`;
+                notifyWhatsApp(req, msg);
+            }
+
             res.json(order);
         });
     });
@@ -232,16 +264,17 @@ router.get('/settings', (req, res) => {
         // Return defaults if empty
         const defaults = {
             restaurant_name: 'Restaurant POS',
-            restaurant_logo: '🍔'
+            restaurant_logo: '🍔',
+            max_tables: 20
         };
         res.json({ ...defaults, ...settings });
     });
 });
 
-router.put('/settings', isAdmin, (req, res) => {
-    const { restaurant_name, restaurant_logo } = req.body;
+router.post('/settings', isAdmin, (req, res) => {
+    const { restaurant_name, restaurant_logo, max_tables, whatsapp_number } = req.body;
 
-    // Process updates linearly (simple)
+    // Process updates linearly
     if (restaurant_name) {
         db.updateSetting('restaurant_name', restaurant_name, (err) => {
             if (err) console.error(err);
@@ -254,10 +287,40 @@ router.put('/settings', isAdmin, (req, res) => {
         });
     }
 
+    if (max_tables !== undefined) {
+        db.updateSetting('max_tables', max_tables.toString(), (err) => {
+            if (err) console.error(err);
+        });
+    }
+
+    if (whatsapp_number !== undefined) {
+        db.updateSetting('whatsapp_number', whatsapp_number, (err) => {
+            if (err) console.error(err);
+        });
+    }
+
     // Give DB a moment (async naive implementation for SQLite)
     setTimeout(() => {
         res.json({ success: true });
     }, 100);
+});
+
+// WhatsApp Status Route
+router.get('/whatsapp/status', (req, res) => {
+    if (!req.whatsapp) return res.json({ isReady: false });
+    res.json(req.whatsapp.getStatus());
+});
+
+// Sales Report Endpoint
+router.get('/reports/sales', (req, res) => {
+    const { startDate, endDate } = req.query;
+    db.getSalesReport(startDate, endDate, (err, report) => {
+        if (err) {
+            console.error('Report error:', err);
+            return res.status(500).json({ error: 'Failed to generate report' });
+        }
+        res.json(report);
+    });
 });
 
 module.exports = router;

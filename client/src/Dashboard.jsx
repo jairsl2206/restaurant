@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import OrderCard from './OrderCard';
 import NewOrderModal from './NewOrderModal';
+import NotificationCenter from './components/NotificationCenter';
+import { playNotificationSound } from './utils/sound';
 import './Dashboard.css';
 import API_BASE_URL from './config';
 
@@ -12,8 +14,9 @@ function Dashboard({ user, onLogout, settings }) {
     const [showNewOrder, setShowNewOrder] = useState(false);
     const [editOrder, setEditOrder] = useState(null); // Order being edited
     const [filter, setFilter] = useState('active'); // 'active' or 'all'
-    const [notification, setNotification] = useState(null);
-    const [prevOrders, setPrevOrders] = useState([]);
+    const [notifications, setNotifications] = useState([]);
+
+    const prevOrdersRef = useRef([]);
 
     // Mobile State
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -25,6 +28,18 @@ function Dashboard({ user, onLogout, settings }) {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    const addNotification = (message, type, orderId = null) => {
+        const newNotif = {
+            id: Date.now(),
+            message,
+            type,
+            timestamp: new Date(),
+            orderId
+        };
+        setNotifications(prev => [newNotif, ...prev]);
+        playNotificationSound();
+    };
 
     useEffect(() => {
         fetchOrders();
@@ -40,29 +55,85 @@ function Dashboard({ user, onLogout, settings }) {
             const data = await response.json();
 
             // Notification Logic for Waiters
-            if (user.role === 'waiter' && prevOrders.length > 0) {
+            if (user.role === 'waiter' && prevOrdersRef.current.length > 0) {
                 const newReadyOrders = data.filter(o => o.status === 'Listo para Servir');
-                const oldReadyOrders = prevOrders.filter(o => o.status === 'Listo para Servir');
-
-                // If we have more ready orders than before, or a specific ID changed status
-                // Simplify: Find any order that is NOW 'Listo para Servir' but wasn't before
+                // Check against prevOrders
                 const justReady = newReadyOrders.find(newOrder => {
-                    const oldOrder = prevOrders.find(o => o.id === newOrder.id);
+                    const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
                     return !oldOrder || oldOrder.status !== 'Listo para Servir';
                 });
 
                 if (justReady) {
-                    setNotification({
-                        message: `¡Orden #${justReady.id} (Mesa ${justReady.table_number}) lista para servir! 🔔`,
-                        type: 'success'
-                    });
-                    // Auto dismiss
-                    setTimeout(() => setNotification(null), 5000);
+                    addNotification(
+                        `¡Orden #${justReady.id} (Mesa ${justReady.table_number}) lista para servir!`,
+                        'success',
+                        justReady.id
+                    );
                 }
             }
 
+            // Notification for Cooks: Sent to Kitchen (En Cocina)
+            if (user.role === 'cook') {
+                const kitchenOrders = data.filter(o => o.status === 'En Cocina');
+
+                // Find order that is NOW 'En Cocina' but wasn't before
+                const justArrived = kitchenOrders.find(newOrder => {
+                    const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
+
+                    // If not found in previous (unlikely if created first, but possible), notify
+                    if (!oldOrder) return true;
+
+                    // IF it existed before but was NOT 'En Cocina' (e.g. was 'Creado'), notify
+                    return oldOrder.status !== 'En Cocina';
+                });
+
+                if (justArrived) {
+                    addNotification(
+                        `🔔 ¡Nueva Orden en Cocina #${justArrived.id}! (Mesa ${justArrived.table_number})`,
+                        'info',
+                        justArrived.id
+                    );
+                }
+            }
+
+            // Notification for Cooks: Order Cancelled
+            if (user.role === 'cook' && prevOrdersRef.current.length > 0) {
+                const newCancelledOrders = data.filter(o => o.status === 'Cancelado');
+                const justCancelled = newCancelledOrders.find(newOrder => {
+                    const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
+                    return !oldOrder || oldOrder.status !== 'Cancelado';
+                });
+
+                if (justCancelled) {
+                    addNotification(
+                        `⚠️ ATENCIÓN: La Orden #${justCancelled.id} (Mesa ${justCancelled.table_number}) ha sido CANCELADA.`,
+                        'error',
+                        justCancelled.id
+                    );
+                }
+            }
+
+            // Cleanup obsolete notifications
+            setNotifications(prev => prev.filter(n => {
+                if (!n.orderId) return true;
+                const currentOrder = data.find(o => o.id === n.orderId);
+                if (!currentOrder) return true; // Keep if order not found (safety)
+
+                if (user.role === 'cook') {
+                    // For cooks, 'info' is "New Order in Kitchen". Remove if not 'En Cocina'.
+                    if (n.type === 'info' && currentOrder.status !== 'En Cocina') return false;
+                }
+
+                if (user.role === 'waiter') {
+                    // For waiters, 'success' is "Order Ready". Remove if not 'Listo para Servir'.
+                    if (n.type === 'success' && currentOrder.status !== 'Listo para Servir') return false;
+                }
+
+                return true;
+            }));
+
             setOrders(data);
-            setPrevOrders(data);
+            prevOrdersRef.current = data;
         } catch (err) {
             console.error('Error fetching orders:', err);
         } finally {
@@ -134,20 +205,22 @@ function Dashboard({ user, onLogout, settings }) {
 
     // Role-based filtering
     const isCook = user.role === 'cook';
+    const isWaiter = user.role === 'waiter';
 
-    // Notification Logic
-    useEffect(() => {
-        if (!isCook && orders.length > 0) {
-            // Check for orders that just became 'Listo para Servir'
-            const readyOrders = orders.filter(o => o.status === 'Listo para Servir');
-            // This is a simple implementation. In a real real-time app we'd compare with previous state.
-            // For now, let's just highlight them in the UI.
+    // Old useEffect for notification logic removed, moved to fetchOrders
+
+    const handleCancelOrder = async (orderId) => {
+        if (!window.confirm('¿Estás seguro de que deseas CANCELAR esta orden? Esta acción no se puede deshacer.')) {
+            return;
         }
-    }, [orders, isCook]);
+        await handleStatusChange(orderId, 'Cancelado');
+    };
 
     const getColumns = () => {
         if (isCook) {
-            // Cook views FIFO queue - only orders in "En Cocina" status
+            // Cook views FIFO queue - only orders in "En Cocina" status, plus recently cancelled for visibility
+            // We want to show "Cancelado" orders to the cook so they know to stop, but maybe they want to clear them?
+            // For now, listing them is good.
             const cooking = orders.filter(o => o.status === 'En Cocina');
             // Sort by updated_at (oldest first - FIFO)
             cooking.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
@@ -209,6 +282,11 @@ function Dashboard({ user, onLogout, settings }) {
                         </div>
                     </div>
                     <div className="header-actions">
+                        <NotificationCenter
+                            notifications={notifications}
+                            onDismiss={(id) => setNotifications(notifications.filter(n => n.id !== id))}
+                            onDismissAll={() => setNotifications([])}
+                        />
                         <div className="segmented-control">
                             <button
                                 className={`segment-btn ${filter === 'active' ? 'active' : ''}`}
@@ -358,16 +436,7 @@ function Dashboard({ user, onLogout, settings }) {
                 )}
             </main>
 
-            {/* Toast Notification */}
-            {
-                notification && (
-                    <div className={`toast-notification slide-in ${notification.type}`}>
-                        <div className="toast-icon">🛎️</div>
-                        <div className="toast-message">{notification.message}</div>
-                        <button className="toast-close" onClick={() => setNotification(null)}>×</button>
-                    </div>
-                )
-            }
+
 
             {
                 showNewOrder && (
@@ -378,6 +447,7 @@ function Dashboard({ user, onLogout, settings }) {
                         }}
                         onSubmit={editOrder ? handleUpdateOrder : handleNewOrder}
                         initialOrder={editOrder}
+                        onCancel={handleCancelOrder}
                     />
                 )
             }
