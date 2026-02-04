@@ -93,49 +93,51 @@ function UserManager() {
 
     return (
         <div className="user-manager">
-            <div className="manager-header">
-                <h2>👥 Gestión de Usuarios</h2>
-                <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                    + Agregar Usuario
-                </button>
-            </div>
-
-            {loading ? <p>Cargando...</p> : (
-                <div className="data-table-wrapper">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Usuario</th>
-                                <th>Rol</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {users.map(user => (
-                                <tr key={user.id}>
-                                    <td>#{user.id}</td>
-                                    <td><strong>{user.username}</strong></td>
-                                    <td>
-                                        <select
-                                            value={user.role}
-                                            onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                                            className="role-select"
-                                        >
-                                            <option value="waiter">Mesero</option>
-                                            <option value="cook">Cocinero</option>
-                                            <option value="admin">Admin</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <button className="action-btn delete-btn" onClick={() => handleDelete(user.id)}>🗑️</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+            <div className="manager-content" style={{ padding: '2rem' }}>
+                <div className="manager-header">
+                    <h2>👥 Gestión de Usuarios</h2>
+                    <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                        + Agregar Usuario
+                    </button>
                 </div>
-            )}
+
+                {loading ? <p>Cargando...</p> : (
+                    <div className="data-table-wrapper">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Usuario</th>
+                                    <th>Rol</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {users.map(user => (
+                                    <tr key={user.id}>
+                                        <td>#{user.id}</td>
+                                        <td><strong>{user.username}</strong></td>
+                                        <td>
+                                            <select
+                                                value={user.role}
+                                                onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                                                className="role-select"
+                                            >
+                                                <option value="waiter">Mesero</option>
+                                                <option value="cook">Cocinero</option>
+                                                <option value="admin">Admin</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <button className="action-btn delete-btn" onClick={() => handleDelete(user.id)}>🗑️</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
 
             {showModal && (
                 <div className="modal-overlay">

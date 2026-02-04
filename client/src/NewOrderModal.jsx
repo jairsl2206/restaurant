@@ -4,14 +4,30 @@ import API_BASE_URL from './config';
 
 // Menu items will be fetched from API
 const API_MENU_URL = API_BASE_URL + '/menu';
+const API_SETTINGS_URL = API_BASE_URL + '/settings';
 
-function NewOrderModal({ onClose, onSubmit, initialOrder = null }) {
+function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
     const [tableNumber, setTableNumber] = useState('');
     const [selectedItems, setSelectedItems] = useState([]);
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [confirmationChecks, setConfirmationChecks] = useState({});
     const [expandedCategory, setExpandedCategory] = useState(null);
+    const [maxTables, setMaxTables] = useState(20); // Default value
+
+    // Fetch settings to get max_tables
+    useEffect(() => {
+        fetch(API_SETTINGS_URL)
+            .then(res => res.json())
+            .then(data => {
+                if (data.max_tables) {
+                    setMaxTables(parseInt(data.max_tables));
+                }
+            })
+            .catch(err => {
+                console.error('Error fetching settings:', err);
+            });
+    }, []);
 
     // Reset checks when items change
     useEffect(() => {
@@ -128,6 +144,9 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null }) {
         }
     };
 
+    // Generate table numbers array based on maxTables
+    const tableNumbers = Array.from({ length: maxTables }, (_, i) => i + 1);
+
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content glass-card" onClick={(e) => e.stopPropagation()}>
@@ -144,7 +163,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null }) {
                                 <h3>1. Selecciona Mesa</h3>
                             </div>
                             <div className="table-grid">
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
+                                {tableNumbers.map(num => (
                                     <button
                                         key={num}
                                         type="button"
@@ -290,6 +309,23 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null }) {
                                         <span>Total</span>
                                         <span className="amount">${total.toFixed(2)}</span>
                                     </div>
+
+                                    {initialOrder && onCancel && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-danger btn-block mb-2"
+                                            style={{ backgroundColor: '#e74c3c', color: 'white' }}
+                                            onClick={() => {
+                                                if (window.confirm('¿Seguro que deseas cancelar esta orden?')) {
+                                                    onCancel(initialOrder.id);
+                                                    onClose();
+                                                }
+                                            }}
+                                        >
+                                            Cancelar Orden
+                                        </button>
+                                    )}
+
                                     <button
                                         type="submit"
                                         className="btn btn-primary btn-block btn-lg"

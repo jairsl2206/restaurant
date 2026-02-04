@@ -323,6 +323,73 @@ class Database {
         });
     }
 
+    getSalesReport(startDate, endDate, callback) {
+        // Formatos de fecha para SQLite
+        const start = startDate ? startDate + ' 00:00:00' : '1970-01-01';
+        const end = endDate ? endDate + ' 23:59:59' : new Date().toISOString();
+
+        const report = {
+            summary: {},
+            dailySales: [],
+            topItems: []
+        };
+
+        // 1. Resumen (Total, Cantidad, Promedio) - Solo órdenes 'Pagado'
+        const sqlSummary = `
+            SELECT 
+                COUNT(*) as total_orders, 
+                SUM(total) as total_revenue, 
+                AVG(total) as average_ticket 
+            FROM orders 
+            WHERE status = 'Pagado' 
+            AND created_at BETWEEN ? AND ?
+        `;
+
+        this.db.get(sqlSummary, [start, end], (err, summaryRow) => {
+            if (err) return callback(err);
+            report.summary = summaryRow || { total_orders: 0, total_revenue: 0, average_ticket: 0 };
+
+            // 2. Ventas Diarias
+            const sqlDaily = `
+                SELECT 
+                    strftime('%Y-%m-%d', created_at) as date, 
+                    COUNT(*) as orders_count, 
+                    SUM(total) as daily_revenue 
+                FROM orders 
+                WHERE status = 'Pagado' 
+                AND created_at BETWEEN ? AND ? 
+                GROUP BY date 
+                ORDER BY date ASC
+            `;
+
+            this.db.all(sqlDaily, [start, end], (err, dailyRows) => {
+                if (err) return callback(err);
+                report.dailySales = dailyRows;
+
+                // 3. Productos más vendidos
+                const sqlItems = `
+                    SELECT 
+                        oi.item_name, 
+                        SUM(oi.quantity) as quantity_sold, 
+                        SUM(oi.price * oi.quantity) as item_revenue 
+                    FROM order_items oi
+                    JOIN orders o ON oi.order_id = o.id
+                    WHERE o.status = 'Pagado' 
+                    AND o.created_at BETWEEN ? AND ?
+                    GROUP BY oi.item_name
+                    ORDER BY quantity_sold DESC
+                    LIMIT 20
+                `;
+
+                this.db.all(sqlItems, [start, end], (err, itemRows) => {
+                    if (err) return callback(err);
+                    report.topItems = itemRows;
+                    callback(null, report);
+                });
+            });
+        });
+    }
+
     close() {
         this.db.close();
     }

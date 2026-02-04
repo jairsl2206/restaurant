@@ -2,6 +2,8 @@ import { useState } from 'react';
 import MenuManager from './MenuManager';
 import UserManager from './UserManager';
 import SettingsManager from './SettingsManager';
+import CategoryManager from './CategoryManager';
+import SalesReport from './SalesReport';
 import './AdminDashboard.css';
 
 function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
@@ -50,6 +52,13 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                     <span className="tab-text">Menú</span>
                 </button>
                 <button
+                    className={`tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('categories')}
+                >
+                    <span className="tab-icon">🏷️</span>
+                    <span className="tab-text">Categorías</span>
+                </button>
+                <button
                     className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
                     onClick={() => setActiveTab('users')}
                 >
@@ -63,11 +72,19 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                     <span className="tab-icon">⚙️</span>
                     <span className="tab-text">Configuración</span>
                 </button>
+                <button
+                    className={`tab-btn ${activeTab === 'reports' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('reports')}
+                >
+                    <span className="tab-icon">📈</span>
+                    <span className="tab-text">Reportes</span>
+                </button>
             </nav>
 
             <main className="admin-content">
                 <div className="content-wrapper">
                     {activeTab === 'menu' && <MenuManager />}
+                    {activeTab === 'categories' && <CategoryManager />}
                     {activeTab === 'users' && <UserManager />}
                     {activeTab === 'settings' && (
                         <SettingsManager
@@ -75,6 +92,7 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                             onSettingsUpdate={onSettingsUpdate}
                         />
                     )}
+                    {activeTab === 'reports' && <SalesReport />}
                 </div>
             </main>
         </div>

@@ -5,7 +5,8 @@ const statusFlow = {
     'En Cocina': 'Listo para Servir',
     'Listo para Servir': 'Servido',
     'Servido': 'Pagado',
-    'Pagado': null
+    'Pagado': null,
+    'Cancelado': null
 };
 
 const statusColors = {
@@ -13,7 +14,8 @@ const statusColors = {
     'En Cocina': 'status-cocina',
     'Listo para Servir': 'status-listo',
     'Servido': 'status-servido',
-    'Pagado': 'status-pagado'
+    'Pagado': 'status-pagado',
+    'Cancelado': 'status-cancelled'
 };
 
 import { useState, useEffect } from 'react';
@@ -87,14 +89,15 @@ const parseItemsGrouped = (itemsString) => {
     }));
 };
 
-function OrderCard({ order, onStatusChange, user, onEdit }) {
+function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
     const nextStatus = statusFlow[order.status];
     const canAdvance = nextStatus !== null;
+    const isCancelled = order.status === 'Cancelado';
 
     // Role-based restrictions
     const isEnCocina = order.status === 'En Cocina';
     const isAllowedRole = user?.role === 'cook' || user?.role === 'admin';
-    const isLocked = isEnCocina && !isAllowedRole;
+    const isLocked = (isEnCocina && !isAllowedRole) || isCancelled;
 
     const isUpdated = order.is_updated === 1;
 
@@ -118,10 +121,10 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
     const isCreationStage = order.status === 'Creado';
 
     // Determine if we should show the simple list (no checkboxes)
-    const showSimpleList = isCreationStage || order.status === 'Pagado' || (order.status === 'En Cocina' && !isAllowedRole);
+    const showSimpleList = isCreationStage || order.status === 'Pagado' || isCancelled || (order.status === 'En Cocina' && !isAllowedRole);
 
     // DIFF LOGIC
-    const showDiff = isUpdated && isAllowedRole && order.original_items_snapshot;
+    const showDiff = isUpdated && isAllowedRole && order.original_items_snapshot && !isCancelled;
 
     let displayItems = []; // Kept + Removed (for display top section)
     let addedItems = [];
@@ -178,7 +181,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
 
     const allChecked = itemsList.length > 0 && itemsList.every(item => item.checked);
     const canSubmit = isPaymentStage ? paymentConfirmed : (isCreationStage ? true : allChecked);
-    const validationRequired = canAdvance;
+    const validationRequired = canAdvance && !isCancelled;
 
     const handleAdvance = () => {
         if (!canAdvance) return;
@@ -272,14 +275,14 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
     };
 
     return (
-        <div className={`order-card glass-card slide-in ${isUpdated && isAllowedRole ? 'order-updated' : ''}`}>
+        <div className={`order-card glass-card slide-in ${isUpdated && isAllowedRole ? 'order-updated' : ''} ${isCancelled ? 'card-cancelled' : ''}`}>
             <div className="order-header">
                 <div className="order-info">
-                    <h3 className="order-number">#{order.id}</h3>
+                    <h3 className="order-number" style={isCancelled ? { textDecoration: 'line-through', opacity: 0.7 } : {}}>#{order.id}</h3>
                     <p className="order-table">Mesa {order.table_number}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {isUpdated && isAllowedRole && (
+                    {isUpdated && isAllowedRole && !isCancelled && (
                         <div className="status-badge status-updated">
                             ACTUALIZADA
                         </div>
@@ -291,21 +294,27 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
             </div>
 
             <div className="status-progress">
-                {['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado'].map((step, index) => {
-                    const allSteps = ['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado'];
-                    const currentStepIndex = allSteps.indexOf(order.status);
-                    const stepIndex = allSteps.indexOf(step);
-                    const isActive = stepIndex <= currentStepIndex;
-                    return (
-                        <div key={step} className={`progress-step ${isActive ? 'active' : ''}`}>
-                            <div className="step-dot" title={step}></div>
-                            {index < 4 && <div className="step-line"></div>}
-                        </div>
-                    );
-                })}
+                {isCancelled ? (
+                    <div className="progress-step active" style={{ width: '100%' }}>
+                        <div className="step-dot" style={{ background: '#e74c3c' }} title="Cancelado"></div>
+                    </div>
+                ) : (
+                    ['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado'].map((step, index) => {
+                        const allSteps = ['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado'];
+                        const currentStepIndex = allSteps.indexOf(order.status);
+                        const stepIndex = allSteps.indexOf(step);
+                        const isActive = stepIndex <= currentStepIndex;
+                        return (
+                            <div key={step} className={`progress-step ${isActive ? 'active' : ''}`}>
+                                <div className="step-dot" title={step}></div>
+                                {index < 4 && <div className="step-line"></div>}
+                            </div>
+                        );
+                    })
+                )}
             </div>
 
-            <div className="order-body">
+            <div className="order-body" style={isCancelled ? { opacity: 0.6, pointerEvents: 'none' } : {}}>
                 <div className="order-items">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h4>{isPaymentStage ? 'Pago' : 'Artículos'}</h4>
@@ -316,18 +325,37 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                             </span>
                         )}
 
-                        {onEdit && (order.status === 'En Cocina' || order.status === 'Creado') && !isAllowedRole && (
-                            <button
-                                onClick={() => onEdit(order)}
-                                style={{
-                                    background: 'none', border: '1px solid var(--primary)',
-                                    color: 'var(--primary)', borderRadius: '4px',
-                                    padding: '2px 8px', fontSize: '0.8rem', cursor: 'pointer',
-                                    marginLeft: 'auto'
-                                }}
-                            >
-                                ✏️ Editar
-                            </button>
+                        {!isCancelled && (
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                                {/* Waiter Actions */}
+                                {onCancel && (order.status === 'Creado' || order.status === 'En Cocina') && !isAllowedRole && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onCancel(order.id); }}
+                                        style={{
+                                            background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c',
+                                            color: '#e74c3c', borderRadius: '4px',
+                                            padding: '2px 8px', fontSize: '0.8rem', cursor: 'pointer'
+                                        }}
+                                        title="Cancelar Orden"
+                                    >
+                                        ✕ Cancelar
+                                    </button>
+                                )}
+
+                                {/* Edit Button */}
+                                {onEdit && (order.status === 'En Cocina' || order.status === 'Creado') && !isAllowedRole && (
+                                    <button
+                                        onClick={() => onEdit(order)}
+                                        style={{
+                                            background: 'none', border: '1px solid var(--primary)',
+                                            color: 'var(--primary)', borderRadius: '4px',
+                                            padding: '2px 8px', fontSize: '0.8rem', cursor: 'pointer'
+                                        }}
+                                    >
+                                        ✏️ Editar
+                                    </button>
+                                )}
+                            </div>
                         )}
                     </div>
 
@@ -386,7 +414,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                 </div>
             </div>
 
-            {canAdvance && (
+            {canAdvance && !isCancelled && (
                 <div className="order-footer">
                     {isLocked ? (
                         null

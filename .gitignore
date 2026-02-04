@@ -40,3 +40,9 @@ yarn-error.log*
 # Project specific
 server/uploads/*
 !server/uploads/.gitkeep
+
+# WhatsApp Session
+.wwebjs_auth
+.wwebjs_cache
+.wwebjs_auth/
+.wwebjs_cache/
