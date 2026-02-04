@@ -197,17 +197,40 @@ function MenuManager() {
                                     </div>
                                     <div className="form-group">
                                         <label>Categoría</label>
-                                        <select
-                                            value={formData.category}
-                                            onChange={e => setFormData({ ...formData, category: e.target.value })}
-                                        >
-                                            <option>Plato Principal</option>
-                                            <option>Entrada</option>
-                                            <option>Bebida</option>
-                                            <option>Postre</option>
-                                        </select>
+                                        <div className="category-selector">
+                                            <select
+                                                value={formData.category === 'new_custom_category' ? 'new_custom_category' : (items.some(i => i.category === formData.category) || ['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category) ? formData.category : 'new_custom_category')}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    if (val === 'new_custom_category') {
+                                                        setFormData({ ...formData, category: '' });
+                                                    } else {
+                                                        setFormData({ ...formData, category: val });
+                                                    }
+                                                }}
+                                            >
+                                                {/* Unique existing categories */}
+                                                {[...new Set([...items.map(i => i.category), 'Plato Principal', 'Entrada', 'Bebida', 'Postre'])].filter(Boolean).sort().map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                                <option value="new_custom_category">+ Nueva Categoría</option>
+                                            </select>
+
+                                            {(!items.some(i => i.category === formData.category) &&
+                                                !['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category)) && (
+                                                    <input
+                                                        type="text"
+                                                        className="mt-2"
+                                                        placeholder="Escribe nueva categoría..."
+                                                        value={formData.category}
+                                                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                                        autoFocus
+                                                    />
+                                                )}
+                                        </div>
                                     </div>
                                 </div>
+
 
                                 <div className="form-group">
                                     <label>Descripción</label>
@@ -263,9 +286,10 @@ function MenuManager() {
                             </div>
                         </form>
                     </div>
-                </div>
-            )}
-        </div>
+                </div >
+            )
+            }
+        </div >
     );
 }
 

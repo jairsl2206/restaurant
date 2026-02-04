@@ -21,9 +21,7 @@
 .header-left h1 {
     font-size: 1.5rem;
     font-weight: 800;
-    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--text-primary);
     margin-bottom: 0.2rem;
 }
 
@@ -259,7 +257,7 @@
 
 .status-priority {
     border-left: 5px solid var(--primary);
-    background: linear-gradient(90deg, hsla(210, 100%, 50%, 0.1) 0%, var(--bg-card) 100%);
+    background: hsla(0, 0%, 15%, 0.5);
 }
 
 .status-name {
