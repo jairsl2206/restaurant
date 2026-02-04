@@ -118,6 +118,13 @@ router.put('/orders/:id', (req, res) => {
         // Return updated order
         db.getOrderById(id, (err, order) => {
             if (err) return res.status(500).json({ error: 'Updated but failed to retrieve' });
+
+            // Notify WhatsApp of Update
+            const maxLen = 25;
+            const itemDetails = items.map(i => `- ${i.quantity}x ${i.name.length > maxLen ? i.name.substring(0, maxLen) + '...' : i.name}`).join('\n');
+            const msg = `📝 *ORDEN ACTUALIZADA #${id}*\n🪑 Mesa: ${order.table_number}\n\n${itemDetails}\n\n💰 Nuevo Total: $${total.toFixed(2)}\n🕒 ${new Date().toLocaleTimeString()}`;
+            notifyWhatsApp(req, msg);
+
             res.json(order);
         });
     });
@@ -141,6 +148,10 @@ router.put('/orders/:id/status', (req, res) => {
             // Also explicitly clear flag AND snapshot
             db.db.run('UPDATE orders SET is_updated = 0, original_items_snapshot = NULL WHERE id = ?', [id], () => {
                 db.getOrderById(id, (err, order) => {
+                    if (!err && order) {
+                        const msg = `🔔 *ORDEN LISTA # ${order.id}*\n🪑 Mesa: ${order.table_number}\n\nFavor de recoger en cocina.`;
+                        notifyWhatsApp(req, msg);
+                    }
                     res.json(order);
                 });
             });
@@ -309,6 +320,21 @@ router.post('/settings', isAdmin, (req, res) => {
 router.get('/whatsapp/status', (req, res) => {
     if (!req.whatsapp) return res.json({ isReady: false });
     res.json(req.whatsapp.getStatus());
+});
+
+// WhatsApp Groups Route
+router.get('/whatsapp/groups', async (req, res) => {
+    console.log('GET /whatsapp/groups endpoint hit');
+    if (!req.whatsapp) return res.json([]);
+    const groups = await req.whatsapp.getGroups();
+    res.json(groups);
+});
+
+// WhatsApp Reset Route
+router.post('/whatsapp/reset', isAdmin, async (req, res) => {
+    if (!req.whatsapp) return res.status(500).json({ error: 'WhatsApp service not available' });
+    await req.whatsapp.resetSession();
+    res.json({ success: true, message: 'WhatsApp session reset initiated' });
 });
 
 // Sales Report Endpoint

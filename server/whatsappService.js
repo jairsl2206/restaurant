@@ -9,7 +9,8 @@ const initializeClient = () => {
     client = new Client({
         authStrategy: new LocalAuth(),
         puppeteer: {
-            args: ['--no-sandbox']
+            args: ['--no-sandbox'],
+            protocolTimeout: 60000 // Increase to 60 seconds
         }
     });
 
@@ -24,6 +25,10 @@ const initializeClient = () => {
             qrCodeData = url;
             isReady = false;
         });
+    });
+
+    client.on('loading_screen', (percent, message) => {
+        console.log('WhatsApp Loading:', percent, message);
     });
 
     client.on('ready', () => {
@@ -56,6 +61,41 @@ const getStatus = () => {
     };
 };
 
+let cachedGroups = [];
+let lastFetchTime = 0;
+const CACHE_DURATION = 30000; // 30 seconds
+
+const getGroups = async () => {
+    if (!isReady) {
+        console.log('getGroups called but client is not ready');
+        return [];
+    }
+
+    // Return cache if it's still valid
+    if (cachedGroups.length > 0 && (Date.now() - lastFetchTime < CACHE_DURATION)) {
+        console.log('Returning cached groups');
+        return cachedGroups;
+    }
+    try {
+        console.log('Fetching chats to find groups...');
+        const chats = await client.getChats();
+        console.log(`Found ${chats.length} total chats`);
+        const groups = chats
+            .filter(chat => chat.isGroup)
+            .map(chat => ({
+                id: chat.id._serialized,
+                name: chat.name || chat.id.user || 'Grupo sin nombre'
+            }));
+        cachedGroups = groups;
+        lastFetchTime = Date.now();
+        console.log(`Found ${groups.length} groups`);
+        return groups;
+    } catch (err) {
+        console.error('Error fetching groups:', err);
+        return cachedGroups; // Return last known good state on error
+    }
+};
+
 const sendMessage = async (number, message) => {
     if (!isReady) {
         console.log('WhatsApp not ready, cannot send message');
@@ -63,22 +103,20 @@ const sendMessage = async (number, message) => {
     }
 
     try {
-        // Format number: remove symbols, ensure country code. 
-        // Assuming user puts local number, we might need a default country code setting, 
-        // but for now let's assume they put the full number or simple cleaning.
-        // WhatsApp Web JS expects '1234567890@c.us'
+        let formattedNumber = number;
 
-        let formattedNumber = number.replace(/\D/g, '');
-
-        // Basic check, if no country code (length 10 for Mexico etc), might need to add it.
-        // For safe implementation, ask user to provide full number with country code.
-
-        if (!formattedNumber.includes('@c.us')) {
-            formattedNumber = `${formattedNumber}@c.us`;
+        // If it's not a group ID AND not a private chat ID, assume it's a raw number
+        if (!formattedNumber.includes('@g.us') && !formattedNumber.includes('@c.us')) {
+            // Clean non-digits
+            formattedNumber = formattedNumber.replace(/\D/g, '');
+            // Append @c.us if it's a number
+            if (formattedNumber.length >= 8) {
+                formattedNumber = `${formattedNumber}@c.us`;
+            }
         }
 
         await client.sendMessage(formattedNumber, message);
-        console.log(`WhatsApp message sent to ${number}`);
+        console.log(`WhatsApp message sent to ${formattedNumber}`);
         return true;
     } catch (err) {
         console.error('Error sending WhatsApp message:', err);
@@ -86,8 +124,30 @@ const sendMessage = async (number, message) => {
     }
 };
 
+const resetSession = async () => {
+    console.log('Resetting WhatsApp session...');
+    try {
+        if (client) {
+            await client.logout();
+            await client.destroy();
+        }
+    } catch (err) {
+        console.error('Error during logout/destroy:', err);
+    }
+
+    isReady = false;
+    qrCodeData = null;
+
+    // The session folder .wwebjs_auth should be manually cleared if we want a fresh start
+    // but Logout usually handles it. For now, let's just re-init.
+    initializeClient();
+    return true;
+};
+
 module.exports = {
     initializeClient,
     getStatus,
-    sendMessage
+    getGroups,
+    sendMessage,
+    resetSession
 };
