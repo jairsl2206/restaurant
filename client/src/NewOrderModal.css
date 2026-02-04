@@ -254,13 +254,10 @@
     flex-shrink: 0;
 }
 
-.empty-cart {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-    font-style: italic;
+.menu-container-scroll {
+    overflow-y: auto;
+    max-height: 50vh;
+    padding-right: 5px;
 }
 
 .cart-items {
@@ -550,364 +547,376 @@
 
     .modal-body-grid {
         padding: 12px;
-        gap: 16px;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
+
+        /* Improved Mobile Layout Flow: Table -> Menu -> Summary */
+        .modal-body-grid {
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 16px;
+            gap: 24px;
+            flex: 1;
+            padding-bottom: 100px;
+            /* Extra space to ensure buttons are reachable */
+        }
+
+        .modal-left,
+        .modal-right {
+            width: 100%;
+            overflow: visible;
+            /* Disable internal scrolling to avoid nested scroll issues */
+            max-height: none;
+        }
+
+        .modal-right {
+            order: 2;
+            /* Move to the very bottom */
+            margin-top: 10px;
+        }
+
+        .modal-left {
+            order: 1;
+        }
+
+        .menu-container-scroll {
+            max-height: none;
+            /* Let it expand */
+            overflow: visible;
+        }
+
+        .order-summary-card {
+            padding: 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            max-height: none;
+            /* Full height on mobile */
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .order-summary-card h3 {
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .checklist-scroll {
+            max-height: none;
+            /* Disable internal scroll */
+            overflow: visible;
+            margin-bottom: 15px;
+        }
+
+        .checklist-row {
+            padding: 12px;
+            margin-bottom: 4px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .remove-mini-icon {
+            font-size: 1.5rem;
+            min-width: 36px;
+            height: 36px;
+            padding: 0;
+        }
+
+        .cart-total {
+            font-size: 1.1rem;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .cart-total .amount {
+            font-size: 1.5rem;
+        }
+
+        .btn-lg {
+            padding: 16px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Left Column - Selection */
+        .modal-left {
+            padding-right: 0;
+            overflow-y: visible;
+        }
+
+        .section-header {
+            margin-bottom: 10px;
+        }
+
+        .section-header h3 {
+            font-size: 0.85rem;
+        }
+
+        .mt-3 {
+            margin-top: 20px;
+        }
+
+        /* Tables - 4 columns, bigger touch targets */
+        .table-grid {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .table-btn {
+            min-height: 60px;
+            font-size: 0.85rem;
+            padding: 8px 4px;
+            border-width: 2px;
+        }
+
+        .table-btn.selected {
+            transform: scale(1);
+            box-shadow: 0 0 12px var(--primary-glow);
+        }
+
+        /* Menu - 2 columns for better visibility */
+        .menu-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding-bottom: 20px;
+        }
+
+        .menu-item {
+            min-height: 110px;
+            padding: 12px;
+            border-width: 1.5px;
+        }
+
+        .menu-item:active {
+            transform: scale(0.98);
+            background: var(--bg-card-hover);
+        }
+
+        .menu-item .item-icon {
+            font-size: 1.8rem;
+            margin-bottom: 6px;
+        }
+
+        .menu-thumb-mini {
+            width: 45px;
+            height: 45px;
+        }
+
+        .menu-item .item-name {
+            font-size: 0.9rem;
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+
+        .menu-item .item-price {
+            font-size: 0.85rem;
+            font-weight: 800;
+        }
+
+        .add-icon {
+            width: 28px;
+            height: 28px;
+            font-size: 1.4rem;
+            bottom: 10px;
+            right: 10px;
+        }
     }
 
-    /* Summary Card - Make it more accessible on mobile */
-    .modal-right {
-        order: -1;
-        max-height: none;
-        position: relative;
-        /* Changed from sticky */
-        margin-bottom: 20px;
-        z-index: 5;
+    /* Extra small mobile - Optimize even more */
+    @media (max-width: 380px) {
+        .modal-header {
+            padding: 12px;
+        }
+
+        .modal-header h2 {
+            font-size: 1rem;
+        }
+
+        .modal-body-grid {
+            padding: 10px;
+            gap: 12px;
+        }
+
+        .order-summary-card {
+            padding: 10px;
+        }
+
+        .table-grid {
+            gap: 6px;
+        }
+
+        .table-btn {
+            min-height: 55px;
+            font-size: 0.75rem;
+            padding: 6px 2px;
+        }
+
+        .menu-grid {
+            gap: 8px;
+        }
+
+        .menu-item {
+            min-height: 100px;
+            padding: 10px;
+        }
+
+        .menu-item .item-name {
+            font-size: 0.85rem;
+        }
+
+        .menu-item .item-price {
+            font-size: 0.8rem;
+        }
+
+        .menu-thumb-mini {
+            width: 40px;
+            height: 40px;
+        }
+
+        .checklist-row {
+            padding: 8px;
+        }
+
+        .checklist-row label {
+            font-size: 0.85rem;
+        }
+
+        .btn-lg {
+            padding: 12px;
+            font-size: 0.95rem;
+        }
     }
 
-    .order-summary-card {
-        padding: 16px;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        max-height: 50vh;
-        /* Allow more height on mobile if needed */
+    /* Slide up animation for mobile */
+    @keyframes slideUp {
+        from {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    /* Category headers */
+    .menu-category-section {
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .category-title {
+        color: var(--primary-light);
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: var(--spacing-md);
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 8px;
+        margin-top: 5px;
+        text-transform: capitalize;
+    }
+
+    .menu-accordion {
         display: flex;
         flex-direction: column;
+        gap: var(--spacing-sm);
     }
 
-    .order-summary-card h3 {
-        font-size: 1rem;
-        margin-bottom: 12px;
-        padding-bottom: 12px;
+    .accordion-item {
+        overflow: hidden;
+        transition: all 0.3s ease;
+        border: 1px solid var(--border);
+        margin-bottom: 0px !important;
+        /* Override standard glass-card margin if any */
     }
 
-    .helper-text {
-        font-size: 0.85rem;
-        margin-bottom: 8px;
+    .accordion-item.active {
+        border-color: var(--primary);
+        box-shadow: 0 0 15px rgba(52, 152, 219, 0.1);
     }
 
-    .checklist-scroll {
-        max-height: 250px;
-        /* Increased to avoid feeling too small */
-        gap: 8px;
-        overflow-y: auto;
+    .accordion-header {
+        padding: var(--spacing-md);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        background: rgba(255, 255, 255, 0.03);
+        transition: background 0.2s;
     }
 
-    .checklist-row {
-        padding: 12px;
-        border-radius: 8px;
+    .accordion-header:hover {
+        background: rgba(255, 255, 255, 0.08);
     }
 
-    .checklist-row label {
-        gap: 10px;
-        font-size: 1rem;
-    }
-
-    .checklist-row input[type="checkbox"] {
-        width: 22px;
-        height: 22px;
-        min-width: 22px;
-    }
-
-    .remove-mini-icon {
-        font-size: 1.5rem;
-        min-width: 36px;
-        height: 36px;
-        padding: 0;
-    }
-
-    .cart-total {
-        font-size: 1.1rem;
-        margin-top: 10px;
-        margin-bottom: 15px;
-        padding-top: 10px;
-        border-top: 1px solid var(--border);
-    }
-
-    .cart-total .amount {
-        font-size: 1.5rem;
-    }
-
-    .btn-lg {
-        padding: 16px;
-        font-size: 1.1rem;
-        font-weight: 700;
-        border-radius: 10px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Left Column - Selection */
-    .modal-left {
-        padding-right: 0;
-        overflow-y: visible;
-    }
-
-    .section-header {
-        margin-bottom: 10px;
-    }
-
-    .section-header h3 {
-        font-size: 0.85rem;
-    }
-
-    .mt-3 {
-        margin-top: 20px;
-    }
-
-    /* Tables - 4 columns, bigger touch targets */
-    .table-grid {
-        grid-template-columns: repeat(4, 1fr);
-        gap: 8px;
-        margin-bottom: 20px;
-    }
-
-    .table-btn {
-        min-height: 60px;
-        font-size: 0.85rem;
-        padding: 8px 4px;
-        border-width: 2px;
-    }
-
-    .table-btn.selected {
-        transform: scale(1);
-        box-shadow: 0 0 12px var(--primary-glow);
-    }
-
-    /* Menu - 2 columns for better visibility */
-    .menu-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        padding-bottom: 20px;
-    }
-
-    .menu-item {
-        min-height: 110px;
-        padding: 12px;
-        border-width: 1.5px;
-    }
-
-    .menu-item:active {
-        transform: scale(0.98);
-        background: var(--bg-card-hover);
-    }
-
-    .menu-item .item-icon {
-        font-size: 1.8rem;
-        margin-bottom: 6px;
-    }
-
-    .menu-thumb-mini {
-        width: 45px;
-        height: 45px;
-    }
-
-    .menu-item .item-name {
-        font-size: 0.9rem;
-        line-height: 1.2;
-        margin-bottom: 4px;
-    }
-
-    .menu-item .item-price {
-        font-size: 0.85rem;
-        font-weight: 800;
-    }
-
-    .add-icon {
-        width: 28px;
-        height: 28px;
-        font-size: 1.4rem;
-        bottom: 10px;
-        right: 10px;
-    }
-}
-
-/* Extra small mobile - Optimize even more */
-@media (max-width: 380px) {
-    .modal-header {
-        padding: 12px;
-    }
-
-    .modal-header h2 {
-        font-size: 1rem;
-    }
-
-    .modal-body-grid {
-        padding: 10px;
+    .header-info {
+        display: flex;
+        align-items: center;
         gap: 12px;
     }
 
-    .order-summary-card {
-        padding: 10px;
+    .category-icon {
+        font-size: 1.5rem;
     }
 
-    .table-grid {
-        gap: 6px;
+    .category-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: var(--text-primary);
     }
 
-    .table-btn {
-        min-height: 55px;
-        font-size: 0.75rem;
-        padding: 6px 2px;
+    .header-meta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text-secondary);
     }
 
-    .menu-grid {
-        gap: 8px;
-    }
-
-    .menu-item {
-        min-height: 100px;
-        padding: 10px;
-    }
-
-    .menu-item .item-name {
+    .item-count {
         font-size: 0.85rem;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 8px;
+        border-radius: 12px;
     }
 
-    .menu-item .item-price {
+    .chevron {
         font-size: 0.8rem;
+        opacity: 0.6;
     }
 
-    .menu-thumb-mini {
-        width: 40px;
-        height: 40px;
+    .accordion-content {
+        padding: var(--spacing-md);
+        background: rgba(0, 0, 0, 0.1);
+        border-top: 1px solid var(--border);
+        animation: slideDown 0.3s ease;
     }
 
-    .checklist-row {
-        padding: 8px;
+    .menu-container-scroll {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+        overflow-y: auto;
+        /* Ensure scroll works */
+        padding-bottom: 2rem;
+        /* Space at bottom */
     }
 
-    .checklist-row label {
-        font-size: 0.85rem;
-    }
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
 
-    .btn-lg {
-        padding: 12px;
-        font-size: 0.95rem;
-    }
-}
-
-/* Slide up animation for mobile */
-@keyframes slideUp {
-    from {
-        transform: translateY(100%);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-/* Category headers */
-.menu-category-section {
-    margin-bottom: var(--spacing-lg);
-}
-
-.category-title {
-    color: var(--primary-light);
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: var(--spacing-md);
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 8px;
-    margin-top: 5px;
-    text-transform: capitalize;
-}
-
-.menu-accordion {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-}
-
-.accordion-item {
-    overflow: hidden;
-    transition: all 0.3s ease;
-    border: 1px solid var(--border);
-    margin-bottom: 0px !important;
-    /* Override standard glass-card margin if any */
-}
-
-.accordion-item.active {
-    border-color: var(--primary);
-    box-shadow: 0 0 15px rgba(52, 152, 219, 0.1);
-}
-
-.accordion-header {
-    padding: var(--spacing-md);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    background: rgba(255, 255, 255, 0.03);
-    transition: background 0.2s;
-}
-
-.accordion-header:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.header-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.category-icon {
-    font-size: 1.5rem;
-}
-
-.category-name {
-    font-weight: 600;
-    font-size: 1.1rem;
-    color: var(--text-primary);
-}
-
-.header-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: var(--text-secondary);
-}
-
-.item-count {
-    font-size: 0.85rem;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 2px 8px;
-    border-radius: 12px;
-}
-
-.chevron {
-    font-size: 0.8rem;
-    opacity: 0.6;
-}
-
-.accordion-content {
-    padding: var(--spacing-md);
-    background: rgba(0, 0, 0, 0.1);
-    border-top: 1px solid var(--border);
-    animation: slideDown 0.3s ease;
-}
-
-.menu-container-scroll {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-    overflow-y: auto;
-    /* Ensure scroll works */
-    padding-bottom: 2rem;
-    /* Space at bottom */
-}
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 }
