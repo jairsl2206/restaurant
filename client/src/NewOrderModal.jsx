@@ -11,6 +11,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null }) {
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [confirmationChecks, setConfirmationChecks] = useState({});
+    const [expandedCategory, setExpandedCategory] = useState(null);
 
     // Reset checks when items change
     useEffect(() => {
@@ -158,27 +159,87 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null }) {
                             <div className="section-header mt-3">
                                 <h3>2. Selecciona Platillos</h3>
                             </div>
-                            <div className="menu-grid">
-                                <div className="menu-grid">
-                                    {loading ? <p>Cargando menú...</p> : menuItems.map(item => (
-                                        <button
-                                            key={item.id}
-                                            type="button"
-                                            className="menu-item glass-card"
-                                            onClick={() => handleAddItem(item)}
-                                        >
-                                            <div className="item-icon">
-                                                {item.image_url ? (
-                                                    <img src={item.image_url} alt={item.name} className="menu-thumb-mini" />
-                                                ) : '🍽️'}
-                                            </div>
-                                            <div className="item-details">
-                                                <span className="item-name">{item.name}</span>
-                                                <span className="item-price">${item.price.toFixed(2)}</span>
-                                            </div>
-                                            <div className="add-icon">+</div>
-                                        </button>
-                                    ))}
+                            <div className="menu-container-scroll">
+                                <div>
+                                    {loading ? <p>Cargando menú...</p> : (
+                                        (() => {
+                                            // Group items by category
+                                            const groupedItems = menuItems.reduce((acc, item) => {
+                                                const category = item.category || 'Otros';
+                                                if (!acc[category]) {
+                                                    acc[category] = [];
+                                                }
+                                                acc[category].push(item);
+                                                return acc;
+                                            }, {});
+
+                                            // Sort categories (standard ones first)
+                                            const sortedCategories = Object.keys(groupedItems).sort((a, b) => {
+                                                const priorities = { 'Plato Principal': 1, 'Entrada': 2, 'Bebida': 3, 'Postre': 4, 'Otros': 99 };
+                                                const pA = priorities[a] || 50;
+                                                const pB = priorities[b] || 50;
+                                                if (pA !== pB) return pA - pB;
+                                                return a.localeCompare(b);
+                                            });
+
+                                            return (
+                                                <div className="menu-accordion">
+                                                    {sortedCategories.map(category => {
+                                                        const isExpanded = expandedCategory === category;
+                                                        const itemCount = groupedItems[category].length;
+
+                                                        return (
+                                                            <div key={category} className={`accordion-item glass-card ${isExpanded ? 'active' : ''}`}>
+                                                                <div
+                                                                    className="accordion-header"
+                                                                    onClick={() => setExpandedCategory(isExpanded ? null : category)}
+                                                                >
+                                                                    <div className="header-info">
+                                                                        <span className="category-icon">
+                                                                            {category === 'Bebida' ? '🥤' :
+                                                                                category === 'Postre' ? '🍰' :
+                                                                                    category === 'Entrada' ? '🥗' : '🍽️'}
+                                                                        </span>
+                                                                        <span className="category-name">{category}</span>
+                                                                    </div>
+                                                                    <div className="header-meta">
+                                                                        <span className="item-count">{itemCount} items</span>
+                                                                        <span className="chevron">{isExpanded ? '▲' : '▼'}</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {isExpanded && (
+                                                                    <div className="accordion-content">
+                                                                        <div className="menu-grid">
+                                                                            {groupedItems[category].map(item => (
+                                                                                <button
+                                                                                    key={item.id}
+                                                                                    type="button"
+                                                                                    className="menu-item glass-card"
+                                                                                    onClick={() => handleAddItem(item)}
+                                                                                >
+                                                                                    <div className="item-icon">
+                                                                                        {item.image_url ? (
+                                                                                            <img src={item.image_url} alt={item.name} className="menu-thumb-mini" />
+                                                                                        ) : '🍽️'}
+                                                                                    </div>
+                                                                                    <div className="item-details">
+                                                                                        <span className="item-name">{item.name}</span>
+                                                                                        <span className="item-price">${item.price.toFixed(2)}</span>
+                                                                                    </div>
+                                                                                    <div className="add-icon">+</div>
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })()
+                                    )}
                                 </div>
                             </div>
                         </div>

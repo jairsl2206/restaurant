@@ -789,3 +789,116 @@
         opacity: 1;
     }
 }
+
+/* Category headers */
+.menu-category-section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.category-title {
+    color: var(--primary-light);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-top: 5px;
+    text-transform: capitalize;
+}
+
+.menu-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.accordion-item {
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid var(--border);
+    margin-bottom: 0px !important;
+    /* Override standard glass-card margin if any */
+}
+
+.accordion-item.active {
+    border-color: var(--primary);
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.1);
+}
+
+.accordion-header {
+    padding: var(--spacing-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.03);
+    transition: background 0.2s;
+}
+
+.accordion-header:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.header-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.category-icon {
+    font-size: 1.5rem;
+}
+
+.category-name {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.header-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-secondary);
+}
+
+.item-count {
+    font-size: 0.85rem;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.chevron {
+    font-size: 0.8rem;
+    opacity: 0.6;
+}
+
+.accordion-content {
+    padding: var(--spacing-md);
+    background: rgba(0, 0, 0, 0.1);
+    border-top: 1px solid var(--border);
+    animation: slideDown 0.3s ease;
+}
+
+.menu-container-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    overflow-y: auto;
+    /* Ensure scroll works */
+    padding-bottom: 2rem;
+    /* Space at bottom */
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

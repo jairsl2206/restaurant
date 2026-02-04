@@ -1,32 +1,24 @@
+const createApp = require('./app');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
-const routes = require('./routes');
+const multer = require('multer');
 
-const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// Create app with Clean Architecture
+const app = createApp();
+
+// Additional middleware for legacy compatibility
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use('/api', routes);
-
-// Static uploads
-const path = require('path');
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// File Upload with Multer
-const multer = require('multer');
+// File Upload (legacy - should be moved to infrastructure layer eventually)
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        // Use absolute path to ensure consistency regardless of CWD
-        cb(null, path.join(__dirname, 'uploads'))
+        cb(null, path.join(__dirname, '../../../uploads'))
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        // Ensure we handle the extension safely
         const ext = path.extname(file.originalname) || '.png';
         cb(null, 'logo-' + uniqueSuffix + ext)
     }
@@ -37,15 +29,12 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
-    // Use relative URL so it works on any device (localhost, network IP, or domain)
     const fileUrl = `/uploads/${req.file.filename}`;
     res.json({ url: fileUrl });
 });
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', message: 'Server is running' });
-});
+// Static uploads
+app.use('/uploads', express.static(path.join(__dirname, '../../../uploads')));
 
 // Debug logging
 app.use((req, res, next) => {
@@ -54,8 +43,7 @@ app.use((req, res, next) => {
 });
 
 // Serve static files from React build (PRODUCTION)
-// This must come AFTER all API routes
-const distPath = path.join(__dirname, '../client/dist');
+const distPath = path.join(__dirname, '../../../../client/dist');
 console.log(`📁 Serving static files from: ${distPath}`);
 app.use(express.static(distPath, {
     index: 'index.html',
@@ -64,12 +52,10 @@ app.use(express.static(distPath, {
 
 // Fallback to index.html for client-side routing (SPA)
 app.use((req, res, next) => {
-    // Don't handle API routes
     if (req.path.startsWith('/api')) {
         return next();
     }
-    const indexPath = path.join(__dirname, '../client/dist/index.html');
-    console.log(`📄 Serving index.html from: ${indexPath}`);
+    const indexPath = path.join(distPath, 'index.html');
     res.sendFile(indexPath);
 });
 
@@ -77,7 +63,9 @@ app.use((req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📊 API available at http://localhost:${PORT}/api`);
+    console.log(`🏗️  Clean Architecture API at http://localhost:${PORT}/api/v2`);
     console.log(`🌐 Frontend available at http://localhost:${PORT}`);
+    console.log(`🌍 Network access: http://192.168.1.81:${PORT}`);
 });
 
 module.exports = app;

@@ -1,39 +1,39 @@
 :root {
-  /* Refined Color Palette */
-  /* Primary - Violet/Purple */
-  --primary: hsl(265, 80%, 60%);
-  --primary-dark: hsl(265, 80%, 45%);
-  --primary-light: hsl(265, 80%, 75%);
-  --primary-glow: hsla(265, 80%, 60%, 0.5);
+  /* Monochrome Color Palette - Grays, Blacks, Whites */
+  /* Primary - Light Gray */
+  --primary: hsl(0, 0%, 75%);
+  --primary-dark: hsl(0, 0%, 60%);
+  --primary-light: hsl(0, 0%, 85%);
+  --primary-glow: hsla(0, 0%, 75%, 0.3);
 
-  /* Secondary - Pink/Magenta */
-  --secondary: hsl(320, 90%, 60%);
-  --secondary-dark: hsl(320, 90%, 45%);
+  /* Secondary - Medium Gray */
+  --secondary: hsl(0, 0%, 50%);
+  --secondary-dark: hsl(0, 0%, 35%);
 
-  /* Accent - Cyan */
-  --accent: hsl(190, 80%, 60%);
+  /* Accent - Dark Gray */
+  --accent: hsl(0, 0%, 40%);
 
-  /* Status Colors */
-  --success: hsl(150, 60%, 45%);
-  --warning: hsl(40, 90%, 55%);
-  --danger: hsl(350, 75%, 55%);
-  --info: hsl(210, 80%, 60%);
+  /* Status Colors - Grayscale */
+  --success: hsl(0, 0%, 70%);
+  --warning: hsl(0, 0%, 55%);
+  --danger: hsl(0, 0%, 45%);
+  --info: hsl(0, 0%, 65%);
 
-  /* Backgrounds - Deep Blue/Black */
-  --bg-dark: hsl(230, 25%, 8%);
-  --bg-darker: hsl(230, 25%, 5%);
-  --bg-card: hsla(230, 25%, 12%, 0.7);
-  --bg-card-hover: hsla(230, 25%, 16%, 0.8);
-  --bg-overlay: hsla(230, 25%, 5%, 0.8);
+  /* Backgrounds - Black to Dark Gray */
+  --bg-dark: hsl(0, 0%, 8%);
+  --bg-darker: hsl(0, 0%, 5%);
+  --bg-card: hsla(0, 0%, 12%, 0.7);
+  --bg-card-hover: hsla(0, 0%, 16%, 0.8);
+  --bg-overlay: hsla(0, 0%, 5%, 0.8);
 
   /* Text */
-  --text-primary: hsl(230, 20%, 98%);
-  --text-secondary: hsl(230, 15%, 80%);
-  --text-muted: hsl(230, 10%, 60%);
+  --text-primary: hsl(0, 0%, 98%);
+  --text-secondary: hsl(0, 0%, 80%);
+  --text-muted: hsl(0, 0%, 60%);
 
   /* Borders & Shadows */
-  --border: hsla(230, 20%, 90%, 0.08);
-  --border-hover: hsla(230, 20%, 90%, 0.15);
+  --border: hsla(0, 0%, 90%, 0.08);
+  --border-hover: hsla(0, 0%, 90%, 0.15);
   --shadow: 0 8px 24px -4px hsla(0, 0%, 0%, 0.4);
   --shadow-lg: 0 16px 48px -8px hsla(0, 0%, 0%, 0.6);
   --shadow-glow: 0 0 20px -5px var(--primary-glow);
@@ -72,7 +72,7 @@
 
 body {
   font-family: var(--font-main);
-  background: linear-gradient(135deg, var(--bg-dark) 0%, hsl(230, 25%, 8%) 100%);
+  background: var(--bg-dark);
   color: var(--text-primary);
   min-height: 100vh;
   line-height: 1.6;
@@ -116,14 +116,15 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-  color: white;
-  box-shadow: 0 4px 12px hsla(260, 85%, 58%, 0.3);
+  background: var(--primary);
+  color: var(--bg-dark);
+  box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.3);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px hsla(260, 85%, 58%, 0.4);
+  box-shadow: 0 6px 20px hsla(0, 0%, 0%, 0.4);
+  background: var(--primary-light);
 }
 
 .btn-primary:active {
@@ -131,23 +132,23 @@ body {
 }
 
 .btn-secondary {
-  background: linear-gradient(135deg, var(--secondary) 0%, hsl(340, 82%, 42%) 100%);
+  background: var(--secondary);
   color: white;
-  box-shadow: 0 4px 12px hsla(340, 82%, 52%, 0.3);
+  box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.3);
 }
 
 .btn-success {
-  background: linear-gradient(135deg, var(--success) 0%, hsl(142, 76%, 26%) 100%);
-  color: white;
+  background: var(--success);
+  color: var(--bg-dark);
 }
 
 .btn-warning {
-  background: linear-gradient(135deg, var(--warning) 0%, hsl(45, 93%, 37%) 100%);
-  color: hsl(230, 20%, 10%);
+  background: var(--warning);
+  color: var(--bg-dark);
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, var(--danger) 0%, hsl(0, 84%, 50%) 100%);
+  background: var(--danger);
   color: white;
 }
 
