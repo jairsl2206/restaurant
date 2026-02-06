@@ -1,6 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const logger = require('./logger');
 
 const DB_PATH = path.join(__dirname, '..', 'restaurant.db');
 
@@ -8,9 +9,9 @@ class Database {
     constructor() {
         this.db = new sqlite3.Database(DB_PATH, (err) => {
             if (err) {
-                console.error('Error opening database:', err.message);
+                logger.error('Error opening database:', err.message);
             } else {
-                console.log('Connected to SQLite database');
+                logger.info('Connected to SQLite database');
                 this.initializeTables();
             }
         });
@@ -103,9 +104,9 @@ class Database {
                     [username, hash, role],
                     (err) => {
                         if (err) {
-                            console.error(`Error creating user ${username}:`, err);
+                            logger.error(`Error creating user ${username}:`, err);
                         } else {
-                            console.log(`Default user created: ${username} (${role})`);
+                            logger.info(`Default user created: ${username} (${role})`);
                         }
                     }
                 );

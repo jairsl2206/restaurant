@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
+const logger = require('./logger');
 
 const router = express.Router();
 
@@ -288,25 +289,25 @@ router.post('/settings', isAdmin, (req, res) => {
     // Process updates linearly
     if (restaurant_name) {
         db.updateSetting('restaurant_name', restaurant_name, (err) => {
-            if (err) console.error(err);
+            if (err) logger.error('Error updating setting:', err);
         });
     }
 
     if (restaurant_logo) {
         db.updateSetting('restaurant_logo', restaurant_logo, (err) => {
-            if (err) console.error(err);
+            if (err) logger.error('Error updating setting:', err);
         });
     }
 
     if (max_tables !== undefined) {
         db.updateSetting('max_tables', max_tables.toString(), (err) => {
-            if (err) console.error(err);
+            if (err) logger.error('Error updating setting:', err);
         });
     }
 
     if (whatsapp_number !== undefined) {
         db.updateSetting('whatsapp_number', whatsapp_number, (err) => {
-            if (err) console.error(err);
+            if (err) logger.error('Error updating setting:', err);
         });
     }
 
@@ -324,7 +325,7 @@ router.get('/whatsapp/status', (req, res) => {
 
 // WhatsApp Groups Route
 router.get('/whatsapp/groups', async (req, res) => {
-    console.log('GET /whatsapp/groups endpoint hit');
+    logger.info('GET /whatsapp/groups endpoint hit');
     if (!req.whatsapp) return res.json([]);
     const groups = await req.whatsapp.getGroups();
     res.json(groups);
