@@ -20,7 +20,7 @@ const initializeClient = () => {
         // Convert QR text to Data URL for frontend
         qrcode.toDataURL(qr, (err, url) => {
             if (err) {
-                console.error('Error generating QR image', err);
+                logger.error('Error generating QR image', err);
                 return;
             }
             qrCodeData = url;
@@ -29,7 +29,7 @@ const initializeClient = () => {
     });
 
     client.on('loading_screen', (percent, message) => {
-        console.log('WhatsApp Loading:', percent, message);
+        logger.info(`WhatsApp Loading: ${percent}% ${message}`);
     });
 
     client.on('ready', () => {
@@ -66,19 +66,19 @@ const CACHE_DURATION = 30000; // 30 seconds
 
 const getGroups = async () => {
     if (!isReady) {
-        console.log('getGroups called but client is not ready');
+        logger.info('getGroups called but client is not ready');
         return [];
     }
 
     // Return cache if it's still valid
     if (cachedGroups.length > 0 && (Date.now() - lastFetchTime < CACHE_DURATION)) {
-        console.log('Returning cached groups');
+        logger.info('Returning cached groups');
         return cachedGroups;
     }
     try {
-        console.log('Fetching chats to find groups...');
+        logger.info('Fetching chats to find groups...');
         const chats = await client.getChats();
-        console.log(`Found ${chats.length} total chats`);
+        logger.info(`Found ${chats.length} total chats`);
         const groups = chats
             .filter(chat => chat.isGroup)
             .map(chat => ({
@@ -87,17 +87,17 @@ const getGroups = async () => {
             }));
         cachedGroups = groups;
         lastFetchTime = Date.now();
-        console.log(`Found ${groups.length} groups`);
+        logger.info(`Found ${groups.length} groups`);
         return groups;
     } catch (err) {
-        console.error('Error fetching groups:', err);
+        logger.error('Error fetching groups:', err);
         return cachedGroups; // Return last known good state on error
     }
 };
 
 const sendMessage = async (number, message) => {
     if (!isReady) {
-        console.log('WhatsApp not ready, cannot send message');
+        logger.info('WhatsApp not ready, cannot send message');
         return false;
     }
 
@@ -115,23 +115,23 @@ const sendMessage = async (number, message) => {
         }
 
         await client.sendMessage(formattedNumber, message);
-        console.log(`WhatsApp message sent to ${formattedNumber}`);
+        logger.info(`WhatsApp message sent to ${formattedNumber}`);
         return true;
     } catch (err) {
-        console.error('Error sending WhatsApp message:', err);
+        logger.error('Error sending WhatsApp message:', err);
         return false;
     }
 };
 
 const resetSession = async () => {
-    console.log('Resetting WhatsApp session...');
+    logger.info('Resetting WhatsApp session...');
     try {
         if (client) {
             await client.logout();
             await client.destroy();
         }
     } catch (err) {
-        console.error('Error during logout/destroy:', err);
+        logger.error('Error during logout/destroy:', err);
     }
 
     isReady = false;

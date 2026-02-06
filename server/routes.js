@@ -343,7 +343,7 @@ router.get('/reports/sales', (req, res) => {
     const { startDate, endDate } = req.query;
     db.getSalesReport(startDate, endDate, (err, report) => {
         if (err) {
-            console.error('Report error:', err);
+            logger.error('Report error:', err);
             return res.status(500).json({ error: 'Failed to generate report' });
         }
         res.json(report);
