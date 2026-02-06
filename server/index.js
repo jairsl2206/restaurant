@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
+process.env.TZ = 'America/Mexico_City';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
