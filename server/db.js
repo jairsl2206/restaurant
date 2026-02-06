@@ -144,9 +144,10 @@ class Database {
         const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const db = this.db; // Store reference to db
 
+        const now = new Date().toLocaleString('en-ZA').replace(',', ''); // YYYY-MM-DD HH:mm:ss
         db.run(
-            'INSERT INTO orders (table_number, total) VALUES (?, ?)',
-            [tableNumber, total],
+            'INSERT INTO orders (table_number, total, created_at, updated_at) VALUES (?, ?, ?, ?)',
+            [tableNumber, total, now, now],
             function (err) {
                 if (err) return callback(err);
 
@@ -190,9 +191,10 @@ class Database {
     }
 
     updateOrderStatus(orderId, status, callback) {
+        const now = new Date().toLocaleString('en-ZA').replace(',', '');
         this.db.run(
-            'UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [status, orderId],
+            'UPDATE orders SET status = ?, updated_at = ? WHERE id = ?',
+            [status, now, orderId],
             callback
         );
     }
@@ -303,10 +305,11 @@ class Database {
                             return callback(err);
                         }
 
+                        const now = new Date().toLocaleString('en-ZA').replace(',', '');
                         // 3. Update order total and flag
                         db.run(
-                            'UPDATE orders SET total = ?, is_updated = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                            [total, orderId],
+                            'UPDATE orders SET total = ?, is_updated = 1, updated_at = ? WHERE id = ?',
+                            [total, now, orderId],
                             (err) => {
                                 if (err) {
                                     db.run('ROLLBACK');
@@ -326,7 +329,7 @@ class Database {
     getSalesReport(startDate, endDate, callback) {
         // Formatos de fecha para SQLite
         const start = startDate ? startDate + ' 00:00:00' : '1970-01-01';
-        const end = endDate ? endDate + ' 23:59:59' : new Date().toISOString();
+        const end = endDate ? endDate + ' 23:59:59' : new Date().toLocaleString('en-ZA').replace(',', '');
 
         const report = {
             summary: {},
