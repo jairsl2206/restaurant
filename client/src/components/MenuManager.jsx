@@ -123,6 +123,70 @@ function MenuManager() {
         setEditingItem(null);
     };
 
+    const processImage = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const size = Math.min(img.width, img.height);
+                    canvas.width = 600;
+                    canvas.height = 600;
+                    const ctx = canvas.getContext('2d');
+
+                    // Calculate crop
+                    const offsetX = (img.width - size) / 2;
+                    const offsetY = (img.height - size) / 2;
+
+                    // Draw cropped and resized image
+                    ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, 600, 600);
+
+                    // Convert to blob (JPEG 80% quality)
+                    canvas.toBlob((blob) => {
+                        resolve(blob);
+                    }, 'image/jpeg', 0.8);
+                };
+                img.onerror = reject;
+                img.src = event.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handleImageSelect = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            setLoading(true); // Reuse loading state or add a specific one if needed
+            const processedBlob = await processImage(file);
+
+            const formDataUpload = new FormData();
+            formDataUpload.append('file', processedBlob, 'image.jpg');
+
+            const res = await fetch(API_BASE_URL + '/upload', {
+                method: 'POST',
+                body: formDataUpload
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                // Construct URL based on server root, not API endpoint
+                const serverUrl = API_BASE_URL.replace('/api', '');
+                setFormData(prev => ({ ...prev, image_url: serverUrl + data.url }));
+            } else {
+                alert('Error al subir imagen');
+            }
+        } catch (err) {
+            console.error('Error processing image:', err);
+            alert('Error al procesar la imagen');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="menu-manager">
             <div className="manager-content">
@@ -356,12 +420,25 @@ function MenuManager() {
 
                                     <div className="form-right">
                                         <div className="form-group">
-                                            <label>URL de Imagen</label>
+                                            <label>Imagen del Artículo</label>
+                                            <div className="file-upload-wrapper">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleImageSelect}
+                                                    className="file-input"
+                                                />
+                                                <small className="text-muted d-block mt-1">
+                                                    Selecciona una foto. Se recortará automáticamente a cuadrado.
+                                                </small>
+                                            </div>
+                                            <div className="or-divider">o usa una URL externa</div>
                                             <input
                                                 type="text"
                                                 placeholder="https://ejemplo.com/foto.jpg"
                                                 value={formData.image_url}
                                                 onChange={e => setFormData({ ...formData, image_url: e.target.value })}
+                                                className="mt-2"
                                             />
                                         </div>
                                         <div className="image-preview-container">
