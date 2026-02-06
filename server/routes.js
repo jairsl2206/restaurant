@@ -188,12 +188,27 @@ router.put('/orders/:id/status', (req, res) => {
 
 // Get all menu items
 router.get('/menu', (req, res) => {
-    db.getMenuItems((err, items) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
-        res.json(items);
-    });
+    const { type } = req.query;
+
+    if (type === 'public') {
+        // For public menu, get available items with promotional prices
+        db.getMenuItemsWithPromotions((err, items) => {
+            if (err) {
+                return res.status(500).json({ error: 'Database error' });
+            }
+            // Filter to only available items
+            const availableItems = items.filter(item => item.available);
+            res.json(availableItems);
+        });
+    } else {
+        // Admin view - get all items with promotion details
+        db.getMenuItemsWithPromotions((err, items) => {
+            if (err) {
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json(items);
+        });
+    }
 });
 
 const isAdmin = (req, res, next) => {
@@ -229,6 +244,48 @@ router.delete('/menu/:id', isAdmin, (req, res) => {
     db.deleteMenuItem(id, (err) => {
         if (err) return res.status(500).json({ error: 'Failed to delete item' });
         res.json({ success: true });
+    });
+});
+
+// --- Category Promotion Routes ---
+
+// Get all category promotions
+router.get('/category-promotions', isAdmin, (req, res) => {
+    db.getCategoryPromotions((err, promotions) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(promotions);
+    });
+});
+
+// Create category promotion
+router.post('/category-promotions', isAdmin, (req, res) => {
+    db.createCategoryPromotion(req.body, (err, id) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.status(201).json({ id, message: 'Category promotion created successfully' });
+    });
+});
+
+// Update category promotion
+router.put('/category-promotions/:id', isAdmin, (req, res) => {
+    db.updateCategoryPromotion(req.params.id, req.body, (err) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ message: 'Category promotion updated successfully' });
+    });
+});
+
+// Delete category promotion
+router.delete('/category-promotions/:id', isAdmin, (req, res) => {
+    db.deleteCategoryPromotion(req.params.id, (err) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ message: 'Category promotion deleted successfully' });
     });
 });
 

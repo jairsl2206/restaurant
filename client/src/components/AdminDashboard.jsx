@@ -4,6 +4,7 @@ import UserManager from './UserManager';
 import SettingsManager from './SettingsManager';
 import CategoryManager from './CategoryManager';
 import SalesReport from './SalesReport';
+import CategoryPromotionManager from './CategoryPromotionManager';
 import './AdminDashboard.css';
 
 function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
@@ -73,6 +74,13 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                     <span className="tab-text">Configuración</span>
                 </button>
                 <button
+                    className={`tab-btn ${activeTab === 'promotions' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('promotions')}
+                >
+                    <span className="tab-icon">🔥</span>
+                    <span className="tab-text">Promociones</span>
+                </button>
+                <button
                     className={`tab-btn ${activeTab === 'reports' ? 'active' : ''}`}
                     onClick={() => setActiveTab('reports')}
                 >
@@ -92,6 +100,7 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                             onSettingsUpdate={onSettingsUpdate}
                         />
                     )}
+                    {activeTab === 'promotions' && <CategoryPromotionManager />}
                     {activeTab === 'reports' && <SalesReport />}
                 </div>
             </main>

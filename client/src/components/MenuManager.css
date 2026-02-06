@@ -139,6 +139,150 @@
     transform: scale(1.05);
 }
 
+/* Promotion Section */
+.form-section-divider {
+    margin: 1.5rem 0 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.form-section-divider h4 {
+    margin: 0;
+    color: var(--primary);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Grouping Toggle */
+.list-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.toggle-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-group input {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+}
+
+.category-group {
+    margin-bottom: 2rem;
+}
+
+.category-group-title {
+    color: var(--primary);
+    border-bottom: 2px solid var(--primary);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+.category-group-title.clickable {
+    cursor: pointer;
+}
+
+.category-group-title.clickable:hover {
+    opacity: 0.8;
+}
+
+.item-count-badge {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: auto;
+}
+
+/* Price Cells */
+.original-price-cell {
+    text-decoration: line-through;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.final-price-cell {
+    font-weight: 600;
+}
+
+.promo-price-text.active {
+    color: #2ecc71;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+}
+
+.discount-tag {
+    font-size: 0.75rem;
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 2px;
+}
+
+
+
+.promo-preview {
+    background: linear-gradient(135deg, rgba(39, 174, 96, 0.15) 0%, rgba(46, 204, 113, 0.15) 100%);
+    border: 1px solid rgba(39, 174, 96, 0.3);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-top: 1rem;
+}
+
+.promo-preview strong {
+    display: block;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.price-preview {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.price-preview .original-price {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    text-decoration: line-through;
+}
+
+.price-preview .promo-price {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #27ae60;
+}
+
+.price-preview .savings {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    background: rgba(39, 174, 96, 0.2);
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+}
+
 .image-placeholder {
     display: flex;
     align-items: center;
