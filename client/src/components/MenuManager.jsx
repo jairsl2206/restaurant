@@ -90,7 +90,7 @@ function MenuManager() {
                 price: item.price,
                 image_url: item.image_url || '',
                 category: item.category || 'Plato Principal',
-                available: item.available === 1
+                available: Boolean(item.available)
             });
         } else {
             setEditingItem(null);
@@ -249,6 +249,7 @@ function MenuManager() {
                                         <input
                                             type="checkbox"
                                             checked={formData.available}
+                                            style={{ width: 'auto' }}
                                             onChange={e => setFormData({ ...formData, available: e.target.checked })}
                                         />
                                         Disponible para ordenar
