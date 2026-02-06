@@ -86,8 +86,6 @@ app.listen(PORT, '0.0.0.0', () => {
     logger.info(`🚀 Server running on http://localhost:${PORT}`);
     logger.info(`📊 API available at http://localhost:${PORT}/api`);
     logger.info(`🌐 Frontend available at http://localhost:${PORT}`);
-    logger.info(`Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`);
-    logger.info(`Date: ${new Date().toISOString()}`);
 });
 
 module.exports = app;

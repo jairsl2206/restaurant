@@ -9,6 +9,15 @@ function MenuManager() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
+    const [groupByCategory, setGroupByCategory] = useState(true);
+    const [collapsedCategories, setCollapsedCategories] = useState({});
+
+    const toggleCategory = (category) => {
+        setCollapsedCategories(prev => ({
+            ...prev,
+            [category]: !prev[category]
+        }));
+    };
 
     // Form State
     const [formData, setFormData] = useState({
@@ -17,7 +26,10 @@ function MenuManager() {
         price: '',
         image_url: '',
         category: 'Plato Principal',
-        available: true
+        available: true,
+        promotion_type: '',
+        promotion_value: '',
+        promotion_active: false
     });
 
     useEffect(() => {
@@ -116,186 +128,266 @@ function MenuManager() {
             <div className="manager-content">
                 <div className="manager-header">
                     <h2>🍔 Gestión de Menú</h2>
-                    <button className="btn btn-primary" onClick={() => openModal()}>
-                        + Agregar Artículo
-                    </button>
+                    <div className="header-actions">
+                        <label className="toggle-group">
+                            <input
+                                type="checkbox"
+                                checked={groupByCategory}
+                                onChange={e => setGroupByCategory(e.target.checked)}
+                            />
+                            Agrupar por Categoría
+                        </label>
+                        <button className="btn btn-primary" onClick={() => openModal()}>
+                            + Agregar Artículo
+                        </button>
+                    </div>
                 </div>
 
                 {loading ? <p>Cargando...</p> : (
                     <div className="data-table-wrapper">
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Imagen</th>
-                                    <th>Nombre</th>
-                                    <th>Categoría</th>
-                                    <th>Precio</th>
-                                    <th>Estado</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {items.map(item => (
-                                    <tr key={item.id}>
-                                        <td>
-                                            {item.image_url ? (
-                                                <img src={item.image_url} alt={item.name} className="item-thumbnail" />
-                                            ) : (
-                                                <span className="no-img">📷</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <strong>{item.name}</strong>
-                                            <p className="text-muted text-sm">{item.description}</p>
-                                        </td>
-                                        <td><span className="badge">{item.category}</span></td>
-                                        <td>${item.price.toFixed(2)}</td>
-                                        <td>
-                                            <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
-                                            {item.available ? 'Disponible' : 'Agotado'}
-                                        </td>
-                                        <td>
-                                            <button className="action-btn edit-btn" onClick={() => openModal(item)}>✏️</button>
-                                            <button className="action-btn delete-btn" onClick={() => handleDelete(item.id)}>🗑️</button>
-                                        </td>
-                                    </tr>
+                        {groupByCategory ? (
+                            <div className="grouped-list">
+                                {[...new Set(items.map(item => item.category))].sort().map(category => (
+                                    <div key={category} className="category-group">
+                                        <h4
+                                            className="category-group-title clickable"
+                                            onClick={() => toggleCategory(category)}
+                                        >
+                                            {collapsedCategories[category] ? '▶' : '▼'} {category}
+                                            <span className="item-count-badge">
+                                                {items.filter(item => item.category === category).length}
+                                            </span>
+                                        </h4>
+                                        {!collapsedCategories[category] && (
+                                            <table className="data-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Imagen</th>
+                                                        <th>Nombre</th>
+                                                        <th>Precio Base</th>
+                                                        <th>Precio Final</th>
+                                                        <th>Estado</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {items.filter(item => item.category === category).map(item => (
+                                                        <tr key={item.id} className={!item.available ? 'item-unavailable' : ''}>
+                                                            <td>
+                                                                {item.image_url ? (
+                                                                    <img src={item.image_url} alt={item.name} className="item-thumbnail" />
+                                                                ) : (
+                                                                    <span className="no-img">📷</span>
+                                                                )}
+                                                            </td>
+                                                            <td>
+                                                                <strong>{item.name}</strong>
+                                                                <p className="text-muted text-sm">{item.description}</p>
+                                                            </td>
+                                                            <td className="text-secondary">
+                                                                ${item.price.toFixed(2)}
+                                                            </td>
+                                                            <td style={{ fontWeight: 600 }}>
+                                                                ${(item.final_price || item.price).toFixed(2)}
+                                                            </td>
+                                                            <td>
+                                                                <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
+                                                                {item.available ? 'Disponible' : 'Agotado'}
+                                                            </td>
+                                                            <td>
+                                                                <button className="action-btn edit-btn" onClick={() => openModal(item)}>✏️</button>
+                                                                <button className="action-btn delete-btn" onClick={() => handleDelete(item.id)}>🗑️</button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        )}
+                                    </div>
                                 ))}
-                            </tbody>
-                        </table>
+                            </div>
+                        ) : (
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Imagen</th>
+                                        <th>Nombre</th>
+                                        <th>Categoría</th>
+                                        <th>Precio Base</th>
+                                        <th>Precio Final</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {items.map(item => (
+                                        <tr key={item.id} className={!item.available ? 'item-unavailable' : ''}>
+                                            <td>
+                                                {item.image_url ? (
+                                                    <img src={item.image_url} alt={item.name} className="item-thumbnail" />
+                                                ) : (
+                                                    <span className="no-img">📷</span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <strong>{item.name}</strong>
+                                                <p className="text-muted text-sm">{item.description}</p>
+                                            </td>
+                                            <td><span className="badge">{item.category}</span></td>
+                                            <td className="text-secondary">
+                                                ${item.price.toFixed(2)}
+                                            </td>
+                                            <td style={{ fontWeight: 600 }}>
+                                                ${(item.final_price || item.price).toFixed(2)}
+                                            </td>
+                                            <td>
+                                                <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
+                                                {item.available ? 'Disponible' : 'Agotado'}
+                                            </td>
+                                            <td>
+                                                <button className="action-btn edit-btn" onClick={() => openModal(item)}>✏️</button>
+                                                <button className="action-btn delete-btn" onClick={() => handleDelete(item.id)}>🗑️</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 )}
             </div>
 
-            {showModal && (
-                <div className="modal-overlay" onClick={closeModal}>
-                    <form
-                        onSubmit={handleSubmit}
-                        className="modal-content glass-card slide-in menu-modal-enhanced"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="modal-header">
-                            <h3>{editingItem ? 'Editar Artículo' : 'Nuevo Artículo'}</h3>
-                            <button type="button" className="close-btn" onClick={closeModal}>×</button>
-                        </div>
-                        <div className="modal-body">
-                            <div className="menu-form-grid">
-                                <div className="form-left">
-                                    <div className="form-group">
-                                        <label>Nombre</label>
-                                        <input
-                                            type="text"
-                                            value={formData.name}
-                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                            placeholder="Ej: Hamburguesa Suprema"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="form-row">
+            {
+                showModal && (
+                    <div className="modal-overlay" onClick={closeModal}>
+                        <form
+                            onSubmit={handleSubmit}
+                            className="modal-content glass-card slide-in menu-modal-enhanced"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="modal-header">
+                                <h3>{editingItem ? 'Editar Artículo' : 'Nuevo Artículo'}</h3>
+                                <button type="button" className="close-btn" onClick={closeModal}>×</button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="menu-form-grid">
+                                    <div className="form-left">
                                         <div className="form-group">
-                                            <label>Precio ($)</label>
+                                            <label>Nombre</label>
                                             <input
-                                                type="number"
-                                                step="0.01"
-                                                value={formData.price}
-                                                onChange={e => setFormData({ ...formData, price: e.target.value })}
+                                                type="text"
+                                                value={formData.name}
+                                                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                                placeholder="Ej: Hamburguesa Suprema"
                                                 required
                                             />
                                         </div>
-                                        <div className="form-group">
-                                            <label>Categoría</label>
-                                            <div className="category-selector">
-                                                <select
-                                                    value={formData.category === 'new_custom_category' ? 'new_custom_category' : (items.some(i => i.category === formData.category) || ['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category) ? formData.category : 'new_custom_category')}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        if (val === 'new_custom_category') {
-                                                            setFormData({ ...formData, category: '' });
-                                                        } else {
-                                                            setFormData({ ...formData, category: val });
-                                                        }
-                                                    }}
-                                                >
-                                                    {/* Unique existing categories */}
-                                                    {[...new Set([...items.map(i => i.category), 'Plato Principal', 'Entrada', 'Bebida', 'Postre'])].filter(Boolean).sort().map(cat => (
-                                                        <option key={cat} value={cat}>{cat}</option>
-                                                    ))}
-                                                    <option value="new_custom_category">+ Nueva Categoría</option>
-                                                </select>
 
-                                                {(!items.some(i => i.category === formData.category) &&
-                                                    !['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category)) && (
-                                                        <input
-                                                            type="text"
-                                                            className="mt-2"
-                                                            placeholder="Escribe nueva categoría..."
-                                                            value={formData.category}
-                                                            onChange={e => setFormData({ ...formData, category: e.target.value })}
-                                                            autoFocus
-                                                        />
-                                                    )}
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label>Precio ($)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={formData.price}
+                                                    onChange={e => setFormData({ ...formData, price: e.target.value })}
+                                                    required
+                                                />
                                             </div>
+                                            <div className="form-group">
+                                                <label>Categoría</label>
+                                                <div className="category-selector">
+                                                    <select
+                                                        value={formData.category === 'new_custom_category' ? 'new_custom_category' : (items.some(i => i.category === formData.category) || ['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category) ? formData.category : 'new_custom_category')}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            if (val === 'new_custom_category') {
+                                                                setFormData({ ...formData, category: '' });
+                                                            } else {
+                                                                setFormData({ ...formData, category: val });
+                                                            }
+                                                        }}
+                                                    >
+                                                        {/* Unique existing categories */}
+                                                        {[...new Set([...items.map(i => i.category), 'Plato Principal', 'Entrada', 'Bebida', 'Postre'])].filter(Boolean).sort().map(cat => (
+                                                            <option key={cat} value={cat}>{cat}</option>
+                                                        ))}
+                                                        <option value="new_custom_category">+ Nueva Categoría</option>
+                                                    </select>
+
+                                                    {(!items.some(i => i.category === formData.category) &&
+                                                        !['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category)) && (
+                                                            <input
+                                                                type="text"
+                                                                className="mt-2"
+                                                                placeholder="Escribe nueva categoría..."
+                                                                value={formData.category}
+                                                                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                                                autoFocus
+                                                            />
+                                                        )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+
+                                        <div className="form-group">
+                                            <label>Descripción</label>
+                                            <textarea
+                                                value={formData.description}
+                                                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                                rows="3"
+                                                placeholder="Descripción corta del platillo..."
+                                            />
+                                        </div>
+
+                                        <div className="form-group checkbox-group">
+                                            <label>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.available}
+                                                    style={{ width: 'auto' }}
+                                                    onChange={e => setFormData({ ...formData, available: e.target.checked })}
+                                                />
+                                                Disponible para ordenar
+                                            </label>
                                         </div>
                                     </div>
 
-
-                                    <div className="form-group">
-                                        <label>Descripción</label>
-                                        <textarea
-                                            value={formData.description}
-                                            onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                            rows="3"
-                                            placeholder="Descripción corta del platillo..."
-                                        />
-                                    </div>
-
-                                    <div className="form-group checkbox-group">
-                                        <label>
+                                    <div className="form-right">
+                                        <div className="form-group">
+                                            <label>URL de Imagen</label>
                                             <input
-                                                type="checkbox"
-                                                checked={formData.available}
-                                                style={{ width: 'auto' }}
-                                                onChange={e => setFormData({ ...formData, available: e.target.checked })}
+                                                type="text"
+                                                placeholder="https://ejemplo.com/foto.jpg"
+                                                value={formData.image_url}
+                                                onChange={e => setFormData({ ...formData, image_url: e.target.value })}
                                             />
-                                            Disponible para ordenar
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="form-right">
-                                    <div className="form-group">
-                                        <label>URL de Imagen</label>
-                                        <input
-                                            type="text"
-                                            placeholder="https://ejemplo.com/foto.jpg"
-                                            value={formData.image_url}
-                                            onChange={e => setFormData({ ...formData, image_url: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="image-preview-container">
-                                        {formData.image_url ? (
-                                            <img
-                                                src={formData.image_url}
-                                                alt="Preview"
-                                                className="image-preview"
-                                                onError={(e) => e.target.src = 'https://via.placeholder.com/150?text=No+Image'}
-                                            />
-                                        ) : (
-                                            <div className="image-placeholder">
-                                                <span>📷 Vista Previa</span>
-                                            </div>
-                                        )}
+                                        </div>
+                                        <div className="image-preview-container">
+                                            {formData.image_url ? (
+                                                <img
+                                                    src={formData.image_url}
+                                                    alt="Preview"
+                                                    className="image-preview"
+                                                    onError={(e) => e.target.src = 'https://via.placeholder.com/150?text=No+Image'}
+                                                />
+                                            ) : (
+                                                <div className="image-placeholder">
+                                                    <span>📷 Vista Previa</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="modal-footer full-width">
-                            <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
-                            <button type="submit" className="btn btn-primary btn-lg">{editingItem ? 'Guardar Cambios' : 'Crear Artículo'}</button>
-                        </div>
-                    </form>
-                </div>
-            )
+                            <div className="modal-footer full-width">
+                                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
+                                <button type="submit" className="btn btn-primary btn-lg">{editingItem ? 'Guardar Cambios' : 'Crear Artículo'}</button>
+                            </div>
+                        </form>
+                    </div>
+                )
             }
         </div >
     );

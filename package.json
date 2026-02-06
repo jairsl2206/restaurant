@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "server": "TZ=America/Mexico_City node server/index.js",
-    "server:clean": "TZ=America/Mexico_City node server/index-clean.js",
+    "server": "cross-env TZ=America/Mexico_City node server/index.js",
+    "server:clean": "cross-env TZ=America/Mexico_City node server/index-clean.js",
     "client": "cd client && npm run dev",
-    "dev": "TZ=America/Mexico_City node server/index.js",
-    "dev:clean": "TZ=America/Mexico_City node server/index-clean.js",
+    "dev": "cross-env TZ=America/Mexico_City node server/index.js",
+    "dev:clean": "cross-env TZ=America/Mexico_City node server/index-clean.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -18,6 +18,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
+    "cross-env": "^10.1.0",
     "express": "^5.2.1",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",

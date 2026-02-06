@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';
 import AdminDashboard from './components/AdminDashboard';
 import Dashboard from './Dashboard';
+import CustomerMenu from './components/CustomerMenu';
 import './App.css';
 import API_BASE_URL from './config';
 
@@ -38,30 +40,45 @@ function App() {
 
   const refreshSettings = () => fetchSettings();
 
-  return (
-    <div className="app">
-      {user ? (
-        user.role === 'admin' ? (
-          <AdminDashboard
-            user={user}
-            onLogout={handleLogout}
-            settings={settings}
-            onSettingsUpdate={refreshSettings}
-          />
+  // Helper component for the main admin/staff app
+  const MainApp = () => {
+    return (
+      <div className="app">
+        {user ? (
+          user.role === 'admin' ? (
+            <AdminDashboard
+              user={user}
+              onLogout={handleLogout}
+              settings={settings}
+              onSettingsUpdate={refreshSettings}
+            />
+          ) : (
+            <Dashboard
+              user={user}
+              onLogout={handleLogout}
+              settings={settings}
+            />
+          )
         ) : (
-          <Dashboard
-            user={user}
-            onLogout={handleLogout}
+          <Login
+            onLogin={handleLogin}
             settings={settings}
           />
-        )
-      ) : (
-        <Login
-          onLogin={handleLogin}
-          settings={settings}
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <Routes>
+      <Route path="/menu" element={
+        <CustomerMenu
+          restaurantName={settings.restaurant_name}
+          restaurantLogo={settings.restaurant_logo}
         />
-      )}
-    </div>
+      } />
+      <Route path="/*" element={<MainApp />} />
+    </Routes>
   );
 }
 

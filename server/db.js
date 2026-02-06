@@ -68,7 +68,27 @@ class Database {
           price REAL NOT NULL,
           image_url TEXT,
           category TEXT,
-          available BOOLEAN DEFAULT 1
+          available BOOLEAN DEFAULT 1,
+          promotion_type TEXT,
+          promotion_value REAL,
+          promotion_active BOOLEAN DEFAULT 0
+        )
+      `);
+
+            // Migration for existing menu_items tables
+            this.db.run("ALTER TABLE menu_items ADD COLUMN promotion_type TEXT", (err) => { /* ignore */ });
+            this.db.run("ALTER TABLE menu_items ADD COLUMN promotion_value REAL", (err) => { /* ignore */ });
+            this.db.run("ALTER TABLE menu_items ADD COLUMN promotion_active BOOLEAN DEFAULT 0", (err) => { /* ignore */ });
+
+            // Category Promotions table
+            this.db.run(`
+        CREATE TABLE IF NOT EXISTS category_promotions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category TEXT NOT NULL,
+          promotion_type TEXT NOT NULL,
+          promotion_value REAL NOT NULL,
+          active BOOLEAN DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
@@ -216,11 +236,15 @@ class Database {
         this.db.all('SELECT * FROM menu_items', callback);
     }
 
+    getAvailableMenuItems(callback) {
+        this.db.all('SELECT * FROM menu_items WHERE available = 1', callback);
+    }
+
     createMenuItem(item, callback) {
-        const { name, description, price, image_url, category, available } = item;
+        const { name, description, price, image_url, category, available, promotion_type, promotion_value, promotion_active } = item;
         this.db.run(
-            'INSERT INTO menu_items (name, description, price, image_url, category, available) VALUES (?, ?, ?, ?, ?, ?)',
-            [name, description, price, image_url, category, available ? 1 : 0],
+            'INSERT INTO menu_items (name, description, price, image_url, category, available, promotion_type, promotion_value, promotion_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [name, description, price, image_url, category, available ? 1 : 0, promotion_type || null, promotion_value || null, promotion_active ? 1 : 0],
             function (err) {
                 callback(err, this ? this.lastID : null);
             }
@@ -228,16 +252,111 @@ class Database {
     }
 
     updateMenuItem(id, item, callback) {
-        const { name, description, price, image_url, category, available } = item;
+        const { name, description, price, image_url, category, available, promotion_type, promotion_value, promotion_active } = item;
         this.db.run(
-            'UPDATE menu_items SET name = ?, description = ?, price = ?, image_url = ?, category = ?, available = ? WHERE id = ?',
-            [name, description, price, image_url, category, available ? 1 : 0, id],
+            'UPDATE menu_items SET name = ?, description = ?, price = ?, image_url = ?, category = ?, available = ?, promotion_type = ?, promotion_value = ?, promotion_active = ? WHERE id = ?',
+            [name, description, price, image_url, category, available ? 1 : 0, promotion_type || null, promotion_value || null, promotion_active ? 1 : 0, id],
             callback
         );
     }
 
     deleteMenuItem(id, callback) {
         this.db.run('DELETE FROM menu_items WHERE id = ?', [id], callback);
+    }
+
+    // Category Promotion Methods
+    getCategoryPromotions(callback) {
+        this.db.all('SELECT * FROM category_promotions ORDER BY created_at DESC', callback);
+    }
+
+    createCategoryPromotion(data, callback) {
+        const { category, promotion_type, promotion_value, active } = data;
+        this.db.run(
+            'INSERT INTO category_promotions (category, promotion_type, promotion_value, active) VALUES (?, ?, ?, ?)',
+            [category, promotion_type, promotion_value, active ? 1 : 0],
+            function (err) {
+                callback(err, this ? this.lastID : null);
+            }
+        );
+    }
+
+    updateCategoryPromotion(id, data, callback) {
+        const { category, promotion_type, promotion_value, active } = data;
+        this.db.run(
+            'UPDATE category_promotions SET category = ?, promotion_type = ?, promotion_value = ?, active = ? WHERE id = ?',
+            [category, promotion_type, promotion_value, active ? 1 : 0, id],
+            callback
+        );
+    }
+
+    deleteCategoryPromotion(id, callback) {
+        this.db.run('DELETE FROM category_promotions WHERE id = ?', [id], callback);
+    }
+
+    // Get menu items with calculated promotional prices
+    getMenuItemsWithPromotions(callback) {
+        // First get all menu items
+        this.db.all('SELECT * FROM menu_items', (err, items) => {
+            if (err) return callback(err);
+
+            // Then get all active category promotions
+            this.db.all('SELECT * FROM category_promotions WHERE active = 1', (err, categoryPromos) => {
+                if (err) return callback(err);
+
+                // Calculate promotional prices for each item
+                const itemsWithPromos = items.map(item => {
+                    let finalPrice = item.price;
+                    let hasPromotion = false;
+                    let promotionType = null;
+                    let promotionValue = null;
+                    let discountAmount = 0;
+
+                    // Check item-level promotion first (takes precedence)
+                    if (item.promotion_active && item.promotion_type && item.promotion_value) {
+                        hasPromotion = true;
+                        promotionType = item.promotion_type;
+                        promotionValue = item.promotion_value;
+
+                        if (item.promotion_type === 'percentage') {
+                            discountAmount = item.price * (item.promotion_value / 100);
+                            finalPrice = item.price - discountAmount;
+                        } else if (item.promotion_type === 'fixed') {
+                            discountAmount = item.promotion_value;
+                            finalPrice = Math.max(0, item.price - item.promotion_value);
+                        }
+                    }
+                    // If no item-level promotion, check category-level promotion
+                    else if (item.category) {
+                        const categoryPromo = categoryPromos.find(cp => cp.category === item.category && cp.active);
+                        if (categoryPromo) {
+                            hasPromotion = true;
+                            promotionType = categoryPromo.promotion_type;
+                            promotionValue = categoryPromo.promotion_value;
+
+                            if (categoryPromo.promotion_type === 'percentage') {
+                                discountAmount = item.price * (categoryPromo.promotion_value / 100);
+                                finalPrice = item.price - discountAmount;
+                            } else if (categoryPromo.promotion_type === 'fixed') {
+                                discountAmount = categoryPromo.promotion_value;
+                                finalPrice = Math.max(0, item.price - categoryPromo.promotion_value);
+                            }
+                        }
+                    }
+
+                    return {
+                        ...item,
+                        original_price: item.price,
+                        final_price: parseFloat(finalPrice.toFixed(2)),
+                        has_promotion: hasPromotion,
+                        promotion_type: promotionType,
+                        promotion_value: promotionValue,
+                        discount_amount: parseFloat(discountAmount.toFixed(2))
+                    };
+                });
+
+                callback(null, itemsWithPromos);
+            });
+        });
     }
 
     // Settings Methods
