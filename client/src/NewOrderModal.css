@@ -599,13 +599,19 @@
     }
 
     .modal-content {
-        max-height: 96vh;
-        height: 96vh;
+        max-height: 100vh;
+        max-height: 100dvh;
+        height: 100vh;
+        height: 100dvh;
         max-width: 100%;
-        border-radius: 20px 20px 0 0;
-        animation: slideUp 0.3s ease-out;
+        border-radius: 0;
+        animation: fadeIn 0.3s ease-out;
         border: none;
-        border-top: 1px solid var(--border);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        touch-action: none;
+        /* We will enable it on the scrollable child */
     }
 
     .modal-header {
@@ -628,16 +634,29 @@
     }
 
     /* Improved Mobile Layout Flow: Table -> Menu -> Summary */
+    .modal-form {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        /* Critical for scroll */
+        overflow: hidden;
+    }
+
     .modal-body-grid {
         display: flex;
         flex-direction: column;
         overflow-y: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+        overscroll-behavior: contain;
         padding: 16px;
         gap: 24px;
         flex: 1;
-        padding-bottom: 100px;
-        /* Extra space to ensure buttons are reachable */
+        min-height: 0;
+        /* Critical for scroll */
+        padding-bottom: 120px;
     }
 
     .modal-left,

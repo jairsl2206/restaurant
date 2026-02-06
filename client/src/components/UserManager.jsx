@@ -140,13 +140,17 @@ function UserManager() {
             </div>
 
             {showModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content glass-card slide-in">
+                <div className="modal-overlay" onClick={closeModal}>
+                    <form
+                        onSubmit={handleSubmit}
+                        className="modal-content glass-card slide-in"
+                        onClick={e => e.stopPropagation()}
+                    >
                         <div className="modal-header">
                             <h3>Nuevo Usuario</h3>
-                            <button className="close-btn" onClick={closeModal}>×</button>
+                            <button type="button" className="close-btn" onClick={closeModal}>×</button>
                         </div>
-                        <form onSubmit={handleSubmit} className="user-form">
+                        <div className="modal-body">
                             <div className="form-group">
                                 <label>Usuario</label>
                                 <input
@@ -176,12 +180,12 @@ function UserManager() {
                                     <option value="admin">Admin</option>
                                 </select>
                             </div>
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
-                                <button type="submit" className="btn btn-primary">Crear Usuario</button>
-                            </div>
-                        </form>
-                    </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
+                            <button type="submit" className="btn btn-primary">Crear Usuario</button>
+                        </div>
+                    </form>
                 </div>
             )}
         </div>
