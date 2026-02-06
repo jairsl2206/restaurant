@@ -100,7 +100,7 @@ function Login({ onLogin, settings }) {
                 </form>
 
                 <div className="login-footer">
-                    <p className="hint">Desarrollador por <strong>Jair Saldaña</strong></p>
+                    <p className="hint">Desarrollado por <strong>Jair Saldaña</strong></p>
                 </div>
             </div>
         </div>
