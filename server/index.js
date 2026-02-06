@@ -40,9 +40,9 @@ const storage = multer.diskStorage({
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        // Ensure we handle the extension safely
-        const ext = path.extname(file.originalname) || '.png';
-        cb(null, 'logo-' + uniqueSuffix + ext)
+        const ext = path.extname(file.originalname).toLowerCase() || '.png';
+        const safeExt = ['.png', '.jpg', '.jpeg', '.webp'].includes(ext) ? ext : '.png';
+        cb(null, 'upload-' + uniqueSuffix + safeExt)
     }
 });
 const upload = multer({ storage: storage });
