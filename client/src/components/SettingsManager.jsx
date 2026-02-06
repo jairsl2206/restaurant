@@ -327,7 +327,74 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                         </div>
                     </div>
 
-                    <div className="form-actions" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+                    <div className="maintenance-section" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem', marginTop: '2rem' }}>
+                        <h3 style={{ color: '#ff4d4d', marginBottom: '1rem', fontSize: '1.1rem' }}>⚠️ Zona de Peligro (Mantenimiento)</h3>
+                        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                            Estas acciones son irreversibles. Por favor, procede con extrema precaución.
+                        </p>
+
+                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                            <button
+                                type="button"
+                                className="btn"
+                                style={{ background: 'rgba(231, 76, 60, 0.1)', border: '1px solid #e74c3c', color: '#e74c3c' }}
+                                onClick={async () => {
+                                    if (window.confirm('¿ESTÁS SEGURO? Esta acción borrará TODOS los artículos del menú permanentemente.')) {
+                                        if (window.confirm('POR FAVOR CONFIRMA OTRA VEZ: ¿Realmente quieres borrar todos los datos del menú?')) {
+                                            try {
+                                                const res = await fetch(API_BASE_URL + '/menu/all', {
+                                                    method: 'DELETE',
+                                                    headers: { 'x-role': 'admin' }
+                                                });
+                                                if (res.ok) {
+                                                    alert('Menú borrado exitosamente.');
+                                                    onSettingsUpdate();
+                                                } else {
+                                                    alert('Error al borrar menú.');
+                                                }
+                                            } catch (err) {
+                                                console.error(err);
+                                                alert('Error de conexión.');
+                                            }
+                                        }
+                                    }
+                                }}
+                            >
+                                🗑️ Borrar Todos los Items
+                            </button>
+
+                            <button
+                                type="button"
+                                className="btn"
+                                style={{ background: 'rgba(231, 76, 60, 0.1)', border: '1px solid #e74c3c', color: '#e74c3c' }}
+                                onClick={async () => {
+                                    if (window.confirm('¿ESTÁS SEGURO? Esta acción borrará TODO el historial de pedidos permanentemente.')) {
+                                        if (window.confirm('POR FAVOR CONFIRMA OTRA VEZ: ¿Realmente quieres borrar todo el historial de pedidos?')) {
+                                            try {
+                                                const res = await fetch(API_BASE_URL + '/orders/all', {
+                                                    method: 'DELETE',
+                                                    headers: { 'x-role': 'admin' }
+                                                });
+                                                if (res.ok) {
+                                                    alert('Historial de pedidos borrado exitosamente.');
+                                                    onSettingsUpdate();
+                                                } else {
+                                                    alert('Error al borrar pedidos.');
+                                                }
+                                            } catch (err) {
+                                                console.error(err);
+                                                alert('Error de conexión.');
+                                            }
+                                        }
+                                    }
+                                }}
+                            >
+                                📜 Borrar Todos los Pedidos
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="form-actions" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem', marginTop: '2rem' }}>
                         <button type="submit" className="btn btn-primary btn-lg">
                             💾 Guardar Cambios
                         </button>
