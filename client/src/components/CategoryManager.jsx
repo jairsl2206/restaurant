@@ -117,13 +117,9 @@ function CategoryManager() {
         setNewCategoryName('');
     };
 
-    if (loading) {
-        return <div className="category-manager"><p>Cargando categorías...</p></div>;
-    }
-
     return (
-        <div className="category-manager glass-card fade-in">
-            <div className="manager-content" style={{ padding: '2rem' }}>
+        <div className="category-manager fade-in">
+            <div className="manager-content">
                 <div className="manager-header">
                     <h2>🏷️ Gestión de Categorías</h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.5rem 0 0 0' }}>
@@ -131,105 +127,111 @@ function CategoryManager() {
                     </p>
                 </div>
 
-                <div className="categories-list" style={{ marginTop: '2rem' }}>
-                    {categories.length === 0 ? (
-                        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
-                            No hay categorías. Crea artículos en el menú para generar categorías.
-                        </p>
-                    ) : (
-                        <div className="data-table-wrapper">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Categoría</th>
-                                        <th>Artículos</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {categories.map(category => (
-                                        <tr key={category}>
-                                            <td>
-                                                {editingCategory === category ? (
-                                                    <input
-                                                        type="text"
-                                                        value={newCategoryName}
-                                                        onChange={(e) => setNewCategoryName(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') handleSaveCategory();
-                                                            if (e.key === 'Escape') handleCancelEdit();
-                                                        }}
-                                                        autoFocus
-                                                        style={{
-                                                            background: 'rgba(0,0,0,0.3)',
-                                                            border: '1px solid var(--primary)',
-                                                            borderRadius: '6px',
-                                                            padding: '0.5rem',
-                                                            color: 'var(--text-primary)',
-                                                            width: '100%',
-                                                            maxWidth: '300px'
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <span className="badge" style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
-                                                        {category}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <span style={{ color: 'var(--text-secondary)' }}>
-                                                    {getItemCountByCategory(category)} artículo(s)
-                                                </span>
-                                            </td>
-                                            <td>
-                                                {editingCategory === category ? (
-                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                        <button
-                                                            className="btn btn-primary"
-                                                            onClick={handleSaveCategory}
-                                                            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
-                                                        >
-                                                            ✓ Guardar
-                                                        </button>
-                                                        <button
-                                                            className="btn btn-secondary"
-                                                            onClick={handleCancelEdit}
-                                                            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
-                                                        >
-                                                            ✕ Cancelar
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                        <button
-                                                            className="action-btn edit-btn"
-                                                            onClick={() => handleEditCategory(category)}
-                                                            title="Editar categoría"
-                                                        >
-                                                            ✏️
-                                                        </button>
-                                                        <button
-                                                            className="action-btn delete-btn"
-                                                            onClick={() => handleDeleteCategory(category)}
-                                                            title="Eliminar categoría"
-                                                            disabled={getItemCountByCategory(category) > 0}
-                                                            style={{
-                                                                opacity: getItemCountByCategory(category) > 0 ? 0.5 : 1,
-                                                                cursor: getItemCountByCategory(category) > 0 ? 'not-allowed' : 'pointer'
-                                                            }}
-                                                        >
-                                                            🗑️
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </td>
+                {loading ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        <p>Cargando categorías...</p>
+                    </div>
+                ) : (
+                    <div className="categories-list" style={{ marginTop: '2rem' }}>
+                        {categories.length === 0 ? (
+                            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
+                                No hay categorías. Crea artículos en el menú para generar categorías.
+                            </p>
+                        ) : (
+                            <div className="data-table-wrapper">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Categoría</th>
+                                            <th>Artículos</th>
+                                            <th>Acciones</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
+                                    </thead>
+                                    <tbody>
+                                        {categories.map(category => (
+                                            <tr key={category}>
+                                                <td>
+                                                    {editingCategory === category ? (
+                                                        <input
+                                                            type="text"
+                                                            value={newCategoryName}
+                                                            onChange={(e) => setNewCategoryName(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleSaveCategory();
+                                                                if (e.key === 'Escape') handleCancelEdit();
+                                                            }}
+                                                            autoFocus
+                                                            style={{
+                                                                background: 'rgba(0,0,0,0.3)',
+                                                                border: '1px solid var(--primary)',
+                                                                borderRadius: '6px',
+                                                                padding: '0.5rem',
+                                                                color: 'var(--text-primary)',
+                                                                width: '100%',
+                                                                maxWidth: '300px'
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span className="badge" style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
+                                                            {category}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>
+                                                        {getItemCountByCategory(category)} artículo(s)
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {editingCategory === category ? (
+                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                            <button
+                                                                className="btn btn-primary"
+                                                                onClick={handleSaveCategory}
+                                                                style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+                                                            >
+                                                                ✓ Guardar
+                                                            </button>
+                                                            <button
+                                                                className="btn btn-secondary"
+                                                                onClick={handleCancelEdit}
+                                                                style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+                                                            >
+                                                                ✕ Cancelar
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                            <button
+                                                                className="action-btn edit-btn"
+                                                                onClick={() => handleEditCategory(category)}
+                                                                title="Editar categoría"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                            <button
+                                                                className="action-btn delete-btn"
+                                                                onClick={() => handleDeleteCategory(category)}
+                                                                title="Eliminar categoría"
+                                                                disabled={getItemCountByCategory(category) > 0}
+                                                                style={{
+                                                                    opacity: getItemCountByCategory(category) > 0 ? 0.5 : 1,
+                                                                    cursor: getItemCountByCategory(category) > 0 ? 'not-allowed' : 'pointer'
+                                                                }}
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div style={{
                     marginTop: '2rem',

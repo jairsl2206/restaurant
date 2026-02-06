@@ -93,7 +93,7 @@ function UserManager() {
 
     return (
         <div className="user-manager">
-            <div className="manager-content" style={{ padding: '2rem' }}>
+            <div className="manager-content">
                 <div className="manager-header">
                     <h2>👥 Gestión de Usuarios</h2>
                     <button className="btn btn-primary" onClick={() => setShowModal(true)}>
