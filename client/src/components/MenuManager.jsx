@@ -167,129 +167,134 @@ function MenuManager() {
             </div>
 
             {showModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content glass-card slide-in menu-modal-enhanced">
+                <div className="modal-overlay" onClick={closeModal}>
+                    <form
+                        onSubmit={handleSubmit}
+                        className="modal-content glass-card slide-in menu-modal-enhanced"
+                        onClick={e => e.stopPropagation()}
+                    >
                         <div className="modal-header">
                             <h3>{editingItem ? 'Editar Artículo' : 'Nuevo Artículo'}</h3>
-                            <button className="close-btn" onClick={closeModal}>×</button>
+                            <button type="button" className="close-btn" onClick={closeModal}>×</button>
                         </div>
-                        <form onSubmit={handleSubmit} className="menu-form-grid">
-                            <div className="form-left">
-                                <div className="form-group">
-                                    <label>Nombre</label>
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder="Ej: Hamburguesa Suprema"
-                                        required
-                                    />
-                                </div>
-
-                                <div className="form-row">
+                        <div className="modal-body">
+                            <div className="menu-form-grid">
+                                <div className="form-left">
                                     <div className="form-group">
-                                        <label>Precio ($)</label>
+                                        <label>Nombre</label>
                                         <input
-                                            type="number"
-                                            step="0.01"
-                                            value={formData.price}
-                                            onChange={e => setFormData({ ...formData, price: e.target.value })}
+                                            type="text"
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            placeholder="Ej: Hamburguesa Suprema"
                                             required
                                         />
                                     </div>
-                                    <div className="form-group">
-                                        <label>Categoría</label>
-                                        <div className="category-selector">
-                                            <select
-                                                value={formData.category === 'new_custom_category' ? 'new_custom_category' : (items.some(i => i.category === formData.category) || ['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category) ? formData.category : 'new_custom_category')}
-                                                onChange={e => {
-                                                    const val = e.target.value;
-                                                    if (val === 'new_custom_category') {
-                                                        setFormData({ ...formData, category: '' });
-                                                    } else {
-                                                        setFormData({ ...formData, category: val });
-                                                    }
-                                                }}
-                                            >
-                                                {/* Unique existing categories */}
-                                                {[...new Set([...items.map(i => i.category), 'Plato Principal', 'Entrada', 'Bebida', 'Postre'])].filter(Boolean).sort().map(cat => (
-                                                    <option key={cat} value={cat}>{cat}</option>
-                                                ))}
-                                                <option value="new_custom_category">+ Nueva Categoría</option>
-                                            </select>
 
-                                            {(!items.some(i => i.category === formData.category) &&
-                                                !['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category)) && (
-                                                    <input
-                                                        type="text"
-                                                        className="mt-2"
-                                                        placeholder="Escribe nueva categoría..."
-                                                        value={formData.category}
-                                                        onChange={e => setFormData({ ...formData, category: e.target.value })}
-                                                        autoFocus
-                                                    />
-                                                )}
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Precio ($)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={formData.price}
+                                                onChange={e => setFormData({ ...formData, price: e.target.value })}
+                                                required
+                                            />
                                         </div>
+                                        <div className="form-group">
+                                            <label>Categoría</label>
+                                            <div className="category-selector">
+                                                <select
+                                                    value={formData.category === 'new_custom_category' ? 'new_custom_category' : (items.some(i => i.category === formData.category) || ['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category) ? formData.category : 'new_custom_category')}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        if (val === 'new_custom_category') {
+                                                            setFormData({ ...formData, category: '' });
+                                                        } else {
+                                                            setFormData({ ...formData, category: val });
+                                                        }
+                                                    }}
+                                                >
+                                                    {/* Unique existing categories */}
+                                                    {[...new Set([...items.map(i => i.category), 'Plato Principal', 'Entrada', 'Bebida', 'Postre'])].filter(Boolean).sort().map(cat => (
+                                                        <option key={cat} value={cat}>{cat}</option>
+                                                    ))}
+                                                    <option value="new_custom_category">+ Nueva Categoría</option>
+                                                </select>
+
+                                                {(!items.some(i => i.category === formData.category) &&
+                                                    !['Plato Principal', 'Entrada', 'Bebida', 'Postre'].includes(formData.category)) && (
+                                                        <input
+                                                            type="text"
+                                                            className="mt-2"
+                                                            placeholder="Escribe nueva categoría..."
+                                                            value={formData.category}
+                                                            onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                                            autoFocus
+                                                        />
+                                                    )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                    <div className="form-group">
+                                        <label>Descripción</label>
+                                        <textarea
+                                            value={formData.description}
+                                            onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                            rows="3"
+                                            placeholder="Descripción corta del platillo..."
+                                        />
+                                    </div>
+
+                                    <div className="form-group checkbox-group">
+                                        <label>
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.available}
+                                                style={{ width: 'auto' }}
+                                                onChange={e => setFormData({ ...formData, available: e.target.checked })}
+                                            />
+                                            Disponible para ordenar
+                                        </label>
                                     </div>
                                 </div>
 
-
-                                <div className="form-group">
-                                    <label>Descripción</label>
-                                    <textarea
-                                        value={formData.description}
-                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                        rows="3"
-                                        placeholder="Descripción corta del platillo..."
-                                    />
-                                </div>
-
-                                <div className="form-group checkbox-group">
-                                    <label>
+                                <div className="form-right">
+                                    <div className="form-group">
+                                        <label>URL de Imagen</label>
                                         <input
-                                            type="checkbox"
-                                            checked={formData.available}
-                                            style={{ width: 'auto' }}
-                                            onChange={e => setFormData({ ...formData, available: e.target.checked })}
+                                            type="text"
+                                            placeholder="https://ejemplo.com/foto.jpg"
+                                            value={formData.image_url}
+                                            onChange={e => setFormData({ ...formData, image_url: e.target.value })}
                                         />
-                                        Disponible para ordenar
-                                    </label>
+                                    </div>
+                                    <div className="image-preview-container">
+                                        {formData.image_url ? (
+                                            <img
+                                                src={formData.image_url}
+                                                alt="Preview"
+                                                className="image-preview"
+                                                onError={(e) => e.target.src = 'https://via.placeholder.com/150?text=No+Image'}
+                                            />
+                                        ) : (
+                                            <div className="image-placeholder">
+                                                <span>📷 Vista Previa</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-
-                            <div className="form-right">
-                                <div className="form-group">
-                                    <label>URL de Imagen</label>
-                                    <input
-                                        type="text"
-                                        placeholder="https://ejemplo.com/foto.jpg"
-                                        value={formData.image_url}
-                                        onChange={e => setFormData({ ...formData, image_url: e.target.value })}
-                                    />
-                                </div>
-                                <div className="image-preview-container">
-                                    {formData.image_url ? (
-                                        <img
-                                            src={formData.image_url}
-                                            alt="Preview"
-                                            className="image-preview"
-                                            onError={(e) => e.target.src = 'https://via.placeholder.com/150?text=No+Image'}
-                                        />
-                                    ) : (
-                                        <div className="image-placeholder">
-                                            <span>📷 Vista Previa</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="modal-footer full-width">
-                                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
-                                <button type="submit" className="btn btn-primary btn-lg">{editingItem ? 'Guardar Cambios' : 'Crear Artículo'}</button>
-                            </div>
-                        </form>
-                    </div>
-                </div >
+                        </div>
+                        <div className="modal-footer full-width">
+                            <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
+                            <button type="submit" className="btn btn-primary btn-lg">{editingItem ? 'Guardar Cambios' : 'Crear Artículo'}</button>
+                        </div>
+                    </form>
+                </div>
             )
             }
         </div >
