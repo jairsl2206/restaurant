@@ -1,33 +1,3 @@
-process.env.TZ = 'America/Mexico_City';
-
-const OriginalDate = Date;
-global.Date = class extends OriginalDate {
-    constructor(...args) {
-        if (args.length === 0) {
-            // Sin argumentos: crear fecha actual ajustada a México
-            const now = new OriginalDate();
-            const mexicoString = now.toLocaleString('en-US', {
-                timeZone: 'America/Mexico_City',
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false
-            });
-            super(mexicoString);
-        } else {
-            // Con argumentos: comportamiento normal
-            super(...args);
-        }
-    }
-
-    static now() {
-        return new Date().getTime();
-    }
-};
-
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
@@ -86,7 +56,7 @@ app.get('/health', (req, res) => {
 
 // Debug logging
 app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    console.log(`[${new Date().toLocaleString('es-MX')}] ${req.method} ${req.path}`);
     next();
 });
 
