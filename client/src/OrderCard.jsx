@@ -29,14 +29,23 @@ const parseItemsIndividual = (itemsString) => {
     let globalIndex = 0;
 
     parts.forEach(part => {
-        const match = part.match(/(.+) x(\d+)$/);
+        const priceMatch = part.match(/(.+) \[(\d+\.?\d*)\]$/);
+        let content = part;
+        let itemPrice = 0;
+
+        if (priceMatch) {
+            content = priceMatch[1].trim();
+            itemPrice = parseFloat(priceMatch[2]);
+        }
+
+        const match = content.match(/(.+) x(\d+)$/);
         let nameWithNote, qty;
 
         if (match) {
             nameWithNote = match[1].trim();
             qty = parseInt(match[2], 10);
         } else {
-            nameWithNote = part.trim();
+            nameWithNote = content.trim();
             qty = 1;
         }
 
@@ -56,6 +65,7 @@ const parseItemsIndividual = (itemsString) => {
                 text: name,
                 note: note,
                 quantity: 1, // Each item is quantity 1
+                price: itemPrice,
                 checked: false
             });
             globalIndex++;
@@ -72,14 +82,21 @@ const parseItemsGrouped = (itemsString) => {
     let itemMap = new Map();
 
     parts.forEach(part => {
-        const match = part.match(/(.+) x(\d+)$/);
+        const priceMatch = part.match(/(.+) \[(\d+\.?\d*)\]$/);
+        let content = part;
+
+        if (priceMatch) {
+            content = priceMatch[1].trim();
+        }
+
+        const match = content.match(/(.+) x(\d+)$/);
         let nameWithNote, qty;
 
         if (match) {
             nameWithNote = match[1].trim();
             qty = parseInt(match[2], 10);
         } else {
-            nameWithNote = part.trim();
+            nameWithNote = content.trim();
             qty = 1;
         }
 
@@ -410,16 +427,37 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                     </div>
 
                     {isPaymentStage ? (
-                        <div className="payment-check-container" style={{ padding: '10px', background: 'rgba(46, 204, 113, 0.1)', borderRadius: '8px', border: '1px solid rgba(46, 204, 113, 0.3)' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', width: '100%' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={paymentConfirmed}
-                                    onChange={(e) => setPaymentConfirmed(e.target.checked)}
-                                    style={{ width: '20px', height: '20px', accentColor: '#2ecc71' }}
-                                />
-                                <span style={{ fontWeight: 'bold', color: '#e0e0e0' }}>💵 Pago en Efectivo Recibido</span>
-                            </label>
+                        <div className="payment-stage-container">
+                            <ul className="items-list-simple" style={{ listStyle: 'none', padding: 0, marginBottom: '15px' }}>
+                                {itemsList.map((item, i) => (
+                                    <li key={i} className="simple-item" style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <span style={{ marginRight: '8px', color: '#3498db' }}>•</span>
+                                                <span className="item-text" style={{ color: '#ecf0f1' }}>{item.text}</span>
+                                            </div>
+                                            {item.note && (
+                                                <span style={{ marginLeft: '15px', fontSize: '0.75rem', color: '#ff6b6b', fontWeight: 'bold' }}>
+                                                    ↳ {item.note}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span style={{ color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 'bold' }}>${item.price.toFixed(2)}</span>
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <div className="payment-check-container" style={{ padding: '10px', background: 'rgba(46, 204, 113, 0.1)', borderRadius: '8px', border: '1px solid rgba(46, 204, 113, 0.3)' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', width: '100%' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={paymentConfirmed}
+                                        onChange={(e) => setPaymentConfirmed(e.target.checked)}
+                                        style={{ width: '20px', height: '20px', accentColor: '#2ecc71' }}
+                                    />
+                                    <span style={{ fontWeight: 'bold', color: '#e0e0e0' }}>💵 Pago en Efectivo Recibido</span>
+                                </label>
+                            </div>
                         </div>
                     ) : showSimpleList ? (
                         <ul className="items-list-simple" style={{ listStyle: 'none', padding: 0 }}>
