@@ -169,7 +169,7 @@ class Database {
     getOrders(callback) {
         this.db.all(`
       SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity) as items
+        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       GROUP BY o.id
@@ -180,7 +180,7 @@ class Database {
     getActiveOrders(callback) {
         this.db.all(`
       SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity) as items
+        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       WHERE o.status != 'Pagado'
@@ -200,7 +200,7 @@ class Database {
     getOrderById(orderId, callback) {
         this.db.get(`
       SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity) as items
+        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       WHERE o.id = ?
@@ -263,7 +263,7 @@ class Database {
         // Helper to get current items string before update
         const getCurrentItems = (cb) => {
             db.get(`
-                SELECT GROUP_CONCAT(item_name || ' x' || quantity) as items, is_updated 
+                SELECT GROUP_CONCAT(item_name || ' x' || quantity || ' [' || price || ']') as items, is_updated 
                 FROM order_items 
                 JOIN orders ON orders.id = order_items.order_id 
                 WHERE order_id = ?
