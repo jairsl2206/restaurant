@@ -1,5 +1,6 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
+const logger = require('./logger');
 
 let client;
 let qrCodeData = null;
@@ -15,7 +16,7 @@ const initializeClient = () => {
     });
 
     client.on('qr', (qr) => {
-        console.log('QR Code received from WhatsApp');
+        logger.info('QR Code received from WhatsApp');
         // Convert QR text to Data URL for frontend
         qrcode.toDataURL(qr, (err, url) => {
             if (err) {
@@ -32,21 +33,19 @@ const initializeClient = () => {
     });
 
     client.on('ready', () => {
-        console.log('WhatsApp Client is ready!');
+        logger.info('WhatsApp Client is ready');
         isReady = true;
         qrCodeData = null; // Clear QR code once connected
     });
 
     client.on('authenticated', () => {
-        console.log('WhatsApp Authenticated');
+        logger.info('WhatsApp Authenticated');
     });
 
-    client.on('auth_failure', (msg) => {
-        console.error('WhatsApp Auth Failure', msg);
-    });
+    client.on('auth_failure', (msg) => logger.error('WhatsApp auth failure:', msg));
 
     client.on('disconnected', (reason) => {
-        console.log('WhatsApp Disconnected', reason);
+        logger.info(`WhatsApp Disconnected: ${reason}`);
         isReady = false;
         client.initialize(); // Auto reconnect
     });

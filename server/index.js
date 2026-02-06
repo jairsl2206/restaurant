@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const morgan = require('morgan');
+const logger = require('./logger');
 const routes = require('./routes');
 
 const app = express();
@@ -13,6 +15,11 @@ whatsappService.initializeClient();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// HTTP Request Logging
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
+    stream: { write: (message) => logger.info(message.trim()) }
+}));
 
 // Routes
 app.use('/api', (req, res, next) => {
@@ -54,12 +61,6 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'Server is running' });
 });
 
-// Debug logging
-app.use((req, res, next) => {
-    console.log(`[${new Date().toLocaleString('es-MX')}] ${req.method} ${req.path}`);
-    next();
-});
-
 // Serve static files from React build (PRODUCTION)
 // This must come AFTER all API routes
 const distPath = path.join(__dirname, '../client/dist');
@@ -76,17 +77,17 @@ app.use((req, res, next) => {
         return next();
     }
     const indexPath = path.join(__dirname, '../client/dist/index.html');
-    console.log(`📄 Serving index.html from: ${indexPath}`);
+    logger.info(`📄 Serving index.html from: ${indexPath}`);
     res.sendFile(indexPath);
 });
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📊 API available at http://localhost:${PORT}/api`);
-    console.log(`🌐 Frontend available at http://localhost:${PORT}`);
-    console.log("Timezone: ", Intl.DateTimeFormat().resolvedOptions().timeZone);
-    console.log("Date: ", new Date().toISOString());
+    logger.info(`🚀 Server running on http://localhost:${PORT}`);
+    logger.info(`📊 API available at http://localhost:${PORT}/api`);
+    logger.info(`🌐 Frontend available at http://localhost:${PORT}`);
+    logger.info(`Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`);
+    logger.info(`Date: ${new Date().toISOString()}`);
 });
 
 module.exports = app;
