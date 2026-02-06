@@ -130,8 +130,8 @@ function SettingsManager({ settings, onSettingsUpdate }) {
     };
 
     return (
-        <div className="settings-manager glass-card fade-in">
-            <div className="manager-content" style={{ padding: '2rem' }}>
+        <div className="settings-manager fade-in">
+            <div className="manager-content">
                 <div className="manager-header">
                     <h2>⚙️ Configuración del Sistema</h2>
                 </div>

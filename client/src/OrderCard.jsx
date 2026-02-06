@@ -25,19 +25,28 @@ const parseItemsIndividual = (itemsString) => {
     if (!itemsString) return [];
     const individualItems = [];
     const str = String(itemsString);
-    const parts = str.split(/,\s*/);
+    const parts = str.split(/,\s*(?![^(]*\))/);
     let globalIndex = 0;
 
     parts.forEach(part => {
         const match = part.match(/(.+) x(\d+)$/);
-        let name, qty;
+        let nameWithNote, qty;
 
         if (match) {
-            name = match[1].trim();
+            nameWithNote = match[1].trim();
             qty = parseInt(match[2], 10);
         } else {
-            name = part.trim();
+            nameWithNote = part.trim();
             qty = 1;
+        }
+
+        // Extract note if exists: "Name (Note)" or "Name(Note)"
+        const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
+        let name = nameWithNote;
+        let note = '';
+        if (noteMatch) {
+            name = noteMatch[1].trim();
+            note = noteMatch[2].trim();
         }
 
         // Create individual entries for each item
@@ -45,6 +54,7 @@ const parseItemsIndividual = (itemsString) => {
             individualItems.push({
                 id: `item_${globalIndex}`,
                 text: name,
+                note: note,
                 quantity: 1, // Each item is quantity 1
                 checked: false
             });
@@ -58,35 +68,50 @@ const parseItemsIndividual = (itemsString) => {
 const parseItemsGrouped = (itemsString) => {
     if (!itemsString) return [];
     const str = String(itemsString);
-    const parts = str.split(/,\s*/);
-    const itemMap = new Map();
+    const parts = str.split(/,\s*(?![^(]*\))/);
+    let itemMap = new Map();
 
     parts.forEach(part => {
         const match = part.match(/(.+) x(\d+)$/);
-        let name, qty;
+        let nameWithNote, qty;
 
         if (match) {
-            name = match[1].trim();
+            nameWithNote = match[1].trim();
             qty = parseInt(match[2], 10);
         } else {
-            name = part.trim();
+            nameWithNote = part.trim();
             qty = 1;
         }
 
-        // Group by name
-        if (itemMap.has(name)) {
-            itemMap.set(name, itemMap.get(name) + qty);
+        // For grouping, if we have nodes we treat them as unique items
+        // Wait, if two items have SAME name and SAME note, we group them.
+        const key = nameWithNote;
+
+        // Group by full string (including note)
+        if (itemMap.has(key)) {
+            itemMap.set(key, itemMap.get(key) + qty);
         } else {
-            itemMap.set(name, qty);
+            itemMap.set(key, qty);
         }
     });
 
     // Convert to array
-    return Array.from(itemMap.entries()).map(([name, quantity], index) => ({
-        id: `grouped_${index}`,
-        text: name,
-        quantity: quantity
-    }));
+    return Array.from(itemMap.entries()).map(([nameWithNote, quantity], index) => {
+        const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
+        let name = nameWithNote;
+        let note = '';
+        if (noteMatch) {
+            name = noteMatch[1].trim();
+            note = noteMatch[2].trim();
+        }
+
+        return {
+            id: `grouped_${index}`,
+            text: name,
+            note: note,
+            quantity: quantity
+        };
+    });
 };
 
 function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
@@ -117,14 +142,22 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
         });
     };
 
+    const handleSelectAll = (checked) => {
+        setItemsList(prev => prev.map(item => ({
+            ...item,
+            checked: checked
+        })));
+    };
+
     const isPaymentStage = nextStatus === 'Pagado';
     const isCreationStage = order.status === 'Creado';
 
-    // Determine if we should show the simple list (no checkboxes)
-    const showSimpleList = isCreationStage || order.status === 'Pagado' || isCancelled || (order.status === 'En Cocina' && !isAllowedRole);
+    // Show checklist by default for all active statuses and all roles.
+    // Only show simple list for Pagado or Cancelado statuses.
+    const showSimpleList = order.status === 'Pagado' || isCancelled;
 
-    // DIFF LOGIC
-    const showDiff = isUpdated && isAllowedRole && order.original_items_snapshot && !isCancelled;
+    // DIFF LOGIC - Show to everyone if order is updated and has snapshot
+    const showDiff = isUpdated && order.original_items_snapshot && !isCancelled;
 
     let displayItems = []; // Kept + Removed (for display top section)
     let addedItems = [];
@@ -150,7 +183,8 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                     ...orgItem,
                     id: `original_${orgIndex}`,
                     status: 'kept',
-                    checked: current[matchIndex].checked
+                    checked: current[matchIndex].checked,
+                    note: current[matchIndex].note // Ensure note captures current state
                 };
             } else {
                 // Not found - mark as removed
@@ -262,12 +296,28 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         />
                     )}
 
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-                        <span className="item-text" style={isRemoved ? { textDecoration: 'line-through', color: '#e74c3c' } : {}}>
-                            {item.text}
-                        </span>
-
-                        {isRemoved && <span style={{ marginLeft: 'auto', color: '#e74c3c', fontSize: '0.8rem' }}>(Eliminado)</span>}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span className="item-text" style={isRemoved ? { textDecoration: 'line-through', color: '#e74c3c' } : {}}>
+                                {item.text}
+                            </span>
+                            {isRemoved && <span style={{ marginLeft: 'auto', color: '#e74c3c', fontSize: '0.8rem' }}>(Eliminado)</span>}
+                        </div>
+                        {item.note && !isRemoved && (
+                            <span className="item-note-badge" style={{
+                                alignSelf: 'flex-start',
+                                fontSize: '0.75rem',
+                                background: 'rgba(231, 76, 60, 0.2)',
+                                color: '#ff6b6b',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                marginTop: '2px',
+                                fontWeight: 'bold',
+                                border: '1px solid rgba(231, 76, 60, 0.3)'
+                            }}>
+                                <span style={{ marginRight: '4px', filter: 'none' }}>📋</span> {item.note}
+                            </span>
+                        )}
                     </div>
                 </label>
             </li>
@@ -375,9 +425,22 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         <ul className="items-list-simple" style={{ listStyle: 'none', padding: 0 }}>
                             {parseItemsGrouped(order.items).map((item, i) => (
                                 <li key={i} className="simple-item" style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        <span style={{ marginRight: '8px', color: '#3498db' }}>•</span>
-                                        <span className="item-text" style={{ color: '#ecf0f1' }}>{item.text}</span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                            <span style={{ marginRight: '8px', color: '#3498db' }}>•</span>
+                                            <span className="item-text" style={{ color: '#ecf0f1' }}>{item.text}</span>
+                                        </div>
+                                        {item.note && (
+                                            <span style={{
+                                                marginLeft: '15px',
+                                                fontSize: '0.75rem',
+                                                color: '#ff6b6b',
+                                                fontWeight: 'bold',
+                                                fontStyle: 'italic'
+                                            }}>
+                                                ↳ {item.note}
+                                            </span>
+                                        )}
                                     </div>
                                     <span style={{ color: '#95a5a6', fontSize: '0.9rem', fontWeight: 'bold' }}>x{item.quantity}</span>
                                 </li>
@@ -385,7 +448,20 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         </ul>
                     ) : showDiff ? (
                         <div className="diff-view">
-                            {displayItems.length > 0 && <p style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: '5px' }}>Orden Original:</p>}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                {displayItems.length > 0 && <p style={{ fontSize: '0.8rem', color: '#aaa', margin: 0 }}>Orden Original:</p>}
+                                {!isLocked && !isCancelled && !isPaymentStage && (
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', color: 'var(--primary)', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={itemsList.length > 0 && itemsList.every(i => i.checked)}
+                                            onChange={(e) => handleSelectAll(e.target.checked)}
+                                            style={{ width: '14px', height: '14px' }}
+                                        />
+                                        Marcar Todo
+                                    </label>
+                                )}
+                            </div>
                             <ul className="items-list-checklist">
                                 {displayItems.map((item) => renderIndividualRow(item, true))}
                             </ul>
@@ -402,9 +478,24 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                             )}
                         </div>
                     ) : (
-                        <ul className="items-list-checklist">
-                            {displayItems.map((item) => renderIndividualRow(item))}
-                        </ul>
+                        <div>
+                            {!isLocked && !isCancelled && !isPaymentStage && itemsList.length > 0 && (
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', color: 'var(--primary)', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={itemsList.length > 0 && itemsList.every(i => i.checked)}
+                                            onChange={(e) => handleSelectAll(e.target.checked)}
+                                            style={{ width: '14px', height: '14px' }}
+                                        />
+                                        Marcar Todo
+                                    </label>
+                                </div>
+                            )}
+                            <ul className="items-list-checklist">
+                                {displayItems.map((item) => renderIndividualRow(item))}
+                            </ul>
+                        </div>
                     )}
                 </div>
 

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 :root {
   /* Monochrome Color Palette - Grays, Blacks, Whites */
   /* Primary - Light Gray */
@@ -68,7 +70,6 @@
   box-sizing: border-box;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 body {
   font-family: var(--font-main);
@@ -263,6 +264,21 @@ textarea:focus {
   }
 }
 
+@keyframes readyBlink {
+
+  0%,
+  100% {
+    background: hsla(0, 100%, 50%, 0.2);
+    box-shadow: 0 0 0px hsla(0, 100%, 50%, 0);
+  }
+
+  50% {
+    background: hsla(0, 100%, 50%, 0.6);
+    box-shadow: 0 0 15px hsla(0, 100%, 50%, 0.5);
+    color: white;
+  }
+}
+
 .fade-in {
   animation: fadeIn var(--transition-slow) ease-out;
 }
@@ -301,9 +317,10 @@ textarea:focus {
 }
 
 .status-listo {
-  background: hsla(24, 100%, 50%, 0.2);
-  color: hsl(24, 100%, 65%);
-  border: 1px solid hsla(24, 100%, 50%, 0.3);
+  background: hsla(0, 100%, 50%, 0.2);
+  color: hsl(0, 100%, 75%);
+  border: 1px solid hsla(0, 100%, 50%, 0.3);
+  animation: readyBlink 1.5s infinite;
 }
 
 .status-pagado {

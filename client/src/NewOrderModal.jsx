@@ -29,37 +29,59 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
             });
     }, []);
 
-    // Reset checks when items change
+    // Persistence check: We only reset checks when the table changes, 
+    // NOT when items change, to preserve checks when adding/editing items.
     useEffect(() => {
         setConfirmationChecks({});
-    }, [selectedItems, tableNumber]);
+    }, [tableNumber]);
 
     const parseInitialItems = (itemsString, menu) => {
         if (!itemsString) return [];
-        const parts = itemsString.split(/,\s*/);
+        const parts = itemsString.split(/,\s*(?![^(]*\))/);
         const parsed = [];
 
         parts.forEach(part => {
             const match = part.match(/(.+) x(\d+)$/);
             if (match) {
-                const name = match[1].trim();
+                let nameWithNote = match[1].trim();
                 const quantity = parseInt(match[2], 10);
+
+                // Extract note if exists: "Name (Note)" or "Name(Note)"
+                const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
+                let name = nameWithNote;
+                let note = '';
+                if (noteMatch) {
+                    name = noteMatch[1].trim();
+                    note = noteMatch[2].trim();
+                }
+
                 const menuItem = menu.find(m => m.name === name);
                 parsed.push({
-                    id: menuItem ? menuItem.id : Date.now(),
+                    uid: `item_${Date.now()}_${Math.random()}`,
+                    id: menuItem ? menuItem.id : Date.now() + Math.random(),
                     name: name,
+                    note: note,
                     quantity: quantity,
                     price: menuItem ? menuItem.price : 0,
                     image_url: menuItem ? menuItem.image_url : null
                 });
             } else {
-                // Try to match exact name if no quantity format (fallback)
-                const name = part.trim();
+                let nameWithNote = part.trim();
+                const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
+                let name = nameWithNote;
+                let note = '';
+                if (noteMatch) {
+                    name = noteMatch[1].trim();
+                    note = noteMatch[2].trim();
+                }
+
                 const menuItem = menu.find(m => m.name === name);
                 if (menuItem) {
                     parsed.push({
+                        uid: `item_${Date.now()}_${Math.random()}`,
                         id: menuItem.id,
                         name: name,
+                        note: note,
                         quantity: 1,
                         price: menuItem.price,
                         image_url: menuItem.image_url
@@ -91,55 +113,67 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
     }, [initialOrder]);
 
     const handleAddItem = (item) => {
-        const existing = selectedItems.find(i => i.name === item.name);
-        if (existing) {
-            setSelectedItems(selectedItems.map(i =>
-                i.name === item.name ? { ...i, quantity: i.quantity + 1 } : i
-            ));
-        } else {
-            setSelectedItems([...selectedItems, { ...item, quantity: 1 }]);
-        }
+        setSelectedItems([...selectedItems, {
+            ...item,
+            uid: `item_${Date.now()}_${Math.random()}`,
+            quantity: 1,
+            note: ''
+        }]);
     };
 
     const handleRemoveItem = (itemName) => {
         setSelectedItems(selectedItems.filter(i => i.name !== itemName));
     };
 
-    const handleQuantityChange = (itemName, delta) => {
-        setSelectedItems(selectedItems.map(i => {
-            if (i.name === itemName) {
-                return { ...i, quantity: i.quantity + delta };
-            }
-            return i;
-        }).filter(i => i.quantity > 0));
+    const handleQuantityChange = (index, delta) => {
+        const updated = [...selectedItems];
+        updated[index].quantity += delta;
+        if (updated[index].quantity <= 0) {
+            updated.splice(index, 1);
+        }
+        setSelectedItems(updated);
+    };
+
+    const handleNoteChange = (index, note) => {
+        setSelectedItems(selectedItems.map((item, i) =>
+            i === index ? { ...item, note } : item
+        ));
+    };
+
+    const handleSelectAll = (checked) => {
+        const newChecks = {};
+        if (checked) {
+            explodedItems.forEach(item => {
+                newChecks[item.id] = true;
+            });
+        }
+        setConfirmationChecks(newChecks);
     };
 
     const total = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    // Explode items for checklist and validation
-    const explodedItems = [];
-    let idx = 0;
-    selectedItems.forEach(item => {
-        for (let i = 0; i < item.quantity; i++) {
-            const currentId = idx;
-            explodedItems.push({
-                id: currentId,
-                name: item.name,
-                parentName: item.name,
-                checked: !!confirmationChecks[currentId]
-            });
-            idx++;
-        }
-    });
+    // For the checklist, we use selectedItems directly since we now keep them separate if they have notes
+    const explodedItems = selectedItems.map((item) => ({
+        id: item.uid,
+        name: item.name,
+        note: item.note || '',
+        checked: !!confirmationChecks[item.uid]
+    }));
 
     const isAllConfirmed = explodedItems.length > 0 && explodedItems.every(item => item.checked);
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (tableNumber && selectedItems.length > 0 && isAllConfirmed) {
+            // Formatting items: "Name (Note)"
+            const formattedItems = selectedItems.map(item => ({
+                ...item,
+                name: item.note ? `${item.name} (${item.note})` : item.name
+            }));
+
             onSubmit({
                 tableNumber: parseInt(tableNumber),
-                items: selectedItems
+                items: formattedItems
             });
         }
     };
@@ -273,27 +307,49 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                     </div>
                                 ) : (
                                     <div className="cart-items checklist-container">
-                                        <p className="helper-text">Verifica cada artículo:</p>
+                                        <div className="checklist-header">
+                                            <p className="helper-text">Verifica cada artículo:</p>
+                                            <label className="select-all-label">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isAllConfirmed && explodedItems.length > 0}
+                                                    onChange={(e) => handleSelectAll(e.target.checked)}
+                                                />
+                                                <span>Marcar Todo</span>
+                                            </label>
+                                        </div>
                                         <div className="checklist-scroll">
-                                            {explodedItems.map((item) => (
+                                            {explodedItems.map((item, index) => (
                                                 <div key={item.id} className={`checklist-row ${item.checked ? 'checked' : ''}`}>
-                                                    <label>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={item.checked}
-                                                            onChange={() => {
-                                                                const newChecks = { ...confirmationChecks };
-                                                                newChecks[item.id] = !newChecks[item.id];
-                                                                setConfirmationChecks(newChecks);
-                                                            }}
-                                                        />
-                                                        <span>{item.name}</span>
-                                                    </label>
+                                                    <div className="checklist-main">
+                                                        <label>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={item.checked}
+                                                                onChange={() => {
+                                                                    const newChecks = { ...confirmationChecks };
+                                                                    newChecks[item.id] = !newChecks[item.id];
+                                                                    setConfirmationChecks(newChecks);
+                                                                }}
+                                                            />
+                                                            <span className="item-name-summary">{item.name}</span>
+                                                        </label>
+                                                        <div className="item-note-row">
+                                                            <span className="note-label">Nota:</span>
+                                                            <input
+                                                                type="text"
+                                                                className="item-note-input"
+                                                                placeholder="ej. sin catsup, término medio..."
+                                                                value={item.note}
+                                                                onChange={(e) => handleNoteChange(index, e.target.value)}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                     <button
                                                         type="button"
                                                         className="remove-mini-icon"
                                                         onClick={() => {
-                                                            handleQuantityChange(item.parentName, -1);
+                                                            handleQuantityChange(index, -1);
                                                         }}
                                                     >
                                                         ×

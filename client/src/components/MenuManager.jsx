@@ -113,7 +113,7 @@ function MenuManager() {
 
     return (
         <div className="menu-manager">
-            <div className="manager-content" style={{ padding: '2rem' }}>
+            <div className="manager-content">
                 <div className="manager-header">
                     <h2>🍔 Gestión de Menú</h2>
                     <button className="btn btn-primary" onClick={() => openModal()}>

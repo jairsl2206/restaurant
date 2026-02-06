@@ -260,23 +260,22 @@ function Dashboard({ user, onLogout, settings }) {
             <header className="dashboard-header">
                 <div className="header-content">
                     <div className="header-left">
-                        <div style={{ marginRight: '15px' }}>
+                        <div className="header-logo-container">
                             {settings?.restaurant_logo && (settings.restaurant_logo.match(/^http/) || settings.restaurant_logo.match(/^\/uploads/)) ? (
                                 <img
                                     src={settings.restaurant_logo}
                                     alt="Logo"
-                                    style={{ width: '50px', height: '50px', objectFit: 'contain' }}
+                                    className="header-logo-img"
                                     onError={(e) => {
                                         e.target.style.display = 'none';
                                         if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
                                     }}
                                 />
                             ) : (
-                                <span style={{ fontSize: '2.5rem' }}>{settings?.restaurant_logo || '🍔'}</span>
+                                <span className="header-logo-emoji">{settings?.restaurant_logo || '🍔'}</span>
                             )}
-                            <span style={{ display: 'none', fontSize: '2.5rem' }}>🍔</span>
                         </div>
-                        <div>
+                        <div className="header-info-container">
                             <h1>{settings?.restaurant_name}</h1>
                             <p>Bienvenido, <strong>{user.username}</strong></p>
                         </div>
@@ -388,7 +387,7 @@ function Dashboard({ user, onLogout, settings }) {
                                     return (
                                         <div
                                             key={status}
-                                            className={`mobile-status-card glass-card ${isPriority ? 'status-priority' : ''}`}
+                                            className={`mobile-status-card glass-card ${isPriority ? 'status-priority' : ''} status-col-${status.toLowerCase().replace(/\s+/g, '-')}`}
                                             onClick={() => setExpandedStatus(status)}
                                         >
                                             <div className="status-name">
@@ -408,7 +407,7 @@ function Dashboard({ user, onLogout, settings }) {
                     // Desktop Kanban View (Existing)
                     <div className="orders-board">
                         {Object.entries(groupedOrders).map(([status, statusOrders]) => (
-                            <div key={status} className="status-column">
+                            <div key={status} className={`status-column status-col-${status.toLowerCase().replace(/\s+/g, '-')}`}>
                                 <div className="column-header">
                                     <h2>{status}</h2>
                                     <span className="count-badge">{statusOrders.length}</span>

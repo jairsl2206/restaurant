@@ -187,12 +187,14 @@
 }
 
 .checklist-item.checked {
-    opacity: 0.6;
+    background: rgba(46, 204, 113, 0.15);
+    border: 1px solid rgba(46, 204, 113, 0.4);
+    box-shadow: 0 0 10px rgba(46, 204, 113, 0.1);
 }
 
 .checklist-item.checked .item-text {
-    text-decoration: line-through;
-    color: var(--text-secondary);
+    color: #2ecc71;
+    text-decoration: none;
 }
 
 .item-text {

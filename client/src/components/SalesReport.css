@@ -1,5 +1,4 @@
 .sales-report {
-    padding: 1rem;
     color: var(--text-color, #fff);
 }
 
@@ -18,7 +17,8 @@
     align-items: flex-end;
     background: rgba(255, 255, 255, 0.05);
     padding: 10px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
 }
 
 .filter-group {
@@ -49,18 +49,22 @@
 }
 
 .summary-card {
-    background: linear-gradient(145deg, #2a2a2a, #333);
+    background: var(--bg-card);
+    backdrop-filter: blur(10px);
     padding: 1.5rem;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     gap: 1rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    transition: transform 0.2s;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: all var(--transition-base);
 }
 
 .summary-card:hover {
-    transform: translateY(-2px);
+    background: var(--bg-card-hover);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
 }
 
 .summary-card.revenue {
@@ -114,10 +118,12 @@
 
 .chart-section,
 .top-items-section {
-    background: #222;
+    background: var(--bg-card);
+    backdrop-filter: blur(10px);
     padding: 1.5rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
 }
 
 .chart-container {

@@ -18,11 +18,33 @@
     align-items: center;
 }
 
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.header-logo-container {
+    display: flex;
+    align-items: center;
+}
+
+.header-logo-img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+}
+
+.header-logo-emoji {
+    font-size: 2.8rem;
+}
+
 .header-left h1 {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 800;
     color: var(--text-primary);
     margin-bottom: 0.2rem;
+    line-height: 1.2;
 }
 
 .header-left p {
@@ -101,8 +123,35 @@
     background: var(--bg-card);
     border-radius: var(--radius-lg);
     border: 1px solid var(--border);
+    border-top: 4px solid var(--border);
+    /* Default top border */
     padding: var(--spacing-md);
     min-height: 200px;
+    transition: transform var(--transition-base);
+}
+
+.status-col-creado {
+    border-top-color: #3498db;
+}
+
+.status-col-en-cocina {
+    border-top-color: #f39c12;
+}
+
+.status-col-listo-para-servir {
+    border-top-color: #e74c3c;
+}
+
+.status-col-servido {
+    border-top-color: #2ecc71;
+}
+
+.status-col-pagado {
+    border-top-color: #9b59b6;
+}
+
+.status-col-cola-de-cocina {
+    border-top-color: #f39c12;
 }
 
 .column-header {
@@ -172,20 +221,61 @@
 }
 
 @media (max-width: 768px) {
+    .dashboard-header {
+        padding: var(--spacing-sm) 0;
+    }
+
     .header-content {
         flex-direction: column;
-        gap: var(--spacing-md);
+        gap: var(--spacing-sm);
+        padding: 0 var(--spacing-md);
+    }
+
+    .header-left {
+        width: 100%;
+        justify-content: space-between;
+        gap: 0;
+    }
+
+    .header-logo-img {
+        width: 45px;
+        height: 45px;
+    }
+
+    .header-logo-emoji {
+        font-size: 2.2rem;
+    }
+
+    .header-info-container {
+        text-align: right;
+    }
+
+    .header-left h1 {
+        font-size: 1.1rem;
+        margin-bottom: 0px;
+    }
+
+    .header-left p {
+        font-size: 0.75rem;
     }
 
     .header-actions {
         width: 100%;
         justify-content: space-between;
-        flex-wrap: wrap;
+        gap: var(--spacing-xs);
+        padding-top: var(--spacing-xs);
+        border-top: 1px solid var(--border);
     }
 
     .segmented-control {
         flex: 1;
-        justify-content: center;
+        transform: scale(0.9);
+        transform-origin: left center;
+    }
+
+    .btn-glow {
+        font-size: 0.85rem;
+        padding: var(--spacing-xs) var(--spacing-sm);
     }
 }
 
@@ -247,6 +337,7 @@
     cursor: pointer;
     transition: transform var(--transition-fast);
     border: 1px solid var(--border);
+    border-left: 6px solid transparent;
     margin-bottom: var(--spacing-md);
     background: var(--bg-card);
 }
@@ -256,8 +347,31 @@
 }
 
 .status-priority {
-    border-left: 5px solid var(--primary);
     background: hsla(0, 0%, 15%, 0.5);
+}
+
+.mobile-status-card.status-col-creado {
+    border-left-color: #3498db;
+}
+
+.mobile-status-card.status-col-en-cocina {
+    border-left-color: #f39c12;
+}
+
+.mobile-status-card.status-col-listo-para-servir {
+    border-left-color: #e74c3c;
+}
+
+.mobile-status-card.status-col-servido {
+    border-left-color: #2ecc71;
+}
+
+.mobile-status-card.status-col-pagado {
+    border-left-color: #9b59b6;
+}
+
+.mobile-status-card.status-col-cola-de-cocina {
+    border-left-color: #f39c12;
 }
 
 .status-name {
