@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "server": "node server/index.js",
-    "server:clean": "node server/index-clean.js",
+    "server": "TZ=America/Mexico_City node server/index.js",
+    "server:clean": "TZ=America/Mexico_City node server/index-clean.js",
     "client": "cd client && npm run dev",
-    "dev": "npm run server",
-    "dev:clean": "npm run server:clean",
+    "dev": "TZ=America/Mexico_City node server/index.js",
+    "dev:clean": "TZ=America/Mexico_City node server/index-clean.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
