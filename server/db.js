@@ -390,6 +390,18 @@ class Database {
         });
     }
 
+    // Cleanup Methods
+    clearAllMenuItems(callback) {
+        this.db.run('DELETE FROM menu_items', callback);
+    }
+
+    clearAllOrders(callback) {
+        this.db.serialize(() => {
+            this.db.run('DELETE FROM order_items');
+            this.db.run('DELETE FROM orders', callback);
+        });
+    }
+
     close() {
         this.db.close();
     }

@@ -349,4 +349,20 @@ router.get('/reports/sales', (req, res) => {
     });
 });
 
+// --- Cleanup Routes (Admin only) ---
+
+router.delete('/menu/all', isAdmin, (req, res) => {
+    db.clearAllMenuItems((err) => {
+        if (err) return res.status(500).json({ error: 'Failed to clear menu' });
+        res.json({ success: true, message: 'Menu cleared successfully' });
+    });
+});
+
+router.delete('/orders/all', isAdmin, (req, res) => {
+    db.clearAllOrders((err) => {
+        if (err) return res.status(500).json({ error: 'Failed to clear orders' });
+        res.json({ success: true, message: 'All orders cleared successfully' });
+    });
+});
+
 module.exports = router;
