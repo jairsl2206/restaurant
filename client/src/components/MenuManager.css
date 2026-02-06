@@ -104,7 +104,7 @@
 }
 
 .checkbox-group input[type="checkbox"] {
-    width: auto;
+    width: auto !important;
     cursor: pointer;
 }
 
