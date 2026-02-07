@@ -5,6 +5,13 @@ const logger = require('./logger');
 
 const DB_PATH = path.join(__dirname, '..', 'restaurant.db');
 
+// Helper for consistent date formatting (YYYY-MM-DD HH:mm:ss)
+const getCurrentTimestamp = () => {
+    const now = new Date();
+    const pad = (n) => n.toString().padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+};
+
 class Database {
     constructor() {
         this.db = new sqlite3.Database(DB_PATH, (err) => {
@@ -165,7 +172,7 @@ class Database {
         const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const db = this.db; // Store reference to db
 
-        const now = new Date().toLocaleString('en-ZA').replace(',', ''); // YYYY-MM-DD HH:mm:ss
+        const now = getCurrentTimestamp();
         db.run(
             'INSERT INTO orders (table_number, total, created_at, updated_at) VALUES (?, ?, ?, ?)',
             [tableNumber, total, now, now],
@@ -212,7 +219,7 @@ class Database {
     }
 
     updateOrderStatus(orderId, status, callback) {
-        const now = new Date().toLocaleString('en-ZA').replace(',', '');
+        const now = getCurrentTimestamp();
         this.db.run(
             'UPDATE orders SET status = ?, updated_at = ? WHERE id = ?',
             [status, now, orderId],
@@ -425,7 +432,7 @@ class Database {
                             return callback(err);
                         }
 
-                        const now = new Date().toLocaleString('en-ZA').replace(',', '');
+                        const now = getCurrentTimestamp();
                         // 3. Update order total and flag
                         db.run(
                             'UPDATE orders SET total = ?, is_updated = 1, updated_at = ? WHERE id = ?',
@@ -448,8 +455,8 @@ class Database {
 
     getSalesReport(startDate, endDate, callback) {
         // Formatos de fecha para SQLite
-        const start = startDate ? startDate + ' 00:00:00' : '1970-01-01';
-        const end = endDate ? endDate + ' 23:59:59' : new Date().toLocaleString('en-ZA').replace(',', '');
+        const start = startDate ? startDate + ' 00:00:00' : '1970-01-01 00:00:00';
+        const end = endDate ? endDate + ' 23:59:59' : getCurrentTimestamp();
 
         const report = {
             summary: {},
