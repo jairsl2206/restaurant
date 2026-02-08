@@ -15,6 +15,12 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
     const [expandedCategory, setExpandedCategory] = useState(null);
     const [maxTables, setMaxTables] = useState(20); // Default value
 
+    // Delivery mode states
+    const [isDelivery, setIsDelivery] = useState(false);
+    const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [customerAddress, setCustomerAddress] = useState('');
+
     // Fetch settings to get max_tables
     useEffect(() => {
         fetch(API_SETTINGS_URL)
@@ -33,7 +39,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
     // NOT when items change, to preserve checks when adding/editing items.
     useEffect(() => {
         setConfirmationChecks({});
-    }, [tableNumber]);
+    }, [tableNumber, isDelivery]);
 
     const parseInitialItems = (itemsString, menu) => {
         if (!itemsString) return [];
@@ -41,7 +47,16 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
         const parsed = [];
 
         parts.forEach(part => {
-            const match = part.match(/(.+) x(\d+)$/);
+            // Remove [Price] suffix if exists
+            const priceMatch = part.match(/(.+) \[(\d+\.?\d*)\]$/);
+            let content = part;
+            let itemPrice = 0;
+            if (priceMatch) {
+                content = priceMatch[1].trim();
+                itemPrice = parseFloat(priceMatch[2]);
+            }
+
+            const match = content.match(/(.+) x(\d+)$/);
             if (match) {
                 let nameWithNote = match[1].trim();
                 const quantity = parseInt(match[2], 10);
@@ -58,15 +73,15 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                 const menuItem = menu.find(m => m.name === name);
                 parsed.push({
                     uid: `item_${Date.now()}_${Math.random()}`,
-                    id: menuItem ? menuItem.id : Date.now() + Math.random(),
+                    id: menuItem ? menuItem.id : `legacy_${Date.now()}_${Math.random()}`,
                     name: name,
                     note: note,
                     quantity: quantity,
-                    price: menuItem ? menuItem.price : 0,
+                    price: menuItem ? menuItem.price : itemPrice,
                     image_url: menuItem ? menuItem.image_url : null
                 });
             } else {
-                let nameWithNote = part.trim();
+                let nameWithNote = content.trim();
                 const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
                 let name = nameWithNote;
                 let note = '';
@@ -76,17 +91,15 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                 }
 
                 const menuItem = menu.find(m => m.name === name);
-                if (menuItem) {
-                    parsed.push({
-                        uid: `item_${Date.now()}_${Math.random()}`,
-                        id: menuItem.id,
-                        name: name,
-                        note: note,
-                        quantity: 1,
-                        price: menuItem.price,
-                        image_url: menuItem.image_url
-                    });
-                }
+                parsed.push({
+                    uid: `item_${Date.now()}_${Math.random()}`,
+                    id: menuItem ? menuItem.id : `legacy_${Date.now()}_${Math.random()}`,
+                    name: name,
+                    note: note,
+                    quantity: 1,
+                    price: menuItem ? menuItem.price : itemPrice,
+                    image_url: menuItem ? menuItem.image_url : null
+                });
             }
         });
         return parsed;
@@ -104,6 +117,16 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                     setTableNumber(initialOrder.table_number);
                     const parsed = parseInitialItems(initialOrder.items, available);
                     setSelectedItems(parsed);
+
+                    // Set delivery state and customer info
+                    if (initialOrder.is_delivery) {
+                        setIsDelivery(true);
+                        setCustomerName(initialOrder.customer_name || '');
+                        setCustomerPhone(initialOrder.customer_phone || '');
+                        setCustomerAddress(initialOrder.customer_address || '');
+                    } else {
+                        setIsDelivery(false);
+                    }
                 }
             })
             .catch(err => {
@@ -164,18 +187,50 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (tableNumber && selectedItems.length > 0 && isAllConfirmed) {
-            // Formatting items: "Name (Note)"
-            const formattedItems = selectedItems.map(item => ({
-                ...item,
-                name: item.note ? `${item.name} (${item.note})` : item.name
-            }));
 
-            onSubmit({
-                tableNumber: parseInt(tableNumber),
-                items: formattedItems
-            });
+        // Validate based on mode
+        if (isDelivery) {
+            const trimmedName = customerName.trim();
+            const trimmedPhone = customerPhone.trim();
+            const trimmedAddress = customerAddress.trim();
+
+            if (!trimmedName || !trimmedPhone || !trimmedAddress) {
+                alert('Por favor completa todos los campos del cliente para delivery');
+                return;
+            }
+        } else {
+            if (!tableNumber) {
+                alert('Por favor selecciona una mesa');
+                return;
+            }
         }
+
+        if (selectedItems.length === 0) {
+            alert('Por favor selecciona al menos un platillo');
+            return;
+        }
+
+        if (!isAllConfirmed) {
+            alert('Por favor verifica todos los artículos');
+            return;
+        }
+
+        // Formatting items: "Name (Note)"
+        const formattedItems = selectedItems.map(item => ({
+            ...item,
+            name: item.note ? `${item.name} (${item.note})` : item.name
+        }));
+
+        onSubmit({
+            tableNumber: isDelivery ? null : parseInt(tableNumber),
+            items: formattedItems,
+            isDelivery: isDelivery,
+            customerData: isDelivery ? {
+                name: customerName.trim(),
+                phone: customerPhone.trim(),
+                address: customerAddress.trim()
+            } : null
+        });
     };
 
     // Generate table numbers array based on maxTables
@@ -194,22 +249,121 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                         {/* Left Column: Menu & Tables */}
                         <div className="modal-left">
                             <div className="section-header">
-                                <h3>1. Selecciona Mesa</h3>
-                            </div>
-                            <div className="table-grid">
-                                {tableNumbers.map(num => (
-                                    <button
-                                        key={num}
-                                        type="button"
-                                        className={`table-btn ${parseInt(tableNumber) === num ? 'selected' : ''}`}
-                                        onClick={() => setTableNumber(num)}
-                                    >
-                                        Mesa {num}
-                                    </button>
-                                ))}
+                                <h3>1. Selecciona {isDelivery ? 'Delivery' : 'Mesa'}</h3>
                             </div>
 
-                            <div className="section-header mt-3">
+                            {/* Delivery Toggle */}
+                            <div className="delivery-toggle" style={{ marginBottom: '18px', display: 'flex', gap: '10px' }}>
+                                <button
+                                    type="button"
+                                    className={`table-btn ${!isDelivery ? 'selected' : ''}`}
+                                    onClick={() => {
+                                        setIsDelivery(false);
+                                        setTableNumber('');
+                                    }}
+                                    style={{ flex: 1 }}
+                                >
+                                    🪑 Mesas
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`table-btn ${isDelivery ? 'selected' : ''}`}
+                                    onClick={() => {
+                                        setIsDelivery(true);
+                                        setTableNumber('');
+                                    }}
+                                    style={{ flex: 1 }}
+                                >
+                                    🚗 Delivery
+                                </button>
+                            </div>
+
+                            {/* Table Grid or Customer Form */}
+                            {!isDelivery ? (
+                                <div className="table-grid">
+                                    {tableNumbers.map(num => (
+                                        <button
+                                            key={num}
+                                            type="button"
+                                            className={`table-btn ${parseInt(tableNumber) === num ? 'selected' : ''}`}
+                                            onClick={() => setTableNumber(num)}
+                                        >
+                                            Mesa {num}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="customer-form" style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                                    <div className="form-group">
+                                        <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
+                                            Nombre del Cliente *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="Ej: Juan Pérez"
+                                            value={customerName}
+                                            onChange={(e) => setCustomerName(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '6px 10px',
+                                                borderRadius: '8px',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                background: 'rgba(255,255,255,0.05)',
+                                                color: 'white',
+                                                fontSize: '0.9rem'
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
+                                            Teléfono *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            className="form-input"
+                                            placeholder="Ej: 5512345678"
+                                            value={customerPhone}
+                                            onChange={(e) => setCustomerPhone(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '6px 10px',
+                                                borderRadius: '8px',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                background: 'rgba(255,255,255,0.05)',
+                                                color: 'white',
+                                                fontSize: '0.9rem'
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
+                                            Dirección *
+                                        </label>
+                                        <textarea
+                                            className="form-input"
+                                            placeholder="Ej: Calle 123, Col. Centro"
+                                            value={customerAddress}
+                                            onChange={(e) => setCustomerAddress(e.target.value)}
+                                            rows="2"
+                                            style={{
+                                                width: '100%',
+                                                padding: '6px 10px',
+                                                borderRadius: '8px',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                background: 'rgba(255,255,255,0.05)',
+                                                color: 'white',
+                                                fontSize: '0.9rem',
+                                                resize: 'none',
+                                                fontFamily: 'inherit',
+                                                minHeight: '45px'
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="section-header mt-1">
                                 <h3>2. Selecciona Platillos</h3>
                             </div>
                             <div className="menu-container-scroll">
@@ -235,6 +389,31 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                 return a.localeCompare(b);
                                             });
 
+                                            // Helper to calculate discounted price
+                                            const getDiscountedPrice = (item) => {
+                                                if (!item.promotion_active) return item.price;
+                                                if (item.promotion_type === 'percentage') {
+                                                    return item.price * (1 - (item.promotion_value / 100));
+                                                } else if (item.promotion_type === 'fixed') {
+                                                    return Math.max(0, item.price - item.promotion_value);
+                                                }
+                                                return item.price;
+                                            };
+
+                                            const getImageUrl = (url) => {
+                                                if (!url) return null;
+                                                // If it's a relative path starting with /uploads
+                                                if (url.startsWith('/uploads')) {
+                                                    return API_BASE_URL.replace('/api', '') + url;
+                                                }
+                                                // If it contains localhost:3001, replace it with the actual server URL
+                                                if (url.includes('localhost:3001')) {
+                                                    const serverBase = API_BASE_URL.replace('/api', '');
+                                                    return url.replace(/http:\/\/localhost:3001/g, serverBase);
+                                                }
+                                                return url;
+                                            };
+
                                             return (
                                                 <div className="menu-accordion">
                                                     {sortedCategories.map(category => {
@@ -251,7 +430,8 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                                         <span className="category-icon">
                                                                             {category === 'Bebida' ? '🥤' :
                                                                                 category === 'Postre' ? '🍰' :
-                                                                                    category === 'Entrada' ? '🥗' : '🍽️'}
+                                                                                    category === 'Entrada' ? '🥗' :
+                                                                                        category === 'Plato Principal' ? '🍽️' : '📦'}
                                                                         </span>
                                                                         <span className="category-name">{category}</span>
                                                                     </div>
@@ -264,25 +444,49 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                                 {isExpanded && (
                                                                     <div className="accordion-content">
                                                                         <div className="menu-grid">
-                                                                            {groupedItems[category].map(item => (
-                                                                                <button
-                                                                                    key={item.id}
-                                                                                    type="button"
-                                                                                    className="menu-item glass-card"
-                                                                                    onClick={() => handleAddItem(item)}
-                                                                                >
-                                                                                    <div className="item-icon">
-                                                                                        {item.image_url ? (
-                                                                                            <img src={item.image_url} alt={item.name} className="menu-thumb-mini" />
-                                                                                        ) : '🍽️'}
+                                                                            {groupedItems[category].map(item => {
+                                                                                const discountedPrice = getDiscountedPrice(item);
+                                                                                const hasPromo = item.promotion_active;
+
+                                                                                return (
+                                                                                    <div
+                                                                                        key={item.id}
+                                                                                        className={`menu-item premium-card ${!!hasPromo ? 'has-promo' : ''}`}
+                                                                                    >
+                                                                                        <div className="item-image-container">
+                                                                                            {item.image_url ? (
+                                                                                                <img src={getImageUrl(item.image_url)} alt={item.name} className="item-image-full" />
+                                                                                            ) : (
+                                                                                                <div className="item-placeholder-full">🍽️</div>
+                                                                                            )}
+                                                                                            {!!hasPromo && (
+                                                                                                <div className="promo-tag">
+                                                                                                    {item.promotion_type === 'percentage' ? `-${item.promotion_value}%` : `-$${item.promotion_value}`}
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div className="item-info-premium">
+                                                                                            <span className="item-name-premium">{item.name}</span>
+                                                                                            {item.description && (
+                                                                                                <p className="item-desc-premium">{item.description}</p>
+                                                                                            )}
+                                                                                            <div className="item-footer-premium">
+                                                                                                <div className="item-price-premium">
+                                                                                                    {!!hasPromo && <span className="old-price">${item.price.toFixed(2)}</span>}
+                                                                                                    <span className="current-price">${discountedPrice.toFixed(2)}</span>
+                                                                                                </div>
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    className="add-btn-premium"
+                                                                                                    onClick={() => handleAddItem({ ...item, price: discountedPrice })}
+                                                                                                >
+                                                                                                    +
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        </div>
                                                                                     </div>
-                                                                                    <div className="item-details">
-                                                                                        <span className="item-name">{item.name}</span>
-                                                                                        <span className="item-price">${item.price.toFixed(2)}</span>
-                                                                                    </div>
-                                                                                    <div className="add-icon">+</div>
-                                                                                </button>
-                                                                            ))}
+                                                                                );
+                                                                            })}
                                                                         </div>
                                                                     </div>
                                                                 )}
@@ -385,8 +589,18 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                     <button
                                         type="submit"
                                         className="btn btn-primary btn-block btn-lg"
-                                        disabled={!tableNumber || selectedItems.length === 0 || !isAllConfirmed}
-                                        style={{ opacity: (!tableNumber || selectedItems.length === 0 || !isAllConfirmed) ? 0.6 : 1 }}
+                                        disabled={
+                                            (isDelivery ? (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) : !tableNumber) ||
+                                            selectedItems.length === 0 ||
+                                            !isAllConfirmed
+                                        }
+                                        style={{
+                                            opacity: (
+                                                (isDelivery ? (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) : !tableNumber) ||
+                                                selectedItems.length === 0 ||
+                                                !isAllConfirmed
+                                            ) ? 0.6 : 1
+                                        }}
                                     >
                                         {initialOrder ? 'Guardar Cambios' : (isAllConfirmed ? 'Crear Orden' : 'Verifica Artículos')}
                                     </button>

@@ -134,244 +134,104 @@
     border-top-color: #3498db;
 }
 
-.status-col-en-cocina {
+.status-col-preparando-orden {
     border-top-color: #f39c12;
 }
 
-.status-col-listo-para-servir {
-    border-top-color: #e74c3c;
-}
-
-.status-col-servido {
+.status-col-en-reparto {
     border-top-color: #2ecc71;
 }
 
-.status-col-pagado {
+.status-col-orden-lista {
+    border-top-color: #e74c3c;
+}
+
+.status-col-orden-servida {
+    border-top-color: #2ecc71;
+}
+
+.status-col-finalizada {
     border-top-color: #9b59b6;
+}
+
+.status-col-cancelado {
+    border-top-color: #7f8c8d;
+}
+
+/* Status Badges in OrderCard */
+.status-cocina {
+    background: rgba(243, 156, 18, 0.15);
+    color: #f39c12;
+    border: 1px solid rgba(243, 156, 18, 0.3);
+}
+
+.status-listo {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.status-servido {
+    background: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.status-reparto {
+    background: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.status-pagado {
+    background: rgba(155, 89, 182, 0.15);
+    color: #9b59b6;
+    border: 1px solid rgba(155, 89, 182, 0.3);
+}
+
+.status-cancelled {
+    background: rgba(127, 140, 141, 0.15);
+    color: #7f8c8d;
+    border: 1px solid rgba(127, 140, 141, 0.3);
+}
+
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
 }
 
 .status-col-cola-de-cocina {
     border-top-color: #f39c12;
 }
 
-.column-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-lg);
-    padding-bottom: var(--spacing-sm);
-    border-bottom: 2px solid var(--border);
-}
-
-.column-header h2 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.count-badge {
-    background: var(--bg-darker);
-    padding: 4px 10px;
-    border-radius: var(--radius-xl);
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--text-secondary);
-}
-
-.column-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-}
-
-.empty-state {
-    text-align: center;
-    padding: var(--spacing-xl);
-    color: var(--text-muted);
-    font-style: italic;
-    background: hsla(0, 0%, 0%, 0.1);
-    border-radius: var(--radius-md);
-}
-
-/* Loading */
-.loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 60vh;
-    gap: var(--spacing-md);
-}
-
-.spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--bg-card-hover);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-@media (max-width: 768px) {
-    .dashboard-header {
-        padding: var(--spacing-sm) 0;
-    }
-
-    .header-content {
-        flex-direction: column;
-        gap: var(--spacing-sm);
-        padding: 0 var(--spacing-md);
-    }
-
-    .header-left {
-        width: 100%;
-        justify-content: space-between;
-        gap: 0;
-    }
-
-    .header-logo-img {
-        width: 45px;
-        height: 45px;
-    }
-
-    .header-logo-emoji {
-        font-size: 2.2rem;
-    }
-
-    .header-info-container {
-        text-align: right;
-    }
-
-    .header-left h1 {
-        font-size: 1.1rem;
-        margin-bottom: 0px;
-    }
-
-    .header-left p {
-        font-size: 0.75rem;
-    }
-
-    .header-actions {
-        width: 100%;
-        justify-content: space-between;
-        gap: var(--spacing-xs);
-        padding-top: var(--spacing-xs);
-        border-top: 1px solid var(--border);
-    }
-
-    .segmented-control {
-        flex: 1;
-        transform: scale(0.9);
-        transform-origin: left center;
-    }
-
-    .btn-glow {
-        font-size: 0.85rem;
-        padding: var(--spacing-xs) var(--spacing-sm);
-    }
-}
-
-/* Toast Notification */
-.toast-notification {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    background: var(--bg-card);
-    border: 1px solid var(--primary);
-    border-left: 4px solid var(--primary);
-    padding: var(--spacing-md) var(--spacing-lg);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-lg);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    z-index: 2000;
-    max-width: 400px;
-    animation: slideIn 0.3s ease-out;
-}
-
-.toast-message {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-
-.toast-icon {
-    font-size: 1.5rem;
-}
-
-.toast-close {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 1.2rem;
-    cursor: pointer;
-    margin-left: auto;
-}
-
-.toast-close:hover {
-    color: var(--text-primary);
-}
-
-/* Mobile Drill-down Styles */
-.mobile-drilldown {
-    padding: var(--spacing-sm);
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-}
-
-.mobile-status-card {
-    padding: var(--spacing-lg);
-    border-radius: var(--radius-lg);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    transition: transform var(--transition-fast);
-    border: 1px solid var(--border);
-    border-left: 6px solid transparent;
-    margin-bottom: var(--spacing-md);
-    background: var(--bg-card);
-}
-
-.mobile-status-card:active {
-    transform: scale(0.98);
-}
-
-.status-priority {
-    background: hsla(0, 0%, 15%, 0.5);
-}
-
-.mobile-status-card.status-col-creado {
-    border-left-color: #3498db;
-}
-
-.mobile-status-card.status-col-en-cocina {
+/* ... mobile ... */
+.mobile-status-card.status-col-preparando-orden {
     border-left-color: #f39c12;
 }
 
-.mobile-status-card.status-col-listo-para-servir {
-    border-left-color: #e74c3c;
-}
-
-.mobile-status-card.status-col-servido {
+.mobile-status-card.status-col-en-reparto {
     border-left-color: #2ecc71;
 }
 
-.mobile-status-card.status-col-pagado {
+.mobile-status-card.status-col-orden-lista {
+    border-left-color: #e74c3c;
+}
+
+.mobile-status-card.status-col-orden-servida {
+    border-left-color: #2ecc71;
+}
+
+.mobile-status-card.status-col-finalizada {
     border-left-color: #9b59b6;
 }
 
-.mobile-status-card.status-col-cola-de-cocina {
-    border-left-color: #f39c12;
+.mobile-status-card.status-col-cancelado {
+    border-left-color: #7f8c8d;
 }
 
 .status-name {
@@ -381,6 +241,159 @@
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        padding: var(--spacing-md);
+        display: flex;
+        flex-direction: column;
+        /* Two rows on mobile */
+        gap: 12px;
+        width: 100%;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .header-left {
+        display: flex;
+        justify-content: space-between;
+        /* Space between logo and user info */
+        align-items: center;
+        width: 100%;
+    }
+
+    .header-logo-container {
+        flex: 0 0 auto;
+    }
+
+    .header-logo-img {
+        width: 65px;
+        /* Even larger logo */
+        height: 65px;
+        object-fit: contain;
+    }
+
+    .header-info-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        padding-left: 10px;
+    }
+
+    .user-info-text {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+    }
+
+    .header-info-container h1 {
+        font-size: 1.25rem !important;
+        /* Prominent name */
+        margin: 0 !important;
+        line-height: 1;
+        font-weight: 800;
+    }
+
+    .header-info-container p {
+        font-size: 0.85rem !important;
+        margin: 0 !important;
+        opacity: 0.8;
+    }
+
+    .btn-logout-mobile {
+        background: rgba(231, 76, 60, 0.15);
+        /* Red transparent as requested */
+        border: 1px solid rgba(231, 76, 60, 0.2);
+        color: #ff4d4d;
+        border-radius: var(--radius-sm);
+        padding: 0 15px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        align-self: stretch;
+        /* Height of the two lines of text */
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .header-actions {
+        width: 100%;
+        margin-top: 4px;
+        background: none;
+        padding: 0;
+    }
+
+    .header-actions-row {
+        display: flex;
+        flex-direction: row;
+        /* Everything in one row */
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        gap: 8px;
+    }
+
+    /* Actions styles */
+    .header-actions .segmented-control {
+        display: flex !important;
+        padding: 2px;
+        flex: 0 1 auto;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: var(--radius-md);
+    }
+
+    .header-actions .segmented-control .segment-btn {
+        padding: 10px 14px;
+        font-size: 1.1rem;
+    }
+
+    .header-actions .btn-primary {
+        display: flex !important;
+        padding: 12px 15px;
+        font-size: 0.9rem;
+        font-weight: 800;
+        flex: 1;
+        /* Take remaining space */
+        justify-content: center;
+        align-items: center;
+        white-space: nowrap;
+        margin: 0;
+        border-radius: var(--radius-md);
+    }
+
+    .header-actions .notification-center-container {
+        display: block !important;
+        flex: 0 0 auto;
+    }
+
+    .notification-center-container .bell-btn {
+        font-size: 1.6rem;
+        padding: 5px;
+    }
+
+    .status-name {
+        font-size: 1.1rem;
+        width: 100%;
+    }
+
+    .mobile-status-card {
+        padding: 20px 24px;
+        margin-bottom: 16px;
+        border-radius: 12px;
+        border-left: 10px solid var(--border);
+        transition: transform 0.2s ease;
+    }
+
+    .mobile-status-card:active {
+        transform: scale(0.98);
+    }
 }
 
 .priority-dot {

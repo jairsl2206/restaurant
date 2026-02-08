@@ -1,21 +1,31 @@
 import './OrderCard.css';
+import { ORDER_STATUS } from './constants';
 
-const statusFlow = {
-    'Creado': 'En Cocina',
-    'En Cocina': 'Listo para Servir',
-    'Listo para Servir': 'Servido',
-    'Servido': 'Pagado',
-    'Pagado': null,
-    'Cancelado': null
+// Status flow for delivery orders
+const statusFlowDelivery = {
+    [ORDER_STATUS.COOKING]: ORDER_STATUS.READY,
+    [ORDER_STATUS.READY]: ORDER_STATUS.DELIVERING,
+    [ORDER_STATUS.DELIVERING]: ORDER_STATUS.COMPLETED,
+    [ORDER_STATUS.COMPLETED]: null,
+    [ORDER_STATUS.CANCELLED]: null
+};
+
+// Status flow for dine-in orders
+const statusFlowDineIn = {
+    [ORDER_STATUS.COOKING]: ORDER_STATUS.READY,
+    [ORDER_STATUS.READY]: ORDER_STATUS.SERVED,
+    [ORDER_STATUS.SERVED]: ORDER_STATUS.COMPLETED,
+    [ORDER_STATUS.COMPLETED]: null,
+    [ORDER_STATUS.CANCELLED]: null
 };
 
 const statusColors = {
-    'Creado': 'status-creado',
-    'En Cocina': 'status-cocina',
-    'Listo para Servir': 'status-listo',
-    'Servido': 'status-servido',
-    'Pagado': 'status-pagado',
-    'Cancelado': 'status-cancelled'
+    [ORDER_STATUS.COOKING]: 'status-cocina',
+    [ORDER_STATUS.READY]: 'status-listo',
+    [ORDER_STATUS.SERVED]: 'status-servido',
+    [ORDER_STATUS.DELIVERING]: 'status-reparto',
+    [ORDER_STATUS.COMPLETED]: 'status-pagado',
+    [ORDER_STATUS.CANCELLED]: 'status-cancelled'
 };
 
 import { useState, useEffect } from 'react';
@@ -132,12 +142,14 @@ const parseItemsGrouped = (itemsString) => {
 };
 
 function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
+    // Use appropriate status flow based on order type
+    const statusFlow = order.is_delivery ? statusFlowDelivery : statusFlowDineIn;
     const nextStatus = statusFlow[order.status];
     const canAdvance = nextStatus !== null;
-    const isCancelled = order.status === 'Cancelado';
+    const isCancelled = order.status === ORDER_STATUS.CANCELLED;
 
     // Role-based restrictions
-    const isEnCocina = order.status === 'En Cocina';
+    const isEnCocina = order.status === ORDER_STATUS.COOKING;
     const isAllowedRole = user?.role === 'cook' || user?.role === 'admin';
     const isLocked = (isEnCocina && !isAllowedRole) || isCancelled;
 
@@ -166,12 +178,12 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
         })));
     };
 
-    const isPaymentStage = nextStatus === 'Pagado';
-    const isCreationStage = order.status === 'Creado';
+    const isPaymentStage = nextStatus === ORDER_STATUS.COMPLETED;
+    // const isCreationStage = order.status === 'Creado'; // Removed
 
     // Show checklist by default for all active statuses and all roles.
     // Only show simple list for Pagado or Cancelado statuses.
-    const showSimpleList = order.status === 'Pagado' || isCancelled;
+    const showSimpleList = order.status === ORDER_STATUS.COMPLETED || isCancelled;
 
     // DIFF LOGIC - Show to everyone if order is updated and has snapshot
     const showDiff = isUpdated && order.original_items_snapshot && !isCancelled;
@@ -231,7 +243,7 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
     }
 
     const allChecked = itemsList.length > 0 && itemsList.every(item => item.checked);
-    const canSubmit = isPaymentStage ? paymentConfirmed : (isCreationStage ? true : allChecked);
+    const canSubmit = isPaymentStage ? paymentConfirmed : allChecked;
     const validationRequired = canAdvance && !isCancelled;
 
     const handleAdvance = () => {
@@ -239,7 +251,7 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
         if (isPaymentStage && !paymentConfirmed) {
             alert("Por favor confirma el pago en efectivo.");
             return;
-        } else if (!isPaymentStage && !isCreationStage && !allChecked) {
+        } else if (!isPaymentStage && !allChecked) {
             alert("Por favor verifica todos los artículos antes de avanzar.");
             return;
         }
@@ -346,7 +358,15 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
             <div className="order-header">
                 <div className="order-info">
                     <h3 className="order-number" style={isCancelled ? { textDecoration: 'line-through', opacity: 0.7 } : {}}>#{order.id}</h3>
-                    <p className="order-table">Mesa {order.table_number}</p>
+                    {order.is_delivery ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <p className="order-table" style={{ margin: 0 }}>🚗 {order.customer_name}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>📞 {order.customer_phone}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>📍 {order.customer_address}</p>
+                        </div>
+                    ) : (
+                        <p className="order-table">Mesa {order.table_number}</p>
+                    )}
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     {isUpdated && isAllowedRole && !isCancelled && (
@@ -355,7 +375,10 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         </div>
                     )}
                     <div className={`status-badge ${statusColors[order.status]}`}>
-                        {order.status}
+                        {order.status === ORDER_STATUS.READY && order.is_delivery
+                            ? 'Listo para Entregar'
+                            : order.status
+                        }
                     </div>
                 </div>
             </div>
@@ -366,15 +389,23 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         <div className="step-dot" style={{ background: '#e74c3c' }} title="Cancelado"></div>
                     </div>
                 ) : (
-                    ['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado'].map((step, index) => {
-                        const allSteps = ['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado'];
-                        const currentStepIndex = allSteps.indexOf(order.status);
-                        const stepIndex = allSteps.indexOf(step);
-                        const isActive = stepIndex <= currentStepIndex;
+                    [ORDER_STATUS.COOKING, ORDER_STATUS.READY, ORDER_STATUS.SERVED, ORDER_STATUS.COMPLETED].map((step, index) => {
+                        const allSteps = [ORDER_STATUS.COOKING, ORDER_STATUS.READY, ORDER_STATUS.SERVED, ORDER_STATUS.COMPLETED];
+                        const allStepsDelivery = [ORDER_STATUS.COOKING, ORDER_STATUS.READY, ORDER_STATUS.DELIVERING, ORDER_STATUS.COMPLETED];
+
+                        const stepsToUse = order.is_delivery ? allStepsDelivery : allSteps;
+                        const currentStepIndex = stepsToUse.indexOf(order.status);
+                        const displayStep = order.is_delivery && step === ORDER_STATUS.SERVED ? ORDER_STATUS.DELIVERING : step;
+
+                        // Map 'Servido' in UI loop to 'En Reparto' logic for delivery
+                        const stepIndexInLogic = stepsToUse.indexOf(displayStep);
+
+                        const isActive = stepIndexInLogic <= currentStepIndex;
+
                         return (
                             <div key={step} className={`progress-step ${isActive ? 'active' : ''}`}>
-                                <div className="step-dot" title={step}></div>
-                                {index < 4 && <div className="step-line"></div>}
+                                <div className="step-dot" title={displayStep}></div>
+                                {index < 3 && <div className="step-line"></div>}
                             </div>
                         );
                     })
@@ -386,7 +417,7 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h4>{isPaymentStage ? 'Pago' : 'Artículos'}</h4>
 
-                        {!isPaymentStage && !isCreationStage && validationRequired && !allChecked && !isLocked && (
+                        {!isPaymentStage && validationRequired && !allChecked && !isLocked && (
                             <span style={{ fontSize: '0.8rem', color: '#ff6b6b' }}>
                                 Faltan {itemsList.filter(i => !i.checked).length}
                             </span>
@@ -395,7 +426,7 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         {!isCancelled && (
                             <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
                                 {/* Waiter Actions */}
-                                {onCancel && (order.status === 'Creado' || order.status === 'En Cocina') && !isAllowedRole && (
+                                {onCancel && (order.status === ORDER_STATUS.COOKING) && !isAllowedRole && (
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onCancel(order.id); }}
                                         style={{
@@ -410,7 +441,7 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                                 )}
 
                                 {/* Edit Button */}
-                                {onEdit && (order.status === 'En Cocina' || order.status === 'Creado') && !isAllowedRole && (
+                                {onEdit && (order.status === ORDER_STATUS.COOKING) && !isAllowedRole && (
                                     <button
                                         onClick={() => onEdit(order)}
                                         style={{

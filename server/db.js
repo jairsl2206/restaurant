@@ -2,6 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const logger = require('./logger');
+const { ORDER_STATUS } = require('./constants');
 
 const DB_PATH = path.join(__dirname, '..', 'restaurant.db');
 
@@ -36,23 +37,39 @@ class Database {
         )
       `);
 
+            // Customers table
+            this.db.run(`
+        CREATE TABLE IF NOT EXISTS customers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          phone TEXT NOT NULL,
+          address TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
             // Orders table
             this.db.run(`
         CREATE TABLE IF NOT EXISTS orders (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          table_number INTEGER NOT NULL,
-          status TEXT DEFAULT 'Creado',
+          table_number INTEGER,
+          status TEXT DEFAULT 'PREPARANDO ORDEN',
           total REAL DEFAULT 0,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           is_updated INTEGER DEFAULT 0,
-          original_items_snapshot TEXT
+          original_items_snapshot TEXT,
+          is_delivery INTEGER DEFAULT 0,
+          customer_id INTEGER,
+          FOREIGN KEY (customer_id) REFERENCES customers(id)
         )
       `);
 
             // Migration for existing databases
             this.db.run("ALTER TABLE orders ADD COLUMN is_updated INTEGER DEFAULT 0", (err) => { /* ignore */ });
             this.db.run("ALTER TABLE orders ADD COLUMN original_items_snapshot TEXT", (err) => { /* ignore */ });
+            this.db.run("ALTER TABLE orders ADD COLUMN is_delivery INTEGER DEFAULT 0", (err) => { /* ignore */ });
+            this.db.run("ALTER TABLE orders ADD COLUMN customer_id INTEGER", (err) => { /* ignore */ });
 
             // Order items table
             this.db.run(`
@@ -167,15 +184,47 @@ class Database {
         this.db.run('UPDATE users SET role = ? WHERE id = ?', [role, id], callback);
     }
 
+    // Customer methods
+    createCustomer(name, phone, address, callback) {
+        const now = getCurrentTimestamp();
+        this.db.run(
+            'INSERT INTO customers (name, phone, address, created_at) VALUES (?, ?, ?, ?)',
+            [name, phone, address, now],
+            function (err) {
+                callback(err, this ? this.lastID : null);
+            }
+        );
+    }
+
+    getCustomerById(id, callback) {
+        this.db.get('SELECT * FROM customers WHERE id = ?', [id], callback);
+    }
+
+    getCustomerByPhone(phone, callback) {
+        this.db.get('SELECT * FROM customers WHERE phone = ?', [phone], callback);
+    }
+
+    updateCustomer(id, name, phone, address, callback) {
+        this.db.run(
+            'UPDATE customers SET name = ?, phone = ?, address = ? WHERE id = ?',
+            [name, phone, address, id],
+            callback
+        );
+    }
+
     // Order methods
-    createOrder(tableNumber, items, callback) {
+    createOrder(tableNumber, items, isDelivery = false, customerId = null, callback) {
         const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const db = this.db; // Store reference to db
 
+        // Fallback for tableNumber if the DB has NOT NULL constraint (e.g. existing dbs)
+        // We use 0 for delivery or unassigned tables
+        const finalTableNumber = tableNumber || 0;
+
         const now = getCurrentTimestamp();
         db.run(
-            'INSERT INTO orders (table_number, total, created_at, updated_at) VALUES (?, ?, ?, ?)',
-            [tableNumber, total, now, now],
+            'INSERT INTO orders (table_number, total, status, created_at, updated_at, is_delivery, customer_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [finalTableNumber, total, ORDER_STATUS.COOKING, now, now, isDelivery ? 1 : 0, customerId],
             function (err) {
                 if (err) return callback(err);
 
@@ -198,9 +247,13 @@ class Database {
     getOrders(callback) {
         this.db.all(`
       SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items
+        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items,
+        c.name as customer_name,
+        c.phone as customer_phone,
+        c.address as customer_address
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN customers c ON o.customer_id = c.id
       GROUP BY o.id
       ORDER BY o.created_at DESC
     `, callback);
@@ -209,10 +262,14 @@ class Database {
     getActiveOrders(callback) {
         this.db.all(`
       SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items
+        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items,
+        c.name as customer_name,
+        c.phone as customer_phone,
+        c.address as customer_address
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
-      WHERE o.status != 'Pagado'
+      LEFT JOIN customers c ON o.customer_id = c.id
+      WHERE o.status != '${ORDER_STATUS.COMPLETED}'
       GROUP BY o.id
       ORDER BY o.created_at DESC
     `, callback);
@@ -230,9 +287,13 @@ class Database {
     getOrderById(orderId, callback) {
         this.db.get(`
       SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items
+        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items,
+        c.name as customer_name,
+        c.phone as customer_phone,
+        c.address as customer_address
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN customers c ON o.customer_id = c.id
       WHERE o.id = ?
       GROUP BY o.id
     `, [orderId], callback);
@@ -471,7 +532,7 @@ class Database {
                 SUM(total) as total_revenue, 
                 AVG(total) as average_ticket 
             FROM orders 
-            WHERE status = 'Pagado' 
+            WHERE status = '${ORDER_STATUS.COMPLETED}' 
             AND created_at BETWEEN ? AND ?
         `;
 
@@ -486,7 +547,7 @@ class Database {
                     COUNT(*) as orders_count, 
                     SUM(total) as daily_revenue 
                 FROM orders 
-                WHERE status = 'Pagado' 
+                WHERE status = '${ORDER_STATUS.COMPLETED}' 
                 AND created_at BETWEEN ? AND ? 
                 GROUP BY date 
                 ORDER BY date ASC
@@ -504,7 +565,7 @@ class Database {
                         SUM(oi.price * oi.quantity) as item_revenue 
                     FROM order_items oi
                     JOIN orders o ON oi.order_id = o.id
-                    WHERE o.status = 'Pagado' 
+                    WHERE o.status = '${ORDER_STATUS.COMPLETED}' 
                     AND o.created_at BETWEEN ? AND ?
                     GROUP BY oi.item_name
                     ORDER BY quantity_sold DESC
