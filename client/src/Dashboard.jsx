@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import OrderCard from './OrderCard';
+import { ORDER_STATUS } from './constants';
 import NewOrderModal from './NewOrderModal';
 import NotificationCenter from './components/NotificationCenter';
 import { playNotificationSound } from './utils/sound';
@@ -7,6 +8,24 @@ import './Dashboard.css';
 import API_BASE_URL from './config';
 
 const API_URL = API_BASE_URL;
+
+const statusIcons = {
+    [ORDER_STATUS.COOKING]: '🍳',
+    [ORDER_STATUS.READY]: '🥡',
+    [ORDER_STATUS.SERVED]: '✅',
+    [ORDER_STATUS.DELIVERING]: '🚗',
+    [ORDER_STATUS.COMPLETED]: '💰',
+    [ORDER_STATUS.CANCELLED]: '❌'
+};
+
+const statusLabels = {
+    [ORDER_STATUS.COOKING]: 'En Cocina',
+    [ORDER_STATUS.READY]: 'Listo para Servir',
+    [ORDER_STATUS.SERVED]: 'Servido',
+    [ORDER_STATUS.DELIVERING]: 'En Reparto',
+    [ORDER_STATUS.COMPLETED]: 'Finalizada',
+    [ORDER_STATUS.CANCELLED]: 'Cancelado'
+};
 
 function Dashboard({ user, onLogout, settings }) {
     const [orders, setOrders] = useState([]);
@@ -56,25 +75,26 @@ function Dashboard({ user, onLogout, settings }) {
 
             // Notification Logic for Waiters
             if (user.role === 'waiter' && prevOrdersRef.current.length > 0) {
-                const newReadyOrders = data.filter(o => o.status === 'Listo para Servir');
+                const newReadyOrders = data.filter(o => o.status === ORDER_STATUS.READY);
                 // Check against prevOrders
                 const justReadyOrders = newReadyOrders.filter(newOrder => {
                     const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
-                    return !oldOrder || oldOrder.status !== 'Listo para Servir';
+                    return !oldOrder || oldOrder.status !== ORDER_STATUS.READY;
                 });
 
                 justReadyOrders.forEach(order => {
+                    const locationInfo = order.is_delivery ? `Delivery - ${order.customer_name}` : `Mesa ${order.table_number}`;
                     addNotification(
-                        `¡Orden #${order.id} (Mesa ${order.table_number}) lista para servir!`,
+                        `¡Orden #${order.id} (${locationInfo}) lista para ${order.is_delivery ? 'entregar' : 'servir'}!`,
                         'success',
                         order.id
                     );
                 });
             }
 
-            // Notification for Cooks: Sent to Kitchen (En Cocina)
+            // Notification for Cooks: Sent to Kitchen (COOKING)
             if (user.role === 'cook') {
-                const kitchenOrders = data.filter(o => o.status === 'En Cocina');
+                const kitchenOrders = data.filter(o => o.status === ORDER_STATUS.COOKING);
 
                 // Find order that is NOW 'En Cocina' but wasn't before
                 const justArrived = kitchenOrders.find(newOrder => {
@@ -83,13 +103,14 @@ function Dashboard({ user, onLogout, settings }) {
                     // If not found in previous (unlikely if created first, but possible), notify
                     if (!oldOrder) return true;
 
-                    // IF it existed before but was NOT 'En Cocina' (e.g. was 'Creado'), notify
-                    return oldOrder.status !== 'En Cocina';
+                    // IF it existed before but was NOT 'COOKING' (e.g. was 'Creado'), notify
+                    return oldOrder.status !== ORDER_STATUS.COOKING;
                 });
 
                 if (justArrived) {
+                    const locationInfo = justArrived.is_delivery ? `Delivery - ${justArrived.customer_name}` : `Mesa ${justArrived.table_number}`;
                     addNotification(
-                        `🔔 ¡Nueva Orden en Cocina #${justArrived.id}! (Mesa ${justArrived.table_number})`,
+                        `🔔 ¡Nueva Orden en Cocina #${justArrived.id}! (${locationInfo})`,
                         'info',
                         justArrived.id
                     );
@@ -98,15 +119,16 @@ function Dashboard({ user, onLogout, settings }) {
 
             // Notification for Cooks: Order Cancelled
             if (user.role === 'cook' && prevOrdersRef.current.length > 0) {
-                const newCancelledOrders = data.filter(o => o.status === 'Cancelado');
+                const newCancelledOrders = data.filter(o => o.status === ORDER_STATUS.CANCELLED);
                 const justCancelled = newCancelledOrders.find(newOrder => {
                     const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
-                    return !oldOrder || oldOrder.status !== 'Cancelado';
+                    return !oldOrder || oldOrder.status !== ORDER_STATUS.CANCELLED;
                 });
 
                 if (justCancelled) {
+                    const locationInfo = justCancelled.is_delivery ? `Delivery - ${justCancelled.customer_name}` : `Mesa ${justCancelled.table_number}`;
                     addNotification(
-                        `⚠️ ATENCIÓN: La Orden #${justCancelled.id} (Mesa ${justCancelled.table_number}) ha sido CANCELADA.`,
+                        `⚠️ ATENCIÓN: La Orden #${justCancelled.id} (${locationInfo}) ha sido CANCELADA.`,
                         'error',
                         justCancelled.id
                     );
@@ -121,12 +143,12 @@ function Dashboard({ user, onLogout, settings }) {
 
                 if (user.role === 'cook') {
                     // For cooks, 'info' is "New Order in Kitchen". Remove if not 'En Cocina'.
-                    if (n.type === 'info' && currentOrder.status !== 'En Cocina') return false;
+                    if (n.type === 'info' && currentOrder.status !== ORDER_STATUS.COOKING) return false;
                 }
 
                 if (user.role === 'waiter') {
                     // For waiters, 'success' is "Order Ready". Remove if not 'Listo para Servir'.
-                    if (n.type === 'success' && currentOrder.status !== 'Listo para Servir') return false;
+                    if (n.type === 'success' && currentOrder.status !== ORDER_STATUS.READY) return false;
                 }
 
                 return true;
@@ -172,9 +194,18 @@ function Dashboard({ user, onLogout, settings }) {
             if (response.ok) {
                 setShowNewOrder(false);
                 fetchOrders();
+            } else {
+                const text = await response.text();
+                try {
+                    const data = JSON.parse(text);
+                    alert(`Error: ${data.error || 'Failed to create order'}`);
+                } catch (e) {
+                    alert(`Error creating order: ${text}`);
+                }
             }
         } catch (err) {
             console.error('Error creating order:', err);
+            alert('Error network/server creating order');
         }
     };
 
@@ -213,7 +244,7 @@ function Dashboard({ user, onLogout, settings }) {
         if (!window.confirm('¿Estás seguro de que deseas CANCELAR esta orden? Esta acción no se puede deshacer.')) {
             return;
         }
-        await handleStatusChange(orderId, 'Cancelado');
+        await handleStatusChange(orderId, ORDER_STATUS.CANCELLED);
     };
 
     const getColumns = () => {
@@ -221,7 +252,7 @@ function Dashboard({ user, onLogout, settings }) {
             // Cook views FIFO queue - only orders in "En Cocina" status, plus recently cancelled for visibility
             // We want to show "Cancelado" orders to the cook so they know to stop, but maybe they want to clear them?
             // For now, listing them is good.
-            const cooking = orders.filter(o => o.status === 'En Cocina');
+            const cooking = orders.filter(o => o.status === ORDER_STATUS.COOKING);
             // Sort by updated_at (oldest first - FIFO)
             cooking.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
 
@@ -231,25 +262,22 @@ function Dashboard({ user, onLogout, settings }) {
         }
 
         // Waiter views everything grouped - all columns use FIFO
-        const creado = orders.filter(o => o.status === 'Creado');
-        const enCocina = orders.filter(o => o.status === 'En Cocina');
-        const listoParaServir = orders.filter(o => o.status === 'Listo para Servir');
-        const servido = orders.filter(o => o.status === 'Servido');
-        const pagado = orders.filter(o => o.status === 'Pagado');
+        const enCocina = orders.filter(o => o.status === ORDER_STATUS.COOKING);
+        const listoParaServir = orders.filter(o => o.status === ORDER_STATUS.READY);
+        const servido = orders.filter(o => o.status === ORDER_STATUS.SERVED || o.status === ORDER_STATUS.DELIVERING);
+        const pagado = orders.filter(o => o.status === ORDER_STATUS.COMPLETED);
 
         // Sort all by updated_at (oldest first - FIFO)
-        creado.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
         enCocina.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
         listoParaServir.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
         servido.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
         pagado.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
 
         return {
-            'Creado': creado,
-            'En Cocina': enCocina,
-            'Listo para Servir': listoParaServir,
-            'Servido': servido,
-            'Pagado': pagado,
+            [ORDER_STATUS.COOKING]: enCocina,
+            [ORDER_STATUS.READY]: listoParaServir,
+            [ORDER_STATUS.SERVED]: servido,
+            [ORDER_STATUS.COMPLETED]: pagado,
         };
     };
 
@@ -263,7 +291,9 @@ function Dashboard({ user, onLogout, settings }) {
                         <div className="header-logo-container">
                             {settings?.restaurant_logo && (settings.restaurant_logo.match(/^http/) || settings.restaurant_logo.match(/^\/uploads/)) ? (
                                 <img
-                                    src={settings.restaurant_logo}
+                                    src={settings.restaurant_logo.startsWith('/uploads')
+                                        ? API_URL.replace('/api', '') + settings.restaurant_logo
+                                        : settings.restaurant_logo.replace(/http:\/\/localhost:3001/g, API_URL.replace('/api', ''))}
                                     alt="Logo"
                                     className="header-logo-img"
                                     onError={(e) => {
@@ -276,11 +306,18 @@ function Dashboard({ user, onLogout, settings }) {
                             )}
                         </div>
                         <div className="header-info-container">
-                            <h1>{settings?.restaurant_name}</h1>
-                            <p>Bienvenido, <strong>{user.username}</strong></p>
+                            <div className="user-info-text">
+                                <h1>{settings?.restaurant_name}</h1>
+                                <p>Bienvenido, <strong>{user.username}</strong></p>
+                            </div>
+                            {isMobile && (
+                                <button className="btn-logout-mobile" onClick={onLogout}>
+                                    Salir
+                                </button>
+                            )}
                         </div>
                     </div>
-                    <div className="header-actions">
+                    <div className="header-actions-row">
                         <NotificationCenter
                             notifications={notifications}
                             onDismiss={(id) => setNotifications(notifications.filter(n => n.id !== id))}
@@ -291,13 +328,13 @@ function Dashboard({ user, onLogout, settings }) {
                                 className={`segment-btn ${filter === 'active' ? 'active' : ''}`}
                                 onClick={() => setFilter('active')}
                             >
-                                ⚡ Activas
+                                {isMobile ? '⚡' : '⚡ Activas'}
                             </button>
                             <button
                                 className={`segment-btn ${filter === 'all' ? 'active' : ''}`}
                                 onClick={() => setFilter('all')}
                             >
-                                📋 Todas
+                                {isMobile ? '📋' : '📋 Todas'}
                             </button>
                         </div>
 
@@ -309,12 +346,14 @@ function Dashboard({ user, onLogout, settings }) {
                                 + Nueva Orden
                             </button>
                         )}
+                    </div>
+                    {!isMobile && (
                         <button className="btn btn-outline-danger" onClick={onLogout}>
                             Salir
                         </button>
-                    </div>
+                    )}
                 </div>
-            </header >
+            </header>
 
             <main className="dashboard-main container">
                 {loading ? (
@@ -329,7 +368,7 @@ function Dashboard({ user, onLogout, settings }) {
                             // Level 3: Order Detail
                             <div className="mobile-view-level-3 slide-in">
                                 <button className="btn-back" onClick={() => setSelectedOrder(null)}>
-                                    ← Volver a {selectedOrder.status}
+                                    ← Volver {statusLabels[selectedOrder.status] || selectedOrder.status}
                                 </button>
                                 <OrderCard
                                     order={selectedOrder}
@@ -348,7 +387,7 @@ function Dashboard({ user, onLogout, settings }) {
                                     ← Volver a Estados
                                 </button>
                                 <div className="column-header">
-                                    <h2>{expandedStatus}</h2>
+                                    <h2>{statusIcons[expandedStatus]} {statusLabels[expandedStatus] || expandedStatus}</h2>
                                     <span className="count-badge">{groupedOrders[expandedStatus]?.length || 0}</span>
                                 </div>
                                 <div className="mobile-orders-list">
@@ -363,7 +402,7 @@ function Dashboard({ user, onLogout, settings }) {
                                             >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                                                     <strong>Orden #{order.id}</strong>
-                                                    <span>Mesa {order.table_number}</span>
+                                                    <span>{order.is_delivery ? `🚗 ${order.customer_name}` : `Mesa ${order.table_number}`}</span>
                                                 </div>
                                                 <div style={{ fontSize: '0.9rem', color: '#aaa' }}>
                                                     {order.items.substring(0, 30)}...
@@ -381,17 +420,17 @@ function Dashboard({ user, onLogout, settings }) {
                             <div className="mobile-view-level-1">
                                 {Object.entries(groupedOrders).map(([status, statusOrders]) => {
                                     // Highlight priorities
-                                    const isPriority = status === 'Creado' || status === 'Listo para Servir';
+                                    const isPriority = status === ORDER_STATUS.COOKING || status === ORDER_STATUS.READY;
                                     const count = statusOrders.length;
 
                                     return (
                                         <div
                                             key={status}
-                                            className={`mobile-status-card glass-card ${isPriority ? 'status-priority' : ''} status-col-${status.toLowerCase().replace(/\s+/g, '-')}`}
+                                            className={`mobile-status-card glass-card ${isPriority ? 'status-priority' : ''} status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}
                                             onClick={() => setExpandedStatus(status)}
                                         >
                                             <div className="status-name">
-                                                {status}
+                                                {statusIcons[status]} {statusLabels[status] || status}
                                                 {isPriority && count > 0 && <span className="priority-dot">●</span>}
                                             </div>
                                             <div className="status-count">
@@ -407,9 +446,9 @@ function Dashboard({ user, onLogout, settings }) {
                     // Desktop Kanban View (Existing)
                     <div className="orders-board">
                         {Object.entries(groupedOrders).map(([status, statusOrders]) => (
-                            <div key={status} className={`status-column status-col-${status.toLowerCase().replace(/\s+/g, '-')}`}>
+                            <div key={status} className={`status-column status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}>
                                 <div className="column-header">
-                                    <h2>{status}</h2>
+                                    <h2>{statusIcons[status]} {statusLabels[status] || status}</h2>
                                     <span className="count-badge">{statusOrders.length}</span>
                                 </div>
                                 <div className="column-content">

@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 const logger = require('./logger');
+const { ORDER_STATUS } = require('./constants');
 
 const router = express.Router();
 
@@ -73,33 +74,76 @@ const notifyWhatsApp = (req, message) => {
 
 // Create new order
 router.post('/orders', (req, res) => {
-    const { tableNumber, items } = req.body;
+    const { tableNumber, items, isDelivery, customerData } = req.body;
 
-    if (!tableNumber || !items || items.length === 0) {
-        return res.status(400).json({ error: 'Table number and items required' });
+    if (!items || items.length === 0) {
+        return res.status(400).json({ error: 'Items required' });
     }
 
-    db.createOrder(tableNumber, items, (err, orderId) => {
-        if (err) {
-            return res.status(500).json({ error: 'Failed to create order' });
+    // Validate delivery orders
+    if (isDelivery) {
+        if (!customerData || !customerData.name || !customerData.phone) {
+            return res.status(400).json({ error: 'Customer name and phone required for delivery orders' });
         }
+    } else {
+        if (!tableNumber) {
+            return res.status(400).json({ error: 'Table number required for dine-in orders' });
+        }
+    }
 
-        db.getOrderById(orderId, (err, order) => {
+    const createOrderWithCustomer = (customerId) => {
+        db.createOrder(tableNumber || null, items, isDelivery, customerId, (err, orderId) => {
             if (err) {
-                return res.status(500).json({ error: 'Order created but failed to retrieve' });
+                return res.status(500).json({ error: 'Failed to create order' });
             }
 
-            // Notify WhatsApp
-            const maxLen = 25;
-            const itemDetails = items.map(i => `- ${i.quantity}x ${i.name.length > maxLen ? i.name.substring(0, maxLen) + '...' : i.name}`).join('\n');
-            const total = items.reduce((sum, i) => sum + (i.price * i.quantity), 0).toFixed(2);
+            db.getOrderById(orderId, (err, order) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Order created but failed to retrieve' });
+                }
 
-            const msg = `🧾 *NUEVA ORDEN #${order.id}*\n🪑 Mesa: ${tableNumber}\n\n${itemDetails}\n\n💰 Total: $${total}\n🕒 ${new Date().toLocaleTimeString()}`;
-            notifyWhatsApp(req, msg);
+                // Notify WhatsApp
+                const maxLen = 25;
+                const itemDetails = items.map(i => `- ${i.quantity}x ${i.name.length > maxLen ? i.name.substring(0, maxLen) + '...' : i.name}`).join('\n');
+                const total = items.reduce((sum, i) => sum + (i.price * i.quantity), 0).toFixed(2);
 
-            res.status(201).json(order);
+                const deliveryInfo = isDelivery ? `🚗 Delivery\n👤 ${customerData.name}\n📞 ${customerData.phone}\n📍 ${customerData.address || 'N/A'}\n` : `🪑 Mesa: ${tableNumber}\n`;
+                const msg = `🧾 *NUEVA ORDEN #${order.id}*\n${deliveryInfo}\n${itemDetails}\n\n💰 Total: $${total}\n🕒 ${new Date().toLocaleTimeString()}`;
+                notifyWhatsApp(req, msg);
+
+                res.status(201).json(order);
+            });
         });
-    });
+    };
+
+    // Handle customer creation for delivery orders
+    if (isDelivery && customerData) {
+        // Check if customer exists by phone
+        db.getCustomerByPhone(customerData.phone, (err, existingCustomer) => {
+            if (err) {
+                return res.status(500).json({ error: 'Database error' });
+            }
+
+            if (existingCustomer) {
+                // Update existing customer info
+                db.updateCustomer(existingCustomer.id, customerData.name, customerData.phone, customerData.address || '', (err) => {
+                    if (err) logger.error('Error updating customer:', err);
+                    createOrderWithCustomer(existingCustomer.id);
+                });
+            } else {
+                // Create new customer
+                db.createCustomer(customerData.name, customerData.phone, customerData.address || '', (err, customerId) => {
+                    if (err) {
+                        return res.status(500).json({ error: 'Failed to create customer' });
+                    }
+                    createOrderWithCustomer(customerId);
+                });
+            }
+        });
+    } else {
+        // Dine-in order, no customer
+        createOrderWithCustomer(null);
+    }
 });
 
 // Update order items (Edit Order)
@@ -136,50 +180,62 @@ router.put('/orders/:id/status', (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['Creado', 'En Cocina', 'Listo para Servir', 'Servido', 'Pagado', 'Cancelado'];
+    const validStatuses = Object.values(ORDER_STATUS);
 
     if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
     }
 
-    // If status is "Listo para Servir", we clear the is_updated flag (Ack)
-    if (status === 'Listo para Servir') {
-        db.updateOrderStatus(id, status, (err) => {
-            if (err) return res.status(500).json({ error: 'Failed' });
-            // Also explicitly clear flag AND snapshot
-            db.db.run('UPDATE orders SET is_updated = 0, original_items_snapshot = NULL WHERE id = ?', [id], () => {
-                db.getOrderById(id, (err, order) => {
-                    if (!err && order) {
-                        const msg = `🔔 *ORDEN LISTA # ${order.id}*\n🪑 Mesa: ${order.table_number}\n\nFavor de recoger en cocina.`;
-                        notifyWhatsApp(req, msg);
-                    }
-                    res.json(order);
-                });
-            });
-        });
-        return;
-    }
-
-    db.updateOrderStatus(id, status, (err) => {
-        if (err) {
-            return res.status(500).json({ error: 'Failed to update order' });
+    // Get order to check if it's delivery
+    db.getOrderById(id, (err, order) => {
+        if (err || !order) {
+            console.error(`[DEBUG] Order ${id} not found`);
+            return res.status(500).json({ error: 'Order not found' });
         }
 
-        db.getOrderById(id, (err, order) => {
+        // If status is "ORDER LISTA", we clear the is_updated flag (Ack)
+        if (status === ORDER_STATUS.READY) {
+            db.updateOrderStatus(id, status, (err) => {
+                if (err) return res.status(500).json({ error: 'Failed' });
+                // Also explicitly clear flag AND snapshot
+                db.db.run('UPDATE orders SET is_updated = 0, original_items_snapshot = NULL WHERE id = ?', [id], () => {
+                    db.getOrderById(id, (err, order) => {
+                        if (!err && order) {
+                            const deliveryLabel = order.is_delivery ? 'para entregar' : 'en cocina';
+                            const msg = `🔔 *ORDEN LISTA #${order.id}*\n${order.is_delivery ? '🚗 Delivery' : `🪑 Mesa: ${order.table_number}`}\n\nFavor de recoger ${deliveryLabel}.`;
+                            notifyWhatsApp(req, msg);
+                        }
+                        res.json(order);
+                    });
+                });
+            });
+            return;
+        }
+
+        db.updateOrderStatus(id, status, (err) => {
             if (err) {
-                return res.status(500).json({ error: 'Order updated but failed to retrieve' });
+                return res.status(500).json({ error: 'Failed to update order' });
             }
 
-            // --- WhatsApp Notification Logic ---
-            if (status === 'Cancelado') {
-                const msg = `❌ *Orden Cancelada*\nOrden #${order.id}\nMesa: ${order.table_number}\nTotal: $${order.total}`;
-                notifyWhatsApp(req, msg);
-            } else if (status === 'Pagado') {
-                const msg = `✅ *Pago Recibido*\nOrden #${order.id}\nMesa: ${order.table_number}\nTotal: $${order.total}\nGracias por su compra!`;
-                notifyWhatsApp(req, msg);
-            }
+            db.getOrderById(id, (err, order) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Order updated but failed to retrieve' });
+                }
 
-            res.json(order);
+                // --- WhatsApp Notification Logic ---
+                if (status === ORDER_STATUS.CANCELLED) {
+                    const msg = `❌ *Orden Cancelada*\nOrden #${order.id}\n${order.is_delivery ? `🚗 ${order.customer_name}` : `🪑 Mesa: ${order.table_number}`}\nTotal: $${order.total}`;
+                    notifyWhatsApp(req, msg);
+                } else if (status === ORDER_STATUS.COMPLETED) {
+                    const msg = `✅ *Pago Recibido*\nOrden #${order.id}\n${order.is_delivery ? `🚗 ${order.customer_name}` : `🪑 Mesa: ${order.table_number}`}\nTotal: $${order.total}\nGracias por su compra!`;
+                    notifyWhatsApp(req, msg);
+                } else if (status === ORDER_STATUS.DELIVERING) {
+                    const msg = `🏍️ *Orden en Camino*\nOrden #${order.id}\n👤 ${order.customer_name}\n📍 Destino: ${order.customer_address || 'Dirección registrada'}\n\nTu pedido va en camino.`;
+                    notifyWhatsApp(req, msg);
+                }
+
+                res.json(order);
+            });
         });
     });
 });
