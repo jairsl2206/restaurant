@@ -116,6 +116,72 @@
     }
 }
 
+@media (max-width: 768px) {
+    .date-filters {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .filter-group {
+        width: 100%;
+    }
+
+    .filter-group input {
+        width: 100%;
+    }
+
+    .summary-cards {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .data-table {
+        min-width: 500px;
+    }
+
+    .chart-container {
+        height: 250px;
+    }
+
+    .bar-label {
+        font-size: 0.6rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .manager-header h2 {
+        font-size: 1.3rem;
+    }
+
+    .period-info p {
+        font-size: 0.85rem;
+    }
+
+    .summary-card {
+        padding: 1rem;
+    }
+
+    .card-icon {
+        font-size: 2rem;
+        width: 50px;
+        height: 50px;
+    }
+
+    .big-value {
+        font-size: 1.5rem;
+    }
+
+    .chart-container {
+        height: 200px;
+    }
+}
+
 .chart-section,
 .top-items-section {
     background: var(--bg-card);
