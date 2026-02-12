@@ -47,64 +47,84 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
 
     const parseInitialItems = (itemsString, menu) => {
         if (!itemsString) return [];
+
+        // Helper to recursively clean a name from suffixes like " x2 [190.0]"
+        const cleanName = (str) => {
+            let current = str.trim();
+            let changed = true;
+            while (changed) {
+                changed = false;
+                // Match " xQuantity [Price]" at the end
+                const fullSuffixMatch = current.match(/(.+) x\d+(\.\d+)?( \[(\d+\.?\d*)\])?$/);
+                if (fullSuffixMatch) {
+                    current = fullSuffixMatch[1].trim();
+                    changed = true;
+                    continue;
+                }
+                // Match just " [Price]" at the end
+                const priceSuffixMatch = current.match(/(.+) \[(\d+\.?\d*)\]$/);
+                if (priceSuffixMatch) {
+                    current = priceSuffixMatch[1].trim();
+                    changed = true;
+                    continue;
+                }
+                // Match just " xQuantity" at the end
+                const qtySuffixMatch = current.match(/(.+) x\d+$/);
+                if (qtySuffixMatch) {
+                    current = qtySuffixMatch[1].trim();
+                    changed = true;
+                }
+            }
+            return current;
+        };
+
         const parts = itemsString.split(/,\s*(?![^(]*\))/);
         const parsed = [];
 
         parts.forEach(part => {
-            // Remove [Price] suffix if exists
-            const priceMatch = part.match(/(.+) \[(\d+\.?\d*)\]$/);
-            let content = part;
+            let content = part.trim();
             let itemPrice = 0;
+
+            // 1. Extract Price if exists: "Name [Price]"
+            const priceMatch = content.match(/(.+) \[(\d+\.?\d*)\]$/);
             if (priceMatch) {
                 content = priceMatch[1].trim();
                 itemPrice = parseFloat(priceMatch[2]);
             }
 
-            const match = content.match(/(.+) x(\d+)$/);
-            if (match) {
-                let nameWithNote = match[1].trim();
-                const quantity = parseInt(match[2], 10);
-
-                // Extract note if exists: "Name (Note)" or "Name(Note)"
-                const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
-                let name = nameWithNote;
-                let note = '';
-                if (noteMatch) {
-                    name = noteMatch[1].trim();
-                    note = noteMatch[2].trim();
-                }
-
-                const menuItem = menu.find(m => m.name === name);
-                parsed.push({
-                    uid: `item_${Date.now()}_${Math.random()}`,
-                    id: menuItem ? menuItem.id : `legacy_${Date.now()}_${Math.random()}`,
-                    name: name,
-                    note: note,
-                    quantity: quantity,
-                    price: menuItem ? menuItem.price : itemPrice,
-                    image_url: menuItem ? menuItem.image_url : null
-                });
-            } else {
-                let nameWithNote = content.trim();
-                const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
-                let name = nameWithNote;
-                let note = '';
-                if (noteMatch) {
-                    name = noteMatch[1].trim();
-                    note = noteMatch[2].trim();
-                }
-
-                const menuItem = menu.find(m => m.name === name);
-                parsed.push({
-                    uid: `item_${Date.now()}_${Math.random()}`,
-                    id: menuItem ? menuItem.id : `legacy_${Date.now()}_${Math.random()}`,
-                    name: name,
-                    note: note,
-                    quantity: 1,
-                    price: menuItem ? menuItem.price : itemPrice,
-                    image_url: menuItem ? menuItem.image_url : null
-                });
+            // 2. Extract Quantity if exists: "Name xQty"
+            const qtyMatch = content.match(/(.+) x(\d+)$/);
+            let nameWithNote = content;
+            let quantity = 1;
+            if (qtyMatch) {
+                nameWithNote = qtyMatch[1].trim();
+                quantity = parseInt(qtyMatch[2], 10);
             }
+
+            // 3. Extract Note if exists: "Name (Note)"
+            // Use a non-greedy match for the name part and ensure it handles nested parens if any (though simple is usually enough)
+            const noteMatch = nameWithNote.match(/(.+?)\s*\((.+)\)$/);
+            let name = nameWithNote;
+            let note = '';
+            if (noteMatch) {
+                name = noteMatch[1].trim();
+                note = noteMatch[2].trim();
+            }
+
+            // 4. ROBUST CLEANING: Ensure name doesn't contain inherited suffixes
+            name = cleanName(name);
+
+            // 5. Match with menu to get consistent data
+            const menuItem = menu.find(m => m.name === name);
+            parsed.push({
+                uid: `item_${Date.now()}_${Math.random()}`,
+                id: menuItem ? menuItem.id : `legacy_${Date.now()}_${Math.random()}`,
+                name: name,
+                note: note,
+                quantity: quantity,
+                price: menuItem ? menuItem.price : itemPrice,
+                image_url: menuItem ? menuItem.image_url : null
+            });
         });
         return parsed;
     };

@@ -30,6 +30,36 @@ const statusColors = {
 
 import { useState, useEffect } from 'react';
 
+// Helper to recursively clean a name from suffixes like " x2 [190.0]"
+const cleanItemName = (str) => {
+    let current = str.trim();
+    let changed = true;
+    while (changed) {
+        changed = false;
+        // Match " xQuantity [Price]" at the end
+        const fullSuffixMatch = current.match(/(.+) x\d+(\.\d+)?( \[(\d+\.?\d*)\])?$/);
+        if (fullSuffixMatch) {
+            current = fullSuffixMatch[1].trim();
+            changed = true;
+            continue;
+        }
+        // Match just " [Price]" at the end
+        const priceSuffixMatch = current.match(/(.+) \[(\d+\.?\d*)\]$/);
+        if (priceSuffixMatch) {
+            current = priceSuffixMatch[1].trim();
+            changed = true;
+            continue;
+        }
+        // Match just " xQuantity" at the end
+        const qtySuffixMatch = current.match(/(.+) x\d+$/);
+        if (qtySuffixMatch) {
+            current = qtySuffixMatch[1].trim();
+            changed = true;
+        }
+    }
+    return current;
+};
+
 // Items parsing logic - INDIVIDUAL (not grouped)
 const parseItemsIndividual = (itemsString) => {
     if (!itemsString) return [];
@@ -39,27 +69,26 @@ const parseItemsIndividual = (itemsString) => {
     let globalIndex = 0;
 
     parts.forEach(part => {
-        const priceMatch = part.match(/(.+) \[(\d+\.?\d*)\]$/);
-        let content = part;
+        let content = part.trim();
         let itemPrice = 0;
 
+        // 1. Extract Price if exists
+        const priceMatch = content.match(/(.+) \[(\d+\.?\d*)\]$/);
         if (priceMatch) {
             content = priceMatch[1].trim();
             itemPrice = parseFloat(priceMatch[2]);
         }
 
-        const match = content.match(/(.+) x(\d+)$/);
-        let nameWithNote, qty;
-
-        if (match) {
-            nameWithNote = match[1].trim();
-            qty = parseInt(match[2], 10);
-        } else {
-            nameWithNote = content.trim();
-            qty = 1;
+        // 2. Extract Quantity if exists
+        const qtyMatch = content.match(/(.+) x(\d+)$/);
+        let nameWithNote = content;
+        let qty = 1;
+        if (qtyMatch) {
+            nameWithNote = qtyMatch[1].trim();
+            qty = parseInt(qtyMatch[2], 10);
         }
 
-        // Extract note if exists: "Name (Note)" or "Name(Note)"
+        // 3. Extract Note if exists
         const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
         let name = nameWithNote;
         let note = '';
@@ -67,6 +96,9 @@ const parseItemsIndividual = (itemsString) => {
             name = noteMatch[1].trim();
             note = noteMatch[2].trim();
         }
+
+        // 4. Robust cleaning
+        name = cleanItemName(name);
 
         // Create individual entries for each item
         for (let i = 0; i < qty; i++) {
@@ -92,27 +124,26 @@ const parseItemsGrouped = (itemsString) => {
     let itemMap = new Map();
 
     parts.forEach(part => {
-        const priceMatch = part.match(/(.+) \[(\d+\.?\d*)\]$/);
-        let content = part;
+        let content = part.trim();
 
-        if (priceMatch) {
-            content = priceMatch[1].trim();
+        // 1. Extract Price
+        const priceSuffixMatch = content.match(/(.+) \[(\d+\.?\d*)\]$/);
+        if (priceSuffixMatch) {
+            content = priceSuffixMatch[1].trim();
         }
 
-        const match = content.match(/(.+) x(\d+)$/);
-        let nameWithNote, qty;
+        // 2. Extract Quantity
+        const qtySuffixMatch = content.match(/(.+) x(\d+)$/);
+        let nameWithNote = content;
+        let qty = 1;
 
-        if (match) {
-            nameWithNote = match[1].trim();
-            qty = parseInt(match[2], 10);
-        } else {
-            nameWithNote = content.trim();
-            qty = 1;
+        if (qtySuffixMatch) {
+            nameWithNote = qtySuffixMatch[1].trim();
+            qty = parseInt(qtySuffixMatch[2], 10);
         }
 
-        // For grouping, if we have nodes we treat them as unique items
-        // Wait, if two items have SAME name and SAME note, we group them.
-        const key = nameWithNote;
+        // Key for grouping remains nameWithNote for now to keep notes grouped together
+        const key = nameWithNote.trim();
 
         // Group by full string (including note)
         if (itemMap.has(key)) {
@@ -124,6 +155,7 @@ const parseItemsGrouped = (itemsString) => {
 
     // Convert to array
     return Array.from(itemMap.entries()).map(([nameWithNote, quantity], index) => {
+        // Extract note and clean name for display
         const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
         let name = nameWithNote;
         let note = '';
@@ -131,6 +163,9 @@ const parseItemsGrouped = (itemsString) => {
             name = noteMatch[1].trim();
             note = noteMatch[2].trim();
         }
+
+        // Final robust cleaning
+        name = cleanItemName(name);
 
         return {
             id: `grouped_${index}`,
