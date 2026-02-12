@@ -59,6 +59,34 @@ router.get('/orders/all', (req, res) => {
     });
 });
 
+// Get orders by date (YYYY-MM-DD)
+router.get('/orders/by-date', (req, res) => {
+    const { date } = req.query;
+
+    if (!date) {
+        return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
+    }
+
+    db.getOrdersByDate(date, (err, orders) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(orders);
+    });
+});
+
+// Delete an order (admin only)
+router.delete('/orders/:id', (req, res) => {
+    const { id } = req.params;
+
+    db.deleteOrder(id, (err) => {
+        if (err) {
+            return res.status(500).json({ error: 'Failed to delete order' });
+        }
+        res.json({ success: true, message: 'Order deleted successfully' });
+    });
+});
+
 // Helper to send WhatsApp
 const notifyWhatsApp = (req, message) => {
     if (!req.whatsapp) return;
