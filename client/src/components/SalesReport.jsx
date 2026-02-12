@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import './SalesReport.css';
+import './SalesReportPeriod.css';
 
 function SalesReport() {
     const [startDate, setStartDate] = useState(getThirtyDaysAgo());
@@ -70,6 +71,10 @@ function SalesReport() {
                     </div>
                 </div>
 
+                <div className="period-info">
+                    <p>ℹ️ Los reportes usan períodos de <strong>6am a 6am</strong> (las ventas después de medianoche se cuentan en el día de negocio)</p>
+                </div>
+
                 {loading && !report ? (
                     <div className="loading-spinner">Cargando reporte...</div>
                 ) : report ? (
@@ -102,7 +107,7 @@ function SalesReport() {
                         <div className="charts-grid">
                             {/* Daily Sales Chart */}
                             <div className="chart-section card">
-                                <h3>Ventas por Día</h3>
+                                <h3>Ventas por Período (6am-6am)</h3>
                                 <div className="chart-container">
                                     {report.dailySales.length === 0 ? (
                                         <p className="no-data">No hay datos en este periodo</p>
@@ -123,32 +128,40 @@ function SalesReport() {
                                 </div>
                             </div>
 
-                            {/* Top Items Table */}
+                            {/* Top Items by Category */}
                             <div className="top-items-section card">
-                                <h3>🏆 Productos Más Vendidos</h3>
+                                <h3>🏆 Productos Más Vendidos por Categoría</h3>
                                 <div className="table-wrapper">
-                                    <table className="data-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Producto</th>
-                                                <th className="text-right">Vendidos</th>
-                                                <th className="text-right">Ingresos</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {report.topItems.length === 0 ? (
-                                                <tr><td colspan="3" className="text-center">No hay ventas registradas</td></tr>
-                                            ) : (
-                                                report.topItems.map((item, idx) => (
-                                                    <tr key={idx}>
-                                                        <td>{item.item_name}</td>
-                                                        <td className="text-right">{item.quantity_sold}</td>
-                                                        <td className="text-right">${item.item_revenue.toFixed(2)}</td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
+                                    {report.topItems.length === 0 ? (
+                                        <p className="no-data">No hay ventas registradas</p>
+                                    ) : (
+                                        report.topItems.map((category, catIdx) => (
+                                            <div key={catIdx} className="category-group">
+                                                <div className="category-header">
+                                                    <h4>{category.category}</h4>
+                                                    <span className="category-total">${category.totalRevenue.toFixed(2)}</span>
+                                                </div>
+                                                <table className="data-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Producto</th>
+                                                            <th className="text-right">Vendidos</th>
+                                                            <th className="text-right">Ingresos</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {category.items.map((item, idx) => (
+                                                            <tr key={idx}>
+                                                                <td>{item.item_name}</td>
+                                                                <td className="text-right">{item.quantity_sold}</td>
+                                                                <td className="text-right">${item.item_revenue.toFixed(2)}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>

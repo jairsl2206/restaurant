@@ -1,0 +1,46 @@
+/* Period Info Banner */
+.period-info {
+    background: rgba(52, 152, 219, 0.1);
+    border-left: 4px solid #3498db;
+    padding: 12px 20px;
+    margin: 20px 0;
+    border-radius: 8px;
+    color: var(--text-secondary, #bdc3c7);
+}
+
+.period-info p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+/* Category Grouping */
+.category-group {
+    margin-bottom: 30px;
+}
+
+.category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: rgba(52, 152, 219, 0.15);
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 0;
+}
+
+.category-header h4 {
+    margin: 0;
+    color: var(--primary, #3498db);
+    font-size: 1.1rem;
+}
+
+.category-total {
+    font-weight: 600;
+    color: var(--primary, #3498db);
+    font-size: 1.1rem;
+}
+
+.category-group .data-table {
+    margin-top: 0;
+    border-radius: 0 0 8px 8px;
+}

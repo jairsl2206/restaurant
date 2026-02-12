@@ -5,6 +5,8 @@ import SettingsManager from './SettingsManager';
 import CategoryManager from './CategoryManager';
 import SalesReport from './SalesReport';
 import CategoryPromotionManager from './CategoryPromotionManager';
+import PastOrders from './PastOrders';
+import ActiveProductionOrders from './ActiveProductionOrders';
 import './AdminDashboard.css';
 
 function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
@@ -87,6 +89,20 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                     <span className="tab-icon">📈</span>
                     <span className="tab-text">Reportes</span>
                 </button>
+                <button
+                    className={`tab-btn ${activeTab === 'past-orders' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('past-orders')}
+                >
+                    <span className="tab-icon">📅</span>
+                    <span className="tab-text">Órdenes Pasadas</span>
+                </button>
+                <button
+                    className={`tab-btn ${activeTab === 'production' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('production')}
+                >
+                    <span className="tab-icon">🔥</span>
+                    <span className="tab-text">Producción</span>
+                </button>
             </nav>
 
             <main className="admin-content">
@@ -102,6 +118,8 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                     )}
                     {activeTab === 'promotions' && <CategoryPromotionManager />}
                     {activeTab === 'reports' && <SalesReport />}
+                    {activeTab === 'past-orders' && <PastOrders />}
+                    {activeTab === 'production' && <ActiveProductionOrders />}
                 </div>
             </main>
         </div>

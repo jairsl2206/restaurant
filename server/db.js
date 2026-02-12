@@ -517,9 +517,25 @@ class Database {
     }
 
     getSalesReport(startDate, endDate, callback) {
-        // Formatos de fecha para SQLite
-        const start = startDate ? startDate + ' 00:00:00' : '1970-01-01 00:00:00';
-        const end = endDate ? endDate + ' 23:59:59' : getCurrentTimestamp();
+        // Period-based reporting: 6am to 6am
+        // For a given date like "2026-02-12", the period is from "2026-02-12 06:00:00" to "2026-02-13 05:59:59"
+
+        const calculatePeriodBounds = (date) => {
+            const periodStart = `${date} 06:00:00`;
+            // Add one day for period end
+            const d = new Date(date);
+            d.setDate(d.getDate() + 1);
+            const nextDay = d.toISOString().split('T')[0];
+            const periodEnd = `${nextDay} 05:59:59`;
+            return { periodStart, periodEnd };
+        };
+
+        // Calculate period boundaries
+        const startPeriod = calculatePeriodBounds(startDate || '1970-01-01');
+        const endPeriod = calculatePeriodBounds(endDate || new Date().toISOString().split('T')[0]);
+
+        const start = startPeriod.periodStart;
+        const end = endPeriod.periodEnd;
 
         const report = {
             summary: {},
@@ -527,7 +543,7 @@ class Database {
             topItems: []
         };
 
-        // 1. Resumen (Total, Cantidad, Promedio) - Solo órdenes 'Pagado'
+        // 1. Summary (Total, Count, Average) - Only 'COMPLETED' orders
         const sqlSummary = `
             SELECT 
                 COUNT(*) as total_orders, 
@@ -542,50 +558,132 @@ class Database {
             if (err) return callback(err);
             report.summary = summaryRow || { total_orders: 0, total_revenue: 0, average_ticket: 0 };
 
-            // 2. Ventas Diarias
+            // 2. Daily Sales by Period (6am-6am)
+            // We need to group orders into periods manually since SQLite doesn't have easy period grouping
             const sqlDaily = `
                 SELECT 
-                    strftime('%Y-%m-%d', created_at) as date, 
-                    COUNT(*) as orders_count, 
-                    SUM(total) as daily_revenue 
+                    created_at,
+                    total
                 FROM orders 
                 WHERE status = '${ORDER_STATUS.COMPLETED}' 
                 AND created_at BETWEEN ? AND ? 
-                GROUP BY date 
-                ORDER BY date ASC
+                ORDER BY created_at ASC
             `;
 
-            this.db.all(sqlDaily, [start, end], (err, dailyRows) => {
+            this.db.all(sqlDaily, [start, end], (err, orderRows) => {
                 if (err) return callback(err);
-                report.dailySales = dailyRows;
 
-                // 3. Productos más vendidos
+                // Group orders by period
+                const periodMap = {};
+                orderRows.forEach(order => {
+                    const orderDate = new Date(order.created_at);
+                    const hour = orderDate.getHours();
+
+                    // Determine which period this order belongs to
+                    let periodDate = new Date(orderDate);
+                    if (hour < 6) {
+                        // Before 6am, belongs to previous day's period
+                        periodDate.setDate(periodDate.getDate() - 1);
+                    }
+
+                    const periodKey = periodDate.toISOString().split('T')[0];
+
+                    if (!periodMap[periodKey]) {
+                        periodMap[periodKey] = {
+                            date: periodKey,
+                            orders_count: 0,
+                            daily_revenue: 0
+                        };
+                    }
+
+                    periodMap[periodKey].orders_count++;
+                    periodMap[periodKey].daily_revenue += order.total;
+                });
+
+                report.dailySales = Object.values(periodMap).sort((a, b) => a.date.localeCompare(b.date));
+
+                // 3. Top Items Grouped by Category
                 const sqlItems = `
                     SELECT 
+                        COALESCE(m.category, 'Sin Categoría') as category,
                         oi.item_name, 
                         SUM(oi.quantity) as quantity_sold, 
                         SUM(oi.price * oi.quantity) as item_revenue 
                     FROM order_items oi
                     JOIN orders o ON oi.order_id = o.id
+                    LEFT JOIN menu_items m ON oi.item_name = m.name
                     WHERE o.status = '${ORDER_STATUS.COMPLETED}' 
                     AND o.created_at BETWEEN ? AND ?
-                    GROUP BY oi.item_name
-                    ORDER BY quantity_sold DESC
-                    LIMIT 20
+                    GROUP BY m.category, oi.item_name
+                    ORDER BY m.category ASC, quantity_sold DESC
                 `;
 
                 this.db.all(sqlItems, [start, end], (err, itemRows) => {
                     if (err) return callback(err);
-                    report.topItems = itemRows;
+
+                    // Group items by category
+                    const categoryMap = {};
+                    itemRows.forEach(item => {
+                        const category = item.category;
+                        if (!categoryMap[category]) {
+                            categoryMap[category] = {
+                                category: category,
+                                items: []
+                            };
+                        }
+                        categoryMap[category].items.push({
+                            item_name: item.item_name,
+                            quantity_sold: item.quantity_sold,
+                            item_revenue: item.item_revenue
+                        });
+                    });
+
+                    // Convert to array and sort categories by total revenue
+                    report.topItems = Object.values(categoryMap).map(cat => {
+                        const totalRevenue = cat.items.reduce((sum, item) => sum + item.item_revenue, 0);
+                        return { ...cat, totalRevenue };
+                    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
                     callback(null, report);
                 });
             });
         });
     }
 
+
     // Cleanup Methods
     clearAllMenuItems(callback) {
         this.db.run('DELETE FROM menu_items', callback);
+    }
+
+    // Get orders by specific date (YYYY-MM-DD)
+    getOrdersByDate(date, callback) {
+        const startOfDay = `${date} 00:00:00`;
+        const endOfDay = `${date} 23:59:59`;
+
+        this.db.all(`
+            SELECT o.*, 
+                GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items,
+                c.name as customer_name,
+                c.phone as customer_phone,
+                c.address as customer_address
+            FROM orders o
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            LEFT JOIN customers c ON o.customer_id = c.id
+            WHERE o.created_at BETWEEN ? AND ?
+            GROUP BY o.id
+            ORDER BY o.created_at DESC
+        `, [startOfDay, endOfDay], callback);
+    }
+
+    // Delete an order and its items
+    deleteOrder(orderId, callback) {
+        this.db.serialize(() => {
+            this.db.run('DELETE FROM order_items WHERE order_id = ?', [orderId], (err) => {
+                if (err) return callback(err);
+                this.db.run('DELETE FROM orders WHERE id = ?', [orderId], callback);
+            });
+        });
     }
 
     clearAllOrders(callback) {
@@ -599,5 +697,6 @@ class Database {
         this.db.close();
     }
 }
+
 
 module.exports = new Database();
