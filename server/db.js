@@ -611,7 +611,13 @@ class Database {
                         SUM(oi.price * oi.quantity) as item_revenue 
                     FROM order_items oi
                     JOIN orders o ON oi.order_id = o.id
-                    LEFT JOIN menu_items m ON TRIM(oi.item_name) = TRIM(m.name) COLLATE NOCASE
+                    LEFT JOIN menu_items m ON TRIM(
+                        CASE 
+                            WHEN oi.item_name LIKE '% (%)' THEN 
+                                SUBSTR(oi.item_name, 1, INSTR(oi.item_name, ' (') - 1)
+                            ELSE oi.item_name
+                        END
+                    ) = TRIM(m.name) COLLATE NOCASE
                     WHERE o.status = '${ORDER_STATUS.COMPLETED}' 
                     AND o.created_at BETWEEN ? AND ?
                     GROUP BY m.category, oi.item_name
