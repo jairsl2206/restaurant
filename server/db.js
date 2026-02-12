@@ -60,6 +60,7 @@ class Database {
           is_updated INTEGER DEFAULT 0,
           original_items_snapshot TEXT,
           is_delivery INTEGER DEFAULT 0,
+          is_pickup INTEGER DEFAULT 0,
           customer_id INTEGER,
           FOREIGN KEY (customer_id) REFERENCES customers(id)
         )
@@ -69,6 +70,7 @@ class Database {
             this.db.run("ALTER TABLE orders ADD COLUMN is_updated INTEGER DEFAULT 0", (err) => { /* ignore */ });
             this.db.run("ALTER TABLE orders ADD COLUMN original_items_snapshot TEXT", (err) => { /* ignore */ });
             this.db.run("ALTER TABLE orders ADD COLUMN is_delivery INTEGER DEFAULT 0", (err) => { /* ignore */ });
+            this.db.run("ALTER TABLE orders ADD COLUMN is_pickup INTEGER DEFAULT 0", (err) => { /* ignore */ });
             this.db.run("ALTER TABLE orders ADD COLUMN customer_id INTEGER", (err) => { /* ignore */ });
 
             // Order items table

@@ -16,7 +16,11 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
     const [maxTables, setMaxTables] = useState(20); // Default value
 
     // Delivery mode states
-    const [isDelivery, setIsDelivery] = useState(false);
+    // Mode state for order type
+    const [orderMode, setOrderMode] = useState('table'); // 'table', 'delivery', 'pickup'
+    const isDelivery = orderMode === 'delivery';
+    const isPickup = orderMode === 'pickup';
+
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [customerAddress, setCustomerAddress] = useState('');
@@ -39,7 +43,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
     // NOT when items change, to preserve checks when adding/editing items.
     useEffect(() => {
         setConfirmationChecks({});
-    }, [tableNumber, isDelivery]);
+    }, [tableNumber, orderMode]);
 
     const parseInitialItems = (itemsString, menu) => {
         if (!itemsString) return [];
@@ -118,14 +122,19 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                     const parsed = parseInitialItems(initialOrder.items, available);
                     setSelectedItems(parsed);
 
-                    // Set delivery state and customer info
-                    if (initialOrder.is_delivery) {
-                        setIsDelivery(true);
+                    // Set mode and customer info
+                    if (initialOrder.is_pickup) {
+                        setOrderMode('pickup');
+                        setCustomerName(initialOrder.customer_name || '');
+                        setCustomerPhone(initialOrder.customer_phone || '');
+                        setCustomerAddress(initialOrder.customer_address || '');
+                    } else if (initialOrder.is_delivery) {
+                        setOrderMode('delivery');
                         setCustomerName(initialOrder.customer_name || '');
                         setCustomerPhone(initialOrder.customer_phone || '');
                         setCustomerAddress(initialOrder.customer_address || '');
                     } else {
-                        setIsDelivery(false);
+                        setOrderMode('table');
                     }
                 }
             })
@@ -189,13 +198,10 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
         e.preventDefault();
 
         // Validate based on mode
-        if (isDelivery) {
+        if (isDelivery || isPickup) {
             const trimmedName = customerName.trim();
-            const trimmedPhone = customerPhone.trim();
-            const trimmedAddress = customerAddress.trim();
-
-            if (!trimmedName || !trimmedPhone || !trimmedAddress) {
-                alert('Por favor completa todos los campos del cliente para delivery');
+            if (!trimmedName) {
+                alert('Por favor completa el nombre del cliente');
                 return;
             }
         } else {
@@ -222,13 +228,14 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
         }));
 
         onSubmit({
-            tableNumber: isDelivery ? null : parseInt(tableNumber),
+            tableNumber: (isDelivery || isPickup) ? null : parseInt(tableNumber),
             items: formattedItems,
             isDelivery: isDelivery,
-            customerData: isDelivery ? {
+            isPickup: isPickup,
+            customerData: (isDelivery || isPickup) ? {
                 name: customerName.trim(),
                 phone: customerPhone.trim(),
-                address: customerAddress.trim()
+                address: isDelivery ? customerAddress.trim() : ''
             } : null
         });
     };
@@ -249,37 +256,48 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                         {/* Left Column: Menu & Tables */}
                         <div className="modal-left">
                             <div className="section-header">
-                                <h3>1. Selecciona {isDelivery ? 'Delivery' : 'Mesa'}</h3>
+                                <h3>1. Selecciona Tipo de Orden</h3>
                             </div>
 
-                            {/* Delivery Toggle */}
-                            <div className="delivery-toggle" style={{ marginBottom: '18px', display: 'flex', gap: '10px' }}>
+                            {/* Mode Toggles */}
+                            <div className="delivery-toggle" style={{ marginBottom: '18px', display: 'flex', gap: '8px' }}>
                                 <button
                                     type="button"
-                                    className={`table-btn ${!isDelivery ? 'selected' : ''}`}
+                                    className={`table-btn ${orderMode === 'table' ? 'selected' : ''}`}
                                     onClick={() => {
-                                        setIsDelivery(false);
+                                        setOrderMode('table');
                                         setTableNumber('');
                                     }}
-                                    style={{ flex: 1 }}
+                                    style={{ flex: 1, fontSize: '0.85rem' }}
                                 >
                                     🪑 Mesas
                                 </button>
                                 <button
                                     type="button"
-                                    className={`table-btn ${isDelivery ? 'selected' : ''}`}
+                                    className={`table-btn ${orderMode === 'pickup' ? 'selected' : ''}`}
                                     onClick={() => {
-                                        setIsDelivery(true);
+                                        setOrderMode('pickup');
                                         setTableNumber('');
                                     }}
-                                    style={{ flex: 1 }}
+                                    style={{ flex: 1, fontSize: '0.85rem' }}
+                                >
+                                    🛍️ Pickup
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`table-btn ${orderMode === 'delivery' ? 'selected' : ''}`}
+                                    onClick={() => {
+                                        setOrderMode('delivery');
+                                        setTableNumber('');
+                                    }}
+                                    style={{ flex: 1, fontSize: '0.85rem' }}
                                 >
                                     🚗 Delivery
                                 </button>
                             </div>
 
                             {/* Table Grid or Customer Form */}
-                            {!isDelivery ? (
+                            {orderMode === 'table' ? (
                                 <div className="table-grid">
                                     {tableNumbers.map(num => (
                                         <button
@@ -317,7 +335,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                     </div>
                                     <div className="form-group">
                                         <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
-                                            Teléfono *
+                                            Teléfono (Opcional)
                                         </label>
                                         <input
                                             type="tel"
@@ -336,30 +354,32 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                             }}
                                         />
                                     </div>
-                                    <div className="form-group">
-                                        <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
-                                            Dirección *
-                                        </label>
-                                        <textarea
-                                            className="form-input"
-                                            placeholder="Ej: Calle 123, Col. Centro"
-                                            value={customerAddress}
-                                            onChange={(e) => setCustomerAddress(e.target.value)}
-                                            rows="2"
-                                            style={{
-                                                width: '100%',
-                                                padding: '6px 10px',
-                                                borderRadius: '8px',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                background: 'rgba(255,255,255,0.05)',
-                                                color: 'white',
-                                                fontSize: '0.9rem',
-                                                resize: 'none',
-                                                fontFamily: 'inherit',
-                                                minHeight: '45px'
-                                            }}
-                                        />
-                                    </div>
+                                    {isDelivery && (
+                                        <div className="form-group">
+                                            <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
+                                                Dirección (Opcional)
+                                            </label>
+                                            <textarea
+                                                className="form-input"
+                                                placeholder="Ej: Calle 123, Col. Centro"
+                                                value={customerAddress}
+                                                onChange={(e) => setCustomerAddress(e.target.value)}
+                                                rows="2"
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '6px 10px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid rgba(255,255,255,0.1)',
+                                                    background: 'rgba(255,255,255,0.05)',
+                                                    color: 'white',
+                                                    fontSize: '0.9rem',
+                                                    resize: 'none',
+                                                    fontFamily: 'inherit',
+                                                    minHeight: '45px'
+                                                }}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -590,13 +610,13 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                         type="submit"
                                         className="btn btn-primary btn-block btn-lg"
                                         disabled={
-                                            (isDelivery ? (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) : !tableNumber) ||
+                                            (orderMode === 'table' ? !tableNumber : !customerName.trim()) ||
                                             selectedItems.length === 0 ||
                                             !isAllConfirmed
                                         }
                                         style={{
                                             opacity: (
-                                                (isDelivery ? (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) : !tableNumber) ||
+                                                (orderMode === 'table' ? !tableNumber : !customerName.trim()) ||
                                                 selectedItems.length === 0 ||
                                                 !isAllConfirmed
                                             ) ? 0.6 : 1

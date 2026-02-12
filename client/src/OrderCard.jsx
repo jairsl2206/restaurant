@@ -358,11 +358,19 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
             <div className="order-header">
                 <div className="order-info">
                     <h3 className="order-number" style={isCancelled ? { textDecoration: 'line-through', opacity: 0.7 } : {}}>#{order.id}</h3>
-                    {order.is_delivery ? (
+                    {order.is_delivery || order.is_pickup ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <p className="order-table" style={{ margin: 0 }}>🚗 {order.customer_name}</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>📞 {order.customer_phone}</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>📍 {order.customer_address}</p>
+                            <p className="order-table" style={{ margin: 0 }}>
+                                {order.is_pickup ? '🛍️' : '🚗'} {order.customer_name}
+                            </p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                📞 {order.customer_phone || 'S/N'}
+                            </p>
+                            {order.is_delivery && (
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                    📍 {order.customer_address || 'S/N'}
+                                </p>
+                            )}
                         </div>
                     ) : (
                         <p className="order-table">Mesa {order.table_number}</p>
@@ -389,26 +397,27 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         <div className="step-dot" style={{ background: '#e74c3c' }} title="Cancelado"></div>
                     </div>
                 ) : (
-                    [ORDER_STATUS.COOKING, ORDER_STATUS.READY, ORDER_STATUS.SERVED, ORDER_STATUS.COMPLETED].map((step, index) => {
-                        const allSteps = [ORDER_STATUS.COOKING, ORDER_STATUS.READY, ORDER_STATUS.SERVED, ORDER_STATUS.COMPLETED];
+                    (() => {
+                        const allStepsDineIn = [ORDER_STATUS.COOKING, ORDER_STATUS.READY, ORDER_STATUS.SERVED, ORDER_STATUS.COMPLETED];
                         const allStepsDelivery = [ORDER_STATUS.COOKING, ORDER_STATUS.READY, ORDER_STATUS.DELIVERING, ORDER_STATUS.COMPLETED];
+                        const allStepsPickup = [ORDER_STATUS.COOKING, ORDER_STATUS.PICKUP_READY, ORDER_STATUS.PICKUP_COMPLETED, ORDER_STATUS.COMPLETED];
 
-                        const stepsToUse = order.is_delivery ? allStepsDelivery : allSteps;
+                        let stepsToUse = allStepsDineIn;
+                        if (order.is_delivery) stepsToUse = allStepsDelivery;
+                        else if (order.is_pickup) stepsToUse = allStepsPickup;
+
                         const currentStepIndex = stepsToUse.indexOf(order.status);
-                        const displayStep = order.is_delivery && step === ORDER_STATUS.SERVED ? ORDER_STATUS.DELIVERING : step;
 
-                        // Map 'Servido' in UI loop to 'En Reparto' logic for delivery
-                        const stepIndexInLogic = stepsToUse.indexOf(displayStep);
-
-                        const isActive = stepIndexInLogic <= currentStepIndex;
-
-                        return (
-                            <div key={step} className={`progress-step ${isActive ? 'active' : ''}`}>
-                                <div className="step-dot" title={displayStep}></div>
-                                {index < 3 && <div className="step-line"></div>}
-                            </div>
-                        );
-                    })
+                        return stepsToUse.map((step, index) => {
+                            const isActive = index <= currentStepIndex;
+                            return (
+                                <div key={step} className={`progress-step ${isActive ? 'active' : ''}`}>
+                                    <div className="step-dot" title={step}></div>
+                                    {index < 3 && <div className="step-line"></div>}
+                                </div>
+                            );
+                        });
+                    })()
                 )}
             </div>
 

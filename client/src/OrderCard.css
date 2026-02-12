@@ -186,6 +186,30 @@
     accent-color: var(--primary-color);
 }
 
+.checklist-item.status-reparto {
+    background: rgba(155, 89, 182, 0.2);
+    color: #9b59b6;
+    border: 1px solid rgba(155, 89, 182, 0.4);
+}
+
+.status-listo-pickup {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+    border: 1px solid rgba(52, 152, 219, 0.4);
+}
+
+.status-recogido {
+    background: rgba(22, 160, 133, 0.2);
+    color: #1abc9c;
+    border: 1px solid rgba(22, 160, 133, 0.4);
+}
+
+.status-pagado {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.4);
+}
+
 .checklist-item.checked {
     background: rgba(46, 204, 113, 0.15);
     border: 1px solid rgba(46, 204, 113, 0.4);

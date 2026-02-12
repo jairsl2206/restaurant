@@ -74,16 +74,16 @@ const notifyWhatsApp = (req, message) => {
 
 // Create new order
 router.post('/orders', (req, res) => {
-    const { tableNumber, items, isDelivery, customerData } = req.body;
+    const { tableNumber, items, isDelivery, isPickup, customerData } = req.body;
 
     if (!items || items.length === 0) {
         return res.status(400).json({ error: 'Items required' });
     }
 
-    // Validate delivery orders
-    if (isDelivery) {
-        if (!customerData || !customerData.name || !customerData.phone) {
-            return res.status(400).json({ error: 'Customer name and phone required for delivery orders' });
+    // Validate delivery/pickup orders
+    if (isDelivery || isPickup) {
+        if (!customerData || !customerData.name) {
+            return res.status(400).json({ error: 'Customer name required for delivery/pickup orders' });
         }
     } else {
         if (!tableNumber) {
@@ -97,6 +97,11 @@ router.post('/orders', (req, res) => {
                 return res.status(500).json({ error: 'Failed to create order' });
             }
 
+            // If it's pickup, update the flag
+            if (isPickup) {
+                db.db.run('UPDATE orders SET is_pickup = 1 WHERE id = ?', [orderId]);
+            }
+
             db.getOrderById(orderId, (err, order) => {
                 if (err) {
                     return res.status(500).json({ error: 'Order created but failed to retrieve' });
@@ -107,39 +112,56 @@ router.post('/orders', (req, res) => {
                 const itemDetails = items.map(i => `- ${i.quantity}x ${i.name.length > maxLen ? i.name.substring(0, maxLen) + '...' : i.name}`).join('\n');
                 const total = items.reduce((sum, i) => sum + (i.price * i.quantity), 0).toFixed(2);
 
-                const deliveryInfo = isDelivery ? `🚗 Delivery\n👤 ${customerData.name}\n📞 ${customerData.phone}\n📍 ${customerData.address || 'N/A'}\n` : `🪑 Mesa: ${tableNumber}\n`;
+                let deliveryInfo = '';
+                if (isDelivery) {
+                    deliveryInfo = `🚗 Delivery\n👤 ${customerData.name}\n📞 ${customerData.phone || 'N/A'}\n📍 ${customerData.address || 'N/A'}\n`;
+                } else if (isPickup) {
+                    deliveryInfo = `🛍️ Pickup\n👤 ${customerData.name}\n📞 ${customerData.phone || 'N/A'}\n`;
+                } else {
+                    deliveryInfo = `🪑 Mesa: ${tableNumber}\n`;
+                }
+
                 const msg = `🧾 *NUEVA ORDEN #${order.id}*\n${deliveryInfo}\n${itemDetails}\n\n💰 Total: $${total}\n🕒 ${new Date().toLocaleTimeString()}`;
-                notifyWhatsApp(req, msg);
+                if (req.whatsapp) notifyWhatsApp(req, msg);
 
                 res.status(201).json(order);
             });
         });
     };
 
-    // Handle customer creation for delivery orders
-    if (isDelivery && customerData) {
-        // Check if customer exists by phone
-        db.getCustomerByPhone(customerData.phone, (err, existingCustomer) => {
-            if (err) {
-                return res.status(500).json({ error: 'Database error' });
-            }
+    // Handle customer creation for delivery/pickup orders
+    if ((isDelivery || isPickup) && customerData) {
+        const phone = customerData.phone ? customerData.phone.trim() : '';
 
-            if (existingCustomer) {
-                // Update existing customer info
-                db.updateCustomer(existingCustomer.id, customerData.name, customerData.phone, customerData.address || '', (err) => {
-                    if (err) logger.error('Error updating customer:', err);
-                    createOrderWithCustomer(existingCustomer.id);
-                });
-            } else {
-                // Create new customer
-                db.createCustomer(customerData.name, customerData.phone, customerData.address || '', (err, customerId) => {
-                    if (err) {
-                        return res.status(500).json({ error: 'Failed to create customer' });
-                    }
-                    createOrderWithCustomer(customerId);
-                });
-            }
-        });
+        // If phone is missing or is a common placeholder, create a new record every time 
+        // to avoid overwriting other people's data sharing the same placeholder.
+        const isPlaceholder = !phone || phone === '0' || phone === '00' || phone === '000';
+
+        if (isPlaceholder) {
+            db.createCustomer(customerData.name, phone || 'N/A', customerData.address || '', (err, customerId) => {
+                if (err) return res.status(500).json({ error: 'Failed to create customer' });
+                createOrderWithCustomer(customerId);
+            });
+        } else {
+            // Check if customer exists by phone
+            db.getCustomerByPhone(phone, (err, existingCustomer) => {
+                if (err) return res.status(500).json({ error: 'Database error' });
+
+                if (existingCustomer) {
+                    // Update existing customer info
+                    db.updateCustomer(existingCustomer.id, customerData.name, phone, customerData.address || '', (err) => {
+                        if (err) logger.error('Error updating customer:', err);
+                        createOrderWithCustomer(existingCustomer.id);
+                    });
+                } else {
+                    // Create new customer
+                    db.createCustomer(customerData.name, phone, customerData.address || '', (err, customerId) => {
+                        if (err) return res.status(500).json({ error: 'Failed to create customer' });
+                        createOrderWithCustomer(customerId);
+                    });
+                }
+            });
+        }
     } else {
         // Dine-in order, no customer
         createOrderWithCustomer(null);
