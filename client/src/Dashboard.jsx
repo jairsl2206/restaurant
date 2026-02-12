@@ -75,17 +75,26 @@ function Dashboard({ user, onLogout, settings }) {
 
             // Notification Logic for Waiters
             if (user.role === 'waiter' && prevOrdersRef.current.length > 0) {
-                const newReadyOrders = data.filter(o => o.status === ORDER_STATUS.READY);
+                const readyStatuses = [ORDER_STATUS.READY, ORDER_STATUS.PICKUP_READY];
+                const newReadyOrders = data.filter(o => readyStatuses.includes(o.status));
+
                 // Check against prevOrders
                 const justReadyOrders = newReadyOrders.filter(newOrder => {
                     const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
-                    return !oldOrder || oldOrder.status !== ORDER_STATUS.READY;
+                    return !oldOrder || !readyStatuses.includes(oldOrder.status);
                 });
 
                 justReadyOrders.forEach(order => {
-                    const locationInfo = order.is_delivery ? `Delivery - ${order.customer_name}` : `Mesa ${order.table_number}`;
+                    let action = 'servir';
+                    if (order.is_delivery) action = 'entregar';
+                    else if (order.is_pickup) action = 'recoger';
+
+                    const locationInfo = order.is_delivery ? `Delivery - ${order.customer_name}` :
+                        order.is_pickup ? `Pickup - ${order.customer_name}` :
+                            `Mesa ${order.table_number}`;
+
                     addNotification(
-                        `¡Orden #${order.id} (${locationInfo}) lista para ${order.is_delivery ? 'entregar' : 'servir'}!`,
+                        `¡Orden #${order.id} (${locationInfo}) lista para ${action}!`,
                         'success',
                         order.id
                     );
