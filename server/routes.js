@@ -1,10 +1,15 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const db = require('./db');
 const logger = require('./logger');
 const { ORDER_STATUS } = require('./constants');
 
 const router = express.Router();
+
+// JWT Configuration
+const JWT_SECRET = process.env.JWT_SECRET || 'restaurant-pos-secret-key-change-in-production';
+const JWT_EXPIRES_IN = '6h';
 
 // Login endpoint
 router.post('/login', (req, res) => {
@@ -28,15 +33,46 @@ router.post('/login', (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
+        const userData = {
+            id: user.id,
+            username: user.username,
+            role: user.role
+        };
+
+        // Generate JWT token with 6h expiration
+        const token = jwt.sign(userData, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+        res.json({
+            success: true,
+            user: userData,
+            token
+        });
+    });
+});
+
+// Verify session endpoint — validates an existing JWT token
+router.get('/verify-session', (req, res) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
+
+    if (!token) {
+        return res.status(401).json({ error: 'No token provided' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        // Return user info from the token
         res.json({
             success: true,
             user: {
-                id: user.id,
-                username: user.username,
-                role: user.role
+                id: decoded.id,
+                username: decoded.username,
+                role: decoded.role
             }
         });
-    });
+    } catch (err) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+    }
 });
 
 // Get all active orders
