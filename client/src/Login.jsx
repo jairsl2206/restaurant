@@ -27,7 +27,7 @@ function Login({ onLogin, settings }) {
             const data = await response.json();
 
             if (response.ok) {
-                onLogin(data.user);
+                onLogin(data.user, data.token);
             } else {
                 setError(data.error || 'Login failed');
             }
