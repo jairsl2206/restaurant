@@ -65,6 +65,10 @@ class IOrderRepository {
     async delete(id) {
         throw new Error('Method delete() must be implemented');
     }
+
+    async clearAll() {
+        throw new Error('Method clearAll() must be implemented');
+    }
 }
 
 module.exports = IOrderRepository;

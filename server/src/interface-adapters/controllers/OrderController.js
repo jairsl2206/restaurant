@@ -8,13 +8,15 @@ class OrderController {
         getOrdersUseCase,
         getOrderByIdUseCase,
         updateOrderItemsUseCase,
-        updateOrderStatusUseCase
+        updateOrderStatusUseCase,
+        deleteOrderUseCase
     }) {
         this.createOrderUseCase = createOrderUseCase;
         this.getOrdersUseCase = getOrdersUseCase;
         this.getOrderByIdUseCase = getOrderByIdUseCase;
         this.updateOrderItemsUseCase = updateOrderItemsUseCase;
         this.updateOrderStatusUseCase = updateOrderStatusUseCase;
+        this.deleteOrderUseCase = deleteOrderUseCase;
     }
 
     /**
@@ -23,13 +25,10 @@ class OrderController {
      */
     async createOrder(req, res, next) {
         try {
-            const { tableNumber, items } = req.body;
-
+            const { tableNumber, items, customerName, phone, address, notes, orderType } = req.body;
             const order = await this.createOrderUseCase.execute({
-                tableNumber,
-                items
+                tableNumber, items, customerName, phone, address, notes, orderType
             });
-
             res.status(201).json(order.toJSON());
         } catch (error) {
             next(error);
@@ -37,15 +36,13 @@ class OrderController {
     }
 
     /**
-     * Get all orders or active orders
-     * GET /api/orders?filter=all|active
-     * GET /api/orders/all (legacy)
+     * Get all orders
+     * GET /api/orders
      */
-    async getOrders(req, res, next) {
+    async getAllOrders(req, res, next) {
         try {
-            const filter = req.query.filter || 'active';
+            const filter = req.query.filter || 'all';
             const orders = await this.getOrdersUseCase.execute({ filter });
-
             res.json(orders.map(order => order.toJSON()));
         } catch (error) {
             next(error);
@@ -53,12 +50,12 @@ class OrderController {
     }
 
     /**
-     * Get all orders (legacy endpoint)
-     * GET /api/orders/all
+     * Get active orders only
+     * GET /api/orders/active
      */
-    async getAllOrders(req, res, next) {
+    async getActiveOrders(req, res, next) {
         try {
-            const orders = await this.getOrdersUseCase.execute({ filter: 'all' });
+            const orders = await this.getOrdersUseCase.execute({ filter: 'active' });
             res.json(orders.map(order => order.toJSON()));
         } catch (error) {
             next(error);
@@ -73,7 +70,6 @@ class OrderController {
         try {
             const orderId = parseInt(req.params.id, 10);
             const order = await this.getOrderByIdUseCase.execute(orderId);
-
             res.json(order.toJSON());
         } catch (error) {
             next(error);
@@ -82,18 +78,13 @@ class OrderController {
 
     /**
      * Update order items
-     * PUT /api/orders/:id
+     * PUT /api/orders/:id/items
      */
     async updateOrderItems(req, res, next) {
         try {
             const orderId = parseInt(req.params.id, 10);
             const { items } = req.body;
-
-            const order = await this.updateOrderItemsUseCase.execute({
-                orderId,
-                items
-            });
-
+            const order = await this.updateOrderItemsUseCase.execute({ orderId, items });
             res.json(order.toJSON());
         } catch (error) {
             next(error);
@@ -108,13 +99,22 @@ class OrderController {
         try {
             const orderId = parseInt(req.params.id, 10);
             const { status } = req.body;
-
-            const order = await this.updateOrderStatusUseCase.execute({
-                orderId,
-                status
-            });
-
+            const order = await this.updateOrderStatusUseCase.execute({ orderId, status });
             res.json(order.toJSON());
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    /**
+     * Delete an order
+     * DELETE /api/orders/:id
+     */
+    async deleteOrder(req, res, next) {
+        try {
+            const orderId = parseInt(req.params.id, 10);
+            const result = await this.deleteOrderUseCase.execute({ orderId });
+            res.json(result);
         } catch (error) {
             next(error);
         }

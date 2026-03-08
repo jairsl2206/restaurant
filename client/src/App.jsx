@@ -29,7 +29,7 @@ function App() {
     }
 
     try {
-      const res = await fetch(API_BASE_URL + '/verify-session', {
+      const res = await fetch(API_BASE_URL + '/auth/verify-session', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

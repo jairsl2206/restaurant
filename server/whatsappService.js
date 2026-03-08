@@ -6,18 +6,19 @@ let client;
 let qrCodeData = null;
 let isReady = false;
 
+const RETRY_DELAY_MS = 15000; // 15 seconds between retries
+
 const initializeClient = () => {
     client = new Client({
         authStrategy: new LocalAuth(),
         puppeteer: {
-            args: ['--no-sandbox'],
-            protocolTimeout: 60000 // Increase to 60 seconds
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            protocolTimeout: 60000
         }
     });
 
     client.on('qr', (qr) => {
         logger.info('QR Code received from WhatsApp');
-        // Convert QR text to Data URL for frontend
         qrcode.toDataURL(qr, (err, url) => {
             if (err) {
                 logger.error('Error generating QR image', err);
@@ -35,22 +36,46 @@ const initializeClient = () => {
     client.on('ready', () => {
         logger.info('WhatsApp Client is ready');
         isReady = true;
-        qrCodeData = null; // Clear QR code once connected
+        qrCodeData = null;
     });
 
     client.on('authenticated', () => {
         logger.info('WhatsApp Authenticated');
     });
 
-    client.on('auth_failure', (msg) => logger.error('WhatsApp auth failure:', msg));
+    client.on('auth_failure', (msg) => {
+        logger.error('WhatsApp auth failure:', msg);
+        isReady = false;
+    });
 
     client.on('disconnected', (reason) => {
         logger.info(`WhatsApp Disconnected: ${reason}`);
         isReady = false;
-        client.initialize(); // Auto reconnect
+        // Retry after a delay to avoid immediate crash loops
+        setTimeout(() => {
+            logger.info('WhatsApp reconnecting...');
+            initializeClient();
+        }, RETRY_DELAY_MS);
     });
 
-    client.initialize();
+    // ── Safe initialization — does NOT crash the server if Puppeteer fails ──
+    client.initialize().catch((err) => {
+        isReady = false;
+        if (err.message && err.message.includes('browser is already running')) {
+            logger.warn(
+                'WhatsApp: A previous Chrome session is still running. ' +
+                `Retrying in ${RETRY_DELAY_MS / 1000}s... ` +
+                '(Tip: kill lingering chrome.exe processes to speed this up)'
+            );
+        } else {
+            logger.error('WhatsApp initialization error:', err.message);
+        }
+        // Retry after delay — server continues running normally
+        setTimeout(() => {
+            logger.info('WhatsApp retrying initialization...');
+            initializeClient();
+        }, RETRY_DELAY_MS);
+    });
 };
 
 const getStatus = () => {

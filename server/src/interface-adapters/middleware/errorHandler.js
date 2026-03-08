@@ -1,26 +1,27 @@
 const { AppError } = require('../../shared/errors/errorTypes');
 
 /**
- * Global error handler middleware
+ * Create the global error handler middleware.
+ * @param {Object} logger - Winston logger instance (injected)
  */
-function errorHandler(err, req, res, next) {
-    // Log error for debugging
-    console.error('[Error]', err);
+function createErrorHandler(logger) {
+    return function errorHandler(err, req, res, next) {
+        // Operational errors (expected, user-facing)
+        if (err instanceof AppError && err.isOperational) {
+            logger.warn(`[${err.statusCode}] ${err.message}`, { path: req.path, method: req.method });
+            return res.status(err.statusCode).json({
+                error: err.message,
+                status: err.statusCode
+            });
+        }
 
-    // Handle operational errors (expected errors)
-    if (err instanceof AppError && err.isOperational) {
-        return res.status(err.statusCode).json({
-            error: err.message,
-            status: err.statusCode
+        // Unexpected programming errors
+        logger.error(`[Unexpected Error] ${err.message}`, { stack: err.stack, path: req.path });
+        res.status(500).json({
+            error: 'Internal server error',
+            status: 500
         });
-    }
-
-    // Handle unexpected errors
-    console.error('[Unexpected Error]', err.stack);
-    res.status(500).json({
-        error: 'Internal server error',
-        status: 500
-    });
+    };
 }
 
-module.exports = errorHandler;
+module.exports = createErrorHandler;

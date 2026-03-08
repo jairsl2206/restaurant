@@ -4,12 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "server": "cross-env TZ=America/Mexico_City node server/index.js",
-    "server:clean": "cross-env TZ=America/Mexico_City node server/index-clean.js",
+    "server": "cross-env TZ=America/Mexico_City node server/src/frameworks/express/server.js",
     "client": "cd client && npm run dev",
-    "dev": "cross-env TZ=America/Mexico_City node server/index.js",
-    "dev:clean": "cross-env TZ=America/Mexico_City node server/index-clean.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "cross-env TZ=America/Mexico_City node server/src/frameworks/express/server.js",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -28,5 +26,9 @@
     "sqlite3": "^5.1.7",
     "whatsapp-web.js": "^1.34.6",
     "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "supertest": "^7.2.2"
   }
 }
