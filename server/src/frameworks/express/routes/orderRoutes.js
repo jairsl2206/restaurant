@@ -1,29 +1,20 @@
 const express = require('express');
 
 /**
- * Create order routes
- * @param {OrderController} orderController - Order controller instance
+ * @param {Object} orderController
+ * @param {Function[]} authMiddleware - Array of middleware functions [authenticate, ...]
  */
-function createOrderRoutes(orderController) {
+function createOrderRoutes(orderController, authMiddleware = []) {
     const router = express.Router();
+    const auth = authMiddleware;
 
-    // Create new order
-    router.post('/', (req, res, next) => orderController.createOrder(req, res, next));
-
-    // Get orders (with optional filter)
-    router.get('/', (req, res, next) => orderController.getOrders(req, res, next));
-
-    // Get all orders (legacy endpoint)
-    router.get('/all', (req, res, next) => orderController.getAllOrders(req, res, next));
-
-    // Get order by ID
-    router.get('/:id', (req, res, next) => orderController.getOrderById(req, res, next));
-
-    // Update order items
-    router.put('/:id', (req, res, next) => orderController.updateOrderItems(req, res, next));
-
-    // Update order status
-    router.put('/:id/status', (req, res, next) => orderController.updateOrderStatus(req, res, next));
+    router.get('/', ...auth, (req, res, next) => orderController.getAllOrders(req, res, next));
+    router.get('/active', ...auth, (req, res, next) => orderController.getActiveOrders(req, res, next));
+    router.get('/:id', ...auth, (req, res, next) => orderController.getOrderById(req, res, next));
+    router.post('/', ...auth, (req, res, next) => orderController.createOrder(req, res, next));
+    router.put('/:id/items', ...auth, (req, res, next) => orderController.updateOrderItems(req, res, next));
+    router.put('/:id/status', ...auth, (req, res, next) => orderController.updateOrderStatus(req, res, next));
+    router.delete('/:id', ...auth, (req, res, next) => orderController.deleteOrder(req, res, next));
 
     return router;
 }

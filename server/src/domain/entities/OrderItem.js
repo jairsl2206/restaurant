@@ -6,7 +6,7 @@ const { ValidationError } = require('../../shared/errors/errorTypes');
  * Represents an item within an order
  */
 class OrderItem {
-    constructor({ id, orderId, itemName, quantity, price }) {
+    constructor({ id, orderId, itemName, quantity, price, category = 'General' }) {
         this.validate(itemName, quantity, price);
 
         this.id = id;
@@ -14,6 +14,7 @@ class OrderItem {
         this.itemName = itemName;
         this.quantity = quantity;
         this.price = price instanceof Money ? price : new Money(price);
+        this.category = category;
     }
 
     validate(itemName, quantity, price) {
@@ -58,6 +59,7 @@ class OrderItem {
             itemName: this.itemName,
             quantity: this.quantity,
             price: this.price.amount,
+            category: this.category,
             subtotal: this.subtotal.amount
         };
     }

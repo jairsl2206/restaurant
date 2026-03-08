@@ -81,9 +81,13 @@ class Database {
           item_name TEXT NOT NULL,
           quantity INTEGER NOT NULL,
           price REAL NOT NULL,
+          category TEXT,
           FOREIGN KEY (order_id) REFERENCES orders(id)
         )
       `);
+
+            // Migration for existing order_items
+            this.db.run("ALTER TABLE order_items ADD COLUMN category TEXT", (err) => { /* ignore if already exists */ });
 
             // Menu Items table
             this.db.run(`

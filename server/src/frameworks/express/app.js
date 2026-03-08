@@ -1,36 +1,42 @@
+require('dotenv').config();
 const express = require('express');
+const morgan = require('morgan');
 const container = require('../di/container');
-const createOrderRoutes = require('./routes/orderRoutes');
-const errorHandler = require('../../interface-adapters/middleware/errorHandler');
+const setupRoutes = require('./routes');
+const createAuthMiddleware = require('../../interface-adapters/middleware/AuthMiddleware');
+const createErrorHandler = require('../../interface-adapters/middleware/errorHandler');
 
-// Legacy routes (will be migrated gradually)
-const legacyRoutes = require('../../../routes');
 
 /**
- * Create and configure Express app with Clean Architecture
+ * Create and configure Express app with full Clean Architecture
+ * @param {Object} [providedContainer] - Optional DI container for testing
  */
-function createApp() {
+function createApp(providedContainer = null) {
     const app = express();
+    const activeContainer = providedContainer || container;
+    const logger = activeContainer.resolve('logger');
+    const jwtSecret = activeContainer.resolve('jwtSecret');
+    const auth = createAuthMiddleware(jwtSecret);
 
-    // Middleware
+    // ── Core Middleware ──────────────────────────────────────────────────────
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
-    // Health check
+    // HTTP request logging via Morgan + Winston
+    app.use(morgan('combined', {
+        stream: { write: (msg) => logger.info(msg.trim()) }
+    }));
+
+    // ── Health Check ──────────────────────────────────────────────────────────
     app.get('/health', (req, res) => {
-        res.json({ status: 'OK', message: 'Server is running', architecture: 'Clean Architecture' });
+        res.json({ status: 'OK', architecture: 'Clean Architecture', version: '2.0' });
     });
 
-    // Clean Architecture Routes (New)
-    const orderController = container.resolve('orderController');
-    app.use('/api/v2/orders', createOrderRoutes(orderController));
+    // ── Clean Architecture Routes ─────────────────────────────────────────────
+    setupRoutes(app, activeContainer, auth);
 
-    // Legacy Routes (Old - for backward compatibility)
-    // These will be gradually replaced
-    app.use('/api', legacyRoutes);
-
-    // Error handling middleware (must be last)
-    app.use(errorHandler);
+    // ── Error Handler (must be last) ──────────────────────────────────────────
+    app.use(createErrorHandler(logger));
 
     return app;
 }

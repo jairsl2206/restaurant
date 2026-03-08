@@ -1,0 +1,84 @@
+
+> restaurant@1.0.0 test
+> jest
+
+PASS server/tests/unit/entities/MenuItem.test.js
+PASS server/tests/unit/value-objects/Money.test.js
+PASS server/tests/use-cases/orders/CreateOrder.test.js
+FAIL server/tests/use-cases/orders/UpdateOrderStatus.test.js
+  ● UpdateOrderStatus Use Case › should update status successfully from Creado to En Cocina
+
+    ValidationError: Item name is required
+
+    [0m [90m 19 |[39m     validate(itemName[33m,[39m quantity[33m,[39m price) {
+     [90m 20 |[39m         [36mif[39m ([33m![39mitemName [33m||[39m [36mtypeof[39m itemName [33m!==[39m [32m'string'[39m [33m||[39m itemName[33m.[39mtrim() [33m===[39m [32m''[39m) {
+    [31m[1m>[22m[39m[90m 21 |[39m             [36mthrow[39m [36mnew[39m [33mValidationError[39m([32m'Item name is required'[39m)[33m;[39m
+     [90m    |[39m                   [31m[1m^[22m[39m
+     [90m 22 |[39m         }
+     [90m 23 |[39m         [36mif[39m ([33m![39m[33mNumber[39m[33m.[39misInteger(quantity) [33m||[39m quantity [33m<=[39m [35m0[39m) {
+     [90m 24 |[39m             [36mthrow[39m [36mnew[39m [33mValidationError[39m([32m'Quantity must be a positive integer'[39m)[33m;[39m[0m
+
+      at OrderItem.validate (server/src/domain/entities/OrderItem.js:21:19)
+      at new validate (server/src/domain/entities/OrderItem.js:10:14)
+      at server/src/domain/entities/Order.js:34:75
+          at Array.map (<anonymous>)
+      at new map (server/src/domain/entities/Order.js:34:28)
+      at Object.<anonymous> (server/tests/use-cases/orders/UpdateOrderStatus.test.js:19:31)
+
+  ● UpdateOrderStatus Use Case › should throw ValidationError for invalid transition
+
+    ValidationError: Item name is required
+
+    [0m [90m 19 |[39m     validate(itemName[33m,[39m quantity[33m,[39m price) {
+     [90m 20 |[39m         [36mif[39m ([33m![39mitemName [33m||[39m [36mtypeof[39m itemName [33m!==[39m [32m'string'[39m [33m||[39m itemName[33m.[39mtrim() [33m===[39m [32m''[39m) {
+    [31m[1m>[22m[39m[90m 21 |[39m             [36mthrow[39m [36mnew[39m [33mValidationError[39m([32m'Item name is required'[39m)[33m;[39m
+     [90m    |[39m                   [31m[1m^[22m[39m
+     [90m 22 |[39m         }
+     [90m 23 |[39m         [36mif[39m ([33m![39m[33mNumber[39m[33m.[39misInteger(quantity) [33m||[39m quantity [33m<=[39m [35m0[39m) {
+     [90m 24 |[39m             [36mthrow[39m [36mnew[39m [33mValidationError[39m([32m'Quantity must be a positive integer'[39m)[33m;[39m[0m
+
+      at OrderItem.validate (server/src/domain/entities/OrderItem.js:21:19)
+      at new validate (server/src/domain/entities/OrderItem.js:10:14)
+      at server/src/domain/entities/Order.js:34:75
+          at Array.map (<anonymous>)
+      at new map (server/src/domain/entities/Order.js:34:28)
+      at Object.<anonymous> (server/tests/use-cases/orders/UpdateOrderStatus.test.js:45:31)
+
+  ● UpdateOrderStatus Use Case › should acknowledge update when status is "Listo para Servir"
+
+    ValidationError: Item name is required
+
+    [0m [90m 19 |[39m     validate(itemName[33m,[39m quantity[33m,[39m price) {
+     [90m 20 |[39m         [36mif[39m ([33m![39mitemName [33m||[39m [36mtypeof[39m itemName [33m!==[39m [32m'string'[39m [33m||[39m itemName[33m.[39mtrim() [33m===[39m [32m''[39m) {
+    [31m[1m>[22m[39m[90m 21 |[39m             [36mthrow[39m [36mnew[39m [33mValidationError[39m([32m'Item name is required'[39m)[33m;[39m
+     [90m    |[39m                   [31m[1m^[22m[39m
+     [90m 22 |[39m         }
+     [90m 23 |[39m         [36mif[39m ([33m![39m[33mNumber[39m[33m.[39misInteger(quantity) [33m||[39m quantity [33m<=[39m [35m0[39m) {
+     [90m 24 |[39m             [36mthrow[39m [36mnew[39m [33mValidationError[39m([32m'Quantity must be a positive integer'[39m)[33m;[39m[0m
+
+      at OrderItem.validate (server/src/domain/entities/OrderItem.js:21:19)
+      at new validate (server/src/domain/entities/OrderItem.js:10:14)
+      at server/src/domain/entities/Order.js:34:75
+          at Array.map (<anonymous>)
+      at new map (server/src/domain/entities/Order.js:34:28)
+      at Object.<anonymous> (server/tests/use-cases/orders/UpdateOrderStatus.test.js:59:31)
+
+PASS server/tests/integration/api/AuthAPI.test.js
+  ● Console
+
+    console.log
+      [dotenv@17.3.1] injecting env (3) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+
+      at _log (node_modules/dotenv/lib/main.js:139:11)
+
+    console.log
+      [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+
+      at _log (node_modules/dotenv/lib/main.js:139:11)
+
+
+Test Suites: 1 failed, 4 passed, 5 total
+Tests:       3 failed, 18 passed, 21 total
+Snapshots:   0 total
+Time:        2.192 s
+Ran all test suites.

@@ -1,0 +1,245 @@
+﻿node.exe : FAIL tests/unit/
+entities/Order3x2.test.js
+En C:\Program 
+Files\nodejs\npx.ps1: 29 
+Carácter: 3
++   & $NODE_EXE 
+$NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (FAI  
+  L tests/unit...rder3x2   
+ .test.js:String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+  Order 3x2 Promotion Logic
+    ├ù should apply 3x2 
+when 3 items of same 
+category and same price 
+are ordered (4 ms)
+    ÔêÜ should apply 3x2 
+and discount the cheapest 
+item when prices vary (1 
+ms)
+    ├ù should handle 4 
+items (3x2 applies once, 
+4th item full price) (2 ms)
+    ├ù should handle 6 
+items (3x2 applies twice)
+    ├ù should handle 
+multiple categories with 
+promotions independenty (1 
+ms)
+    ÔêÜ should not apply 
+3x2 if promotion is 
+inactive (1 ms)
+    ├ù should handle 
+complex mixed quantity and 
+price scenario
+
+  ÔùÅ Order 3x2 Promotion 
+Logic ÔÇ║ should apply 3x2 
+when 3 items of same 
+category and same price 
+are ordered
+
+    expect(received).toBe(e
+xpected) // Object.is 
+equality
+
+    Expected: 200
+    Received: 300
+
+    [0m [90m 28 |[39m
+     [90m 29 |[39m       
+  [90m// Total should be 
+200 (buy 3, pay 2)[39m
+    
+[31m[1m>[22m[39m[90m 
+30 |[39m         expect(or
+der[33m.[39mtotal[33m.[
+39mamount)[33m.[39mtoBe(
+[35m200[39m)[33m;[39m
+     [90m    |[39m       
+                           
+  [31m[1m^[22m[39m
+     [90m 31 |[39m     
+})[33m;[39m
+     [90m 32 |[39m
+     [90m 33 |[39m     
+test([32m'should apply 
+3x2 and discount the 
+cheapest item when prices 
+vary'[39m[33m,[39m () 
+[33m=>[39m {[0m
+
+      at Object.toBe (serve
+r/tests/unit/entities/Order
+3x2.test.js:30:36)
+
+  ÔùÅ Order 3x2 Promotion 
+Logic ÔÇ║ should handle 4 
+items (3x2 applies once, 
+4th item full price)
+
+    expect(received).toBe(e
+xpected) // Object.is 
+equality
+
+    Expected: 60
+    Received: 80
+
+    [0m [90m 58 |[39m
+     [90m 59 |[39m       
+  [90m// Total should be 
+(20 * 2) + 20 = 60[39m
+    
+[31m[1m>[22m[39m[90m 
+60 |[39m         expect(or
+der[33m.[39mtotal[33m.[
+39mamount)[33m.[39mtoBe(
+[35m60[39m)[33m;[39m
+     [90m    |[39m       
+                           
+  [31m[1m^[22m[39m
+     [90m 61 |[39m     
+})[33m;[39m
+     [90m 62 |[39m
+     [90m 63 |[39m     
+test([32m'should handle 6 
+items (3x2 applies 
+twice)'[39m[33m,[39m () 
+[33m=>[39m {[0m
+
+      at Object.toBe (serve
+r/tests/unit/entities/Order
+3x2.test.js:60:36)
+
+  ÔùÅ Order 3x2 Promotion 
+Logic ÔÇ║ should handle 6 
+items (3x2 applies twice)
+
+    expect(received).toBe(e
+xpected) // Object.is 
+equality
+
+    Expected: 80
+    Received: 120
+
+    [0m [90m 72 |[39m
+     [90m 73 |[39m       
+  [90m// Total should be 
+20 * 4 = 80[39m
+    
+[31m[1m>[22m[39m[90m 
+74 |[39m         expect(or
+der[33m.[39mtotal[33m.[
+39mamount)[33m.[39mtoBe(
+[35m80[39m)[33m;[39m
+     [90m    |[39m       
+                           
+  [31m[1m^[22m[39m
+     [90m 75 |[39m     
+})[33m;[39m
+     [90m 76 |[39m
+     [90m 77 |[39m     
+test([32m'should handle 
+multiple categories with 
+promotions independenty'[3
+9m[33m,[39m () 
+[33m=>[39m {[0m
+
+      at Object.toBe (serve
+r/tests/unit/entities/Order
+3x2.test.js:74:36)
+
+  ÔùÅ Order 3x2 Promotion 
+Logic ÔÇ║ should handle 
+multiple categories with 
+promotions independenty
+
+    expect(received).toBe(e
+xpected) // Object.is 
+equality
+
+    Expected: 300
+    Received: 450
+
+    [0m [90m 87 |[39m
+     [90m 88 |[39m       
+  [90m// (100 * 2) + (50 
+* 2) = 300[39m
+    
+[31m[1m>[22m[39m[90m 
+89 |[39m         expect(or
+der[33m.[39mtotal[33m.[
+39mamount)[33m.[39mtoBe(
+[35m300[39m)[33m;[39m
+     [90m    |[39m       
+                           
+  [31m[1m^[22m[39m
+     [90m 90 |[39m     
+})[33m;[39m
+     [90m 91 |[39m
+     [90m 92 |[39m     
+test([32m'should not 
+apply 3x2 if promotion is 
+inactive'[39m[33m,[39m 
+() [33m=>[39m {[0m
+
+      at Object.toBe (serve
+r/tests/unit/entities/Order
+3x2.test.js:89:36)
+
+  ÔùÅ Order 3x2 Promotion 
+Logic ÔÇ║ should handle 
+complex mixed quantity and 
+price scenario
+
+    expect(received).toBe(e
+xpected) // Object.is 
+equality
+
+    Expected: 250
+    Received: 300
+
+    [0m [90m 123 |[39m  
+       [90m// Group 1 
+(sorted): 100, 100, 50 -> 
+50 is free. Remaining: 
+50.[39m
+     [90m 124 |[39m      
+   [90m// Total: 100 + 
+100 + 0 + 50 = 250[39m
+    
+[31m[1m>[22m[39m[90m 
+125 |[39m         expect(o
+rder[33m.[39mtotal[33m.
+[39mamount)[33m.[39mtoBe(
+[35m250[39m)[33m;[39m
+     [90m     |[39m      
+                           
+   [31m[1m^[22m[39m
+     [90m 126 |[39m     
+})[33m;[39m
+     [90m 127 |[39m 
+})[33m;[39m
+     [90m 128 |[39m[0m
+
+      at Object.toBe (serve
+r/tests/unit/entities/Order
+3x2.test.js:125:36)
+
+Test Suites: 1 failed, 1 
+total
+Tests:       5 failed, 2 
+passed, 7 total
+Snapshots:   0 total
+Time:        0.354 s, 
+estimated 1 s
+Ran all test suites 
+matching server/tests/unit/
+entities/Order3x2.test.js.

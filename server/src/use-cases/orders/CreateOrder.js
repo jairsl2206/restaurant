@@ -8,8 +8,10 @@ const { ValidationError } = require('../../shared/errors/errorTypes');
  * Handles the creation of new orders
  */
 class CreateOrder {
-    constructor(orderRepository) {
+    constructor(orderRepository, menuRepository, promotionRepository) {
         this.orderRepository = orderRepository;
+        this.menuRepository = menuRepository;
+        this.promotionRepository = promotionRepository;
     }
 
     /**
@@ -21,21 +23,34 @@ class CreateOrder {
         // Validate input
         this._validateInput(input);
 
+        // Fetch categories for items from menu if not provided
+        const menuItems = await this.menuRepository.findAll();
+        const activePromotions = await this.promotionRepository.findActive();
+
         // Create order items
-        const orderItems = input.items.map((item, index) => new OrderItem({
-            id: null, // Will be set by database
-            orderId: null, // Will be set after order creation
-            itemName: item.name,
-            quantity: item.quantity,
-            price: item.price
-        }));
+        const orderItems = input.items.map((item, index) => {
+            const menuItem = menuItems.find(mi => mi.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+            return new OrderItem({
+                id: null,
+                orderId: null,
+                itemName: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                category: menuItem ? menuItem.category : 'General'
+            });
+        });
 
         // Create order entity
         const order = new Order({
-            id: null, // Will be set by database
+            id: null,
             tableNumber: input.tableNumber,
             status: OrderStatus.CREATED,
             items: orderItems,
+            orderType: input.orderType || 'dine-in',
+            customerName: input.customerName,
+            phone: input.phone,
+            address: input.address,
+            categoryPromotions: activePromotions,
             createdAt: new Date(),
             updatedAt: new Date()
         });
@@ -50,9 +65,12 @@ class CreateOrder {
         if (!input) {
             throw new ValidationError('Input is required');
         }
-        if (!input.tableNumber) {
-            throw new ValidationError('Table number is required');
+
+        const type = input.orderType || 'dine-in';
+        if (type === 'dine-in' && !input.tableNumber) {
+            throw new ValidationError('Table number is required for dine-in orders');
         }
+
         if (!input.items || !Array.isArray(input.items) || input.items.length === 0) {
             throw new ValidationError('Order must have at least one item');
         }

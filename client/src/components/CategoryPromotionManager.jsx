@@ -2,10 +2,19 @@ import { useState, useEffect } from 'react';
 import './CategoryPromotionManager.css';
 import API_BASE_URL from '../config';
 
-const CATEGORY_API_URL = API_BASE_URL + '/category-promotions';
+const CATEGORY_API_URL = API_BASE_URL + '/promotions';
 const MENU_API_URL = API_BASE_URL + '/menu';
 
 function CategoryPromotionManager() {
+    // Helper for auth headers
+    const getAuthHeaders = (extraHeaders = {}) => {
+        const token = localStorage.getItem('token');
+        return {
+            ...extraHeaders,
+            'Authorization': token ? `Bearer ${token}` : '',
+            'x-role': 'admin' // Keep for legacy if needed, but Bearer is primary in v2
+        };
+    };
     const [activePromoTab, setActivePromoTab] = useState('category'); // 'category' or 'item'
     const [categoryPromotions, setCategoryPromotions] = useState([]);
     const [menuItems, setMenuItems] = useState([]);
@@ -17,8 +26,8 @@ function CategoryPromotionManager() {
     const [formData, setFormData] = useState({
         category: '',
         item_id: '',
-        promotion_type: 'percentage',
-        promotion_value: '',
+        promotionType: 'percentage',
+        promotionValue: '',
         active: true
     });
 
@@ -34,7 +43,7 @@ function CategoryPromotionManager() {
     const fetchCategoryPromotions = async () => {
         try {
             const res = await fetch(CATEGORY_API_URL, {
-                headers: { 'x-role': 'admin' }
+                headers: getAuthHeaders()
             });
             const data = await res.json();
             setCategoryPromotions(data);
@@ -47,7 +56,9 @@ function CategoryPromotionManager() {
 
     const fetchMenuItems = async () => {
         try {
-            const res = await fetch(MENU_API_URL);
+            const res = await fetch(MENU_API_URL, {
+                headers: getAuthHeaders()
+            });
             const data = await res.json();
             setMenuItems(data);
         } catch (err) {
@@ -65,18 +76,17 @@ function CategoryPromotionManager() {
 
             const payload = {
                 category: formData.category,
-                promotion_type: formData.promotion_type,
-                promotion_value: parseFloat(formData.promotion_value),
+                promotionType: formData.promotionType,
+                promotionValue: formData.promotionType === '3x2' ? 0 : parseFloat(formData.promotionValue),
                 active: formData.active
             };
 
             try {
                 const res = await fetch(url, {
                     method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-role': 'admin'
-                    },
+                    headers: getAuthHeaders({
+                        'Content-Type': 'application/json'
+                    }),
                     body: JSON.stringify(payload)
                 });
 
@@ -95,19 +105,18 @@ function CategoryPromotionManager() {
             if (!item) return;
 
             const payload = {
-                ...item,
-                promotion_type: formData.promotion_type,
-                promotion_value: parseFloat(formData.promotion_value),
-                promotion_active: formData.active
+                id: item.id,
+                promotionType: formData.promotionType,
+                promotionValue: formData.promotionType === '3x2' ? 0 : parseFloat(formData.promotionValue),
+                promotionActive: formData.active
             };
 
             try {
                 const res = await fetch(`${MENU_API_URL}/${item.id}`, {
                     method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-role': 'admin'
-                    },
+                    headers: getAuthHeaders({
+                        'Content-Type': 'application/json'
+                    }),
                     body: JSON.stringify(payload)
                 });
 
@@ -129,7 +138,7 @@ function CategoryPromotionManager() {
         try {
             const res = await fetch(`${CATEGORY_API_URL}/${id}`, {
                 method: 'DELETE',
-                headers: { 'x-role': 'admin' }
+                headers: getAuthHeaders()
             });
             if (res.ok) fetchCategoryPromotions();
         } catch (err) {
@@ -141,19 +150,18 @@ function CategoryPromotionManager() {
         if (!confirm('¿Seguro que deseas eliminar esta promoción?')) return;
 
         const payload = {
-            ...item,
-            promotion_type: null,
-            promotion_value: null,
-            promotion_active: false
+            id: item.id,
+            promotionType: null,
+            promotionValue: 0,
+            promotionActive: false
         };
 
         try {
             const res = await fetch(`${MENU_API_URL}/${item.id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-role': 'admin'
-                },
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json'
+                }),
                 body: JSON.stringify(payload)
             });
             if (res.ok) fetchMenuItems();
@@ -171,8 +179,8 @@ function CategoryPromotionManager() {
                 setFormData({
                     category: promo.category,
                     item_id: '',
-                    promotion_type: promo.promotion_type,
-                    promotion_value: promo.promotion_value,
+                    promotionType: promo.promotionType,
+                    promotionValue: promo.promotionValue,
                     active: Boolean(promo.active)
                 });
             } else {
@@ -180,8 +188,8 @@ function CategoryPromotionManager() {
                 setFormData({
                     category: '',
                     item_id: '',
-                    promotion_type: 'percentage',
-                    promotion_value: '',
+                    promotionType: 'percentage',
+                    promotionValue: '',
                     active: true
                 });
             }
@@ -192,17 +200,17 @@ function CategoryPromotionManager() {
                 setFormData({
                     category: '',
                     item_id: promo.id.toString(),
-                    promotion_type: promo.promotion_type || 'percentage',
-                    promotion_value: promo.promotion_value || '',
-                    active: Boolean(promo.promotion_active)
+                    promotionType: promo.promotionType || 'percentage',
+                    promotionValue: promo.promotionValue || '',
+                    active: Boolean(promo.promotionActive)
                 });
             } else {
                 setEditingPromo(null);
                 setFormData({
                     category: '',
                     item_id: '',
-                    promotion_type: 'percentage',
-                    promotion_value: '',
+                    promotionType: 'percentage',
+                    promotionValue: '',
                     active: true
                 });
             }
@@ -234,12 +242,12 @@ function CategoryPromotionManager() {
     // Get items affected by category promotion
     const getAffectedItems = (category) => {
         return menuItems.filter(item =>
-            item.category === category && !item.promotion_active
+            item.category === category && !item.promotionActive
         );
     };
 
     // Get items with active promotions
-    const itemsWithPromotions = menuItems.filter(item => item.promotion_active);
+    const itemsWithPromotions = menuItems.filter(item => item.promotionActive);
 
     // Get selected item for preview
     const selectedItem = formData.item_id ? menuItems.find(i => i.id === parseInt(formData.item_id)) : null;
@@ -307,13 +315,19 @@ function CategoryPromotionManager() {
                                                 <div className="promo-card-body">
                                                     <div className="promo-discount">
                                                         <span className="discount-value">
-                                                            {promo.promotion_type === 'percentage'
-                                                                ? `${promo.promotion_value}% OFF`
-                                                                : `$${promo.promotion_value} OFF`
+                                                            {promo.promotionType === 'percentage'
+                                                                ? `${promo.promotionValue}% OFF`
+                                                                : promo.promotionType === '3x2'
+                                                                    ? '3x2'
+                                                                    : `$${promo.promotionValue} OFF`
                                                             }
                                                         </span>
                                                         <span className="discount-type">
-                                                            {promo.promotion_type === 'percentage' ? 'Descuento porcentual' : 'Descuento fijo'}
+                                                            {promo.promotionType === 'percentage'
+                                                                ? 'Descuento porcentual'
+                                                                : promo.promotionType === '3x2'
+                                                                    ? 'Compra 3, Paga 2'
+                                                                    : 'Descuento fijo'}
                                                         </span>
                                                     </div>
                                                     <div className="affected-items">
@@ -359,9 +373,9 @@ function CategoryPromotionManager() {
                                     </div>
                                 ) : (
                                     itemsWithPromotions.map(item => {
-                                        const finalPrice = item.promotion_type === 'percentage'
-                                            ? item.price * (1 - item.promotion_value / 100)
-                                            : Math.max(0, item.price - item.promotion_value);
+                                        const finalPrice = item.promotionType === 'percentage'
+                                            ? item.price * (1 - item.promotionValue / 100)
+                                            : Math.max(0, item.price - item.promotionValue);
 
                                         return (
                                             <div key={item.id} className="promo-card">
@@ -378,13 +392,13 @@ function CategoryPromotionManager() {
                                                 <div className="promo-card-body">
                                                     <div className="promo-discount">
                                                         <span className="discount-value">
-                                                            {item.promotion_type === 'percentage'
-                                                                ? `${item.promotion_value}% OFF`
-                                                                : `$${item.promotion_value} OFF`
+                                                            {item.promotionType === 'percentage'
+                                                                ? `${item.promotionValue}% OFF`
+                                                                : `$${item.promotionValue} OFF`
                                                             }
                                                         </span>
                                                         <span className="discount-type">
-                                                            {item.promotion_type === 'percentage' ? 'Descuento porcentual' : 'Descuento fijo'}
+                                                            {item.promotionType === 'percentage' ? 'Descuento porcentual' : 'Descuento fijo'}
                                                         </span>
                                                     </div>
                                                     <div className="price-display">
@@ -492,27 +506,29 @@ function CategoryPromotionManager() {
                                 <div className="form-group">
                                     <label>Tipo de Descuento</label>
                                     <select
-                                        value={formData.promotion_type}
-                                        onChange={e => setFormData({ ...formData, promotion_type: e.target.value })}
+                                        value={formData.promotionType}
+                                        onChange={e => setFormData({ ...formData, promotionType: e.target.value })}
                                         required
                                     >
                                         <option value="percentage">Porcentaje (%)</option>
                                         <option value="fixed">Monto Fijo ($)</option>
+                                        <option value="3x2">3x2 (Lleva 3, Paga 2)</option>
                                     </select>
                                 </div>
                                 <div className="form-group">
                                     <label>
-                                        {formData.promotion_type === 'percentage' ? 'Porcentaje (%)' : 'Descuento ($)'}
+                                        {formData.promotionType === 'percentage' ? 'Porcentaje (%)' : formData.promotionType === '3x2' ? 'Valor (No requerido)' : 'Descuento ($)'}
                                     </label>
                                     <input
                                         type="number"
                                         step="0.01"
                                         min="0"
-                                        max={formData.promotion_type === 'percentage' ? '100' : undefined}
-                                        value={formData.promotion_value}
-                                        onChange={e => setFormData({ ...formData, promotion_value: e.target.value })}
-                                        placeholder={formData.promotion_type === 'percentage' ? '20' : '10'}
-                                        required
+                                        max={formData.promotionType === 'percentage' ? '100' : undefined}
+                                        value={formData.promotionType === '3x2' ? '0' : formData.promotionValue}
+                                        onChange={e => setFormData({ ...formData, promotionValue: e.target.value })}
+                                        placeholder={formData.promotionType === 'percentage' ? '20' : formData.promotionType === '3x2' ? 'N/A' : '10'}
+                                        required={formData.promotionType !== '3x2'}
+                                        disabled={formData.promotionType === '3x2'}
                                     />
                                 </div>
                             </div>
@@ -533,24 +549,27 @@ function CategoryPromotionManager() {
                                 <div className="preview-info">
                                     <strong>Vista Previa:</strong>
                                     <p>Esta promoción se aplicará a {getAffectedItems(formData.category).length} artículo(s) en la categoría "{formData.category}"</p>
+                                    {formData.promotionType === '3x2' && (
+                                        <p className="promo-desc">🎁 <strong>3x2 Activo:</strong> Al pedir 3 artículos de esta categoría, el más barato será gratuito.</p>
+                                    )}
                                 </div>
                             )}
 
-                            {modalType === 'item' && selectedItem && formData.promotion_value && (
+                            {modalType === 'item' && selectedItem && formData.promotionValue && (
                                 <div className="preview-info">
                                     <strong>Vista Previa:</strong>
                                     <div className="price-preview">
                                         <span className="original-price">${selectedItem.price.toFixed(2)}</span>
                                         <span className="promo-price">
-                                            ${formData.promotion_type === 'percentage'
-                                                ? (selectedItem.price * (1 - parseFloat(formData.promotion_value) / 100)).toFixed(2)
-                                                : Math.max(0, selectedItem.price - parseFloat(formData.promotion_value)).toFixed(2)
+                                            ${formData.promotionType === 'percentage'
+                                                ? (selectedItem.price * (1 - parseFloat(formData.promotionValue) / 100)).toFixed(2)
+                                                : Math.max(0, selectedItem.price - parseFloat(formData.promotionValue)).toFixed(2)
                                             }
                                         </span>
                                         <span className="savings">
-                                            Ahorro: ${formData.promotion_type === 'percentage'
-                                                ? (selectedItem.price * parseFloat(formData.promotion_value) / 100).toFixed(2)
-                                                : parseFloat(formData.promotion_value).toFixed(2)
+                                            Ahorro: ${formData.promotionType === 'percentage'
+                                                ? (selectedItem.price * parseFloat(formData.promotionValue) / 100).toFixed(2)
+                                                : parseFloat(formData.promotionValue).toFixed(2)
                                             }
                                         </span>
                                     </div>

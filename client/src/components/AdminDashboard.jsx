@@ -71,6 +71,7 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                 <button
                     className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
                     onClick={() => setActiveTab('settings')}
+                    title="Configuración"
                 >
                     <span className="tab-icon">⚙️</span>
                     <span className="tab-text">Configuración</span>
@@ -78,8 +79,9 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
                 <button
                     className={`tab-btn ${activeTab === 'promotions' ? 'active' : ''}`}
                     onClick={() => setActiveTab('promotions')}
+                    title="Promociones"
                 >
-                    <span className="tab-icon">🔥</span>
+                    <span className="tab-icon">🎟️</span>
                     <span className="tab-text">Promociones</span>
                 </button>
                 <button

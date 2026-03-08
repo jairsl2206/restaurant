@@ -123,21 +123,15 @@
     margin-bottom: 2rem;
     overflow-x: auto;
     padding: 0.5rem;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    scrollbar-width: none; /* Hide scrollbar but keep functionality */
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
 }
 
 .admin-tabs::-webkit-scrollbar {
-    height: 6px;
-}
-
-.admin-tabs::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.admin-tabs::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
+    display: none;
 }
 
 .tab-btn {

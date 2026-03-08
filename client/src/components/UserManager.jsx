@@ -4,6 +4,15 @@ import API_BASE_URL from '../config';
 const API_URL = API_BASE_URL + '/users';
 
 function UserManager() {
+    // Helper for auth headers
+    const getAuthHeaders = (extraHeaders = {}) => {
+        const token = localStorage.getItem('token');
+        return {
+            ...extraHeaders,
+            'Authorization': token ? `Bearer ${token}` : '',
+            'x-role': 'admin'
+        };
+    };
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -22,7 +31,7 @@ function UserManager() {
     const fetchUsers = async () => {
         try {
             const res = await fetch(API_URL, {
-                headers: { 'x-role': 'admin' }
+                headers: getAuthHeaders()
             });
             const data = await res.json();
             setUsers(data);
@@ -38,10 +47,9 @@ function UserManager() {
         try {
             const res = await fetch(API_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-role': 'admin'
-                },
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json'
+                }),
                 body: JSON.stringify(formData)
             });
 
@@ -62,7 +70,7 @@ function UserManager() {
         try {
             const res = await fetch(`${API_URL}/${id}`, {
                 method: 'DELETE',
-                headers: { 'x-role': 'admin' }
+                headers: getAuthHeaders()
             });
             if (res.ok) fetchUsers();
         } catch (err) {
@@ -74,10 +82,9 @@ function UserManager() {
         try {
             const res = await fetch(`${API_URL}/${id}/role`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-role': 'admin'
-                },
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json'
+                }),
                 body: JSON.stringify({ role: newRole })
             });
             if (res.ok) fetchUsers();
