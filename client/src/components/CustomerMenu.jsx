@@ -150,7 +150,7 @@ const CustomerMenu = ({ restaurantName, restaurantLogo }) => {
                                                 <div className="promo-badge">
                                                     <span>🔥 PROMOCIÓN</span>
                                                     <span className="promo-discount">
-                                                        {item.promotion_type === 'percentage'
+                                                        {item.promotion_type === 'PERCENTAGE'
                                                             ? `-${item.promotion_value}%`
                                                             : `-$${item.promotion_value.toFixed(2)}`
                                                         }

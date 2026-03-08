@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import { USER_ROLE, USER_ROLE_LABELS } from '../constants';
 
 const API_URL = API_BASE_URL + '/users';
 
@@ -123,9 +124,9 @@ function UserManager() {
                                                 onChange={(e) => handleRoleChange(user.id, e.target.value)}
                                                 className="role-select"
                                             >
-                                                <option value="waiter">Mesero</option>
-                                                <option value="cook">Cocinero</option>
-                                                <option value="admin">Admin</option>
+                                                {Object.values(USER_ROLE).map(role => (
+                                                    <option key={role} value={role}>{USER_ROLE_LABELS[role]}</option>
+                                                ))}
                                             </select>
                                         </td>
                                         <td>
@@ -175,9 +176,9 @@ function UserManager() {
                                     value={formData.role}
                                     onChange={e => setFormData({ ...formData, role: e.target.value })}
                                 >
-                                    <option value="waiter">Mesero</option>
-                                    <option value="cook">Cocinero</option>
-                                    <option value="admin">Admin</option>
+                                    {Object.values(USER_ROLE).map(role => (
+                                        <option key={role} value={role}>{USER_ROLE_LABELS[role]}</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>

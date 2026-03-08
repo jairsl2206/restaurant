@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 
-const API_URL = API_BASE_URL + '/menu';
+const CATEGORIES_URL = API_BASE_URL + '/categories';
+const MENU_URL = API_BASE_URL + '/menu';
 
 function CategoryManager() {
     const [categories, setCategories] = useState([]);
@@ -9,112 +10,103 @@ function CategoryManager() {
     const [loading, setLoading] = useState(true);
     const [editingCategory, setEditingCategory] = useState(null);
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryInput, setNewCategoryInput] = useState('');
 
     useEffect(() => {
-        fetchMenuItems();
+        fetchData();
     }, []);
 
-    const fetchMenuItems = async () => {
+    const fetchData = async () => {
+        setLoading(true);
         try {
-            const res = await fetch(API_URL);
-            const data = await res.json();
-            setMenuItems(data);
-
-            // Extract unique categories
-            const uniqueCategories = [...new Set(data.map(item => item.category).filter(Boolean))];
-            setCategories(uniqueCategories.sort());
+            const [catsRes, menuRes] = await Promise.all([
+                fetch(CATEGORIES_URL),
+                fetch(MENU_URL)
+            ]);
+            setCategories(await catsRes.json());
+            setMenuItems(await menuRes.json());
         } catch (err) {
-            console.error('Error fetching menu:', err);
+            console.error('Error fetching data:', err);
         } finally {
             setLoading(false);
         }
     };
 
-    const getItemCountByCategory = (category) => {
-        return menuItems.filter(item => item.category === category).length;
+    const getItemCount = (categoryId) => {
+        return menuItems.filter(item => item.category_id === categoryId).length;
     };
 
-    const handleEditCategory = (oldCategory) => {
-        setEditingCategory(oldCategory);
-        setNewCategoryName(oldCategory);
+    const handleCreateCategory = async (e) => {
+        e.preventDefault();
+        if (!newCategoryInput.trim()) return;
+
+        try {
+            const res = await fetch(CATEGORIES_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-role': 'admin'
+                },
+                body: JSON.stringify({ name: newCategoryInput.trim() })
+            });
+
+            if (res.ok) {
+                setNewCategoryInput('');
+                fetchData();
+            } else {
+                alert('Error al crear categoría');
+            }
+        } catch (err) {
+            console.error('Error creating category:', err);
+        }
     };
 
     const handleSaveCategory = async () => {
-        if (!newCategoryName.trim()) {
-            alert('El nombre de la categoría no puede estar vacío');
-            return;
-        }
-
-        if (newCategoryName === editingCategory) {
-            setEditingCategory(null);
-            return;
-        }
-
-        // Check if new name already exists
-        if (categories.includes(newCategoryName) && newCategoryName !== editingCategory) {
-            alert('Ya existe una categoría con ese nombre');
-            return;
-        }
-
-        const itemsToUpdate = menuItems.filter(item => item.category === editingCategory);
-
-        if (itemsToUpdate.length === 0) {
-            setEditingCategory(null);
-            return;
-        }
-
-        const confirmMsg = `¿Renombrar la categoría "${editingCategory}" a "${newCategoryName}"?\nSe actualizarán ${itemsToUpdate.length} artículo(s).`;
-        if (!confirm(confirmMsg)) {
-            return;
-        }
+        if (!newCategoryName.trim() || !editingCategory) return;
 
         try {
-            // Update all items with this category
-            const updatePromises = itemsToUpdate.map(item =>
-                fetch(`${API_URL}/${item.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-role': 'admin'
-                    },
-                    body: JSON.stringify({
-                        ...item,
-                        category: newCategoryName
-                    })
-                })
-            );
+            const res = await fetch(`${CATEGORIES_URL}/${editingCategory.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-role': 'admin'
+                },
+                body: JSON.stringify({ name: newCategoryName.trim() })
+            });
 
-            await Promise.all(updatePromises);
-            alert('Categoría actualizada exitosamente');
-            setEditingCategory(null);
-            fetchMenuItems();
+            if (res.ok) {
+                setEditingCategory(null);
+                fetchData();
+            } else {
+                alert('Error al actualizar categoría');
+            }
         } catch (err) {
             console.error('Error updating category:', err);
-            alert('Error al actualizar la categoría');
         }
     };
 
-    const handleDeleteCategory = async (category) => {
-        const itemCount = getItemCountByCategory(category);
+    const handleDeleteCategory = async (categoryId) => {
+        if (!confirm('¿Seguro que deseas eliminar esta categoría? (Los artículos ahora quedarán sin categoría)')) return;
 
-        if (itemCount > 0) {
-            alert(`No se puede eliminar la categoría "${category}" porque tiene ${itemCount} artículo(s) asignado(s).\n\nPrimero debes reasignar o eliminar esos artículos.`);
-            return;
+        try {
+            const res = await fetch(`${CATEGORIES_URL}/${categoryId}`, {
+                method: 'DELETE',
+                headers: { 'x-role': 'admin' }
+            });
+
+            if (res.ok) {
+                fetchData();
+            } else {
+                alert('Error al eliminar categoría');
+            }
+        } catch (err) {
+            console.error('Error deleting category:', err);
         }
-
-        const confirmMsg = `¿Estás seguro de eliminar la categoría "${category}"?\nEsta acción no se puede deshacer.`;
-        if (!confirm(confirmMsg)) {
-            return;
-        }
-
-        // Since there are no items, just refresh to remove from list
-        alert('Categoría eliminada (no tenía artículos asignados)');
-        fetchMenuItems();
     };
 
-    const handleCancelEdit = () => {
-        setEditingCategory(null);
-        setNewCategoryName('');
+    const startEditing = (category) => {
+        setEditingCategory(category);
+        setNewCategoryName(category.name);
     };
 
     return (
@@ -123,8 +115,30 @@ function CategoryManager() {
                 <div className="manager-header">
                     <h2>🏷️ Gestión de Categorías</h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.5rem 0 0 0' }}>
-                        Edita o elimina categorías del menú
+                        Crea, edita o elimina las categorías del menú de tu sucursal.
                     </p>
+                </div>
+
+                <div className="create-category-card glass-card" style={{ padding: '1.5rem', marginTop: '1.5rem', marginBottom: '2rem' }}>
+                    <form onSubmit={handleCreateCategory} style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <input
+                            type="text"
+                            placeholder="Nombre de nueva categoría..."
+                            value={newCategoryInput}
+                            onChange={e => setNewCategoryInput(e.target.value)}
+                            style={{
+                                flex: 1,
+                                padding: '0.8rem',
+                                background: 'rgba(0,0,0,0.2)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '8px',
+                                color: 'white'
+                            }}
+                        />
+                        <button type="submit" className="btn btn-primary" disabled={!newCategoryInput.trim()}>
+                            + Agregar Categoría
+                        </button>
+                    </form>
                 </div>
 
                 {loading ? (
@@ -132,10 +146,10 @@ function CategoryManager() {
                         <p>Cargando categorías...</p>
                     </div>
                 ) : (
-                    <div className="categories-list" style={{ marginTop: '2rem' }}>
+                    <div className="categories-list">
                         {categories.length === 0 ? (
                             <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
-                                No hay categorías. Crea artículos en el menú para generar categorías.
+                                No hay categorías. Por favor crea una nueva arriba.
                             </p>
                         ) : (
                             <div className="data-table-wrapper">
@@ -149,16 +163,16 @@ function CategoryManager() {
                                     </thead>
                                     <tbody>
                                         {categories.map(category => (
-                                            <tr key={category}>
+                                            <tr key={category.id}>
                                                 <td>
-                                                    {editingCategory === category ? (
+                                                    {editingCategory?.id === category.id ? (
                                                         <input
                                                             type="text"
                                                             value={newCategoryName}
                                                             onChange={(e) => setNewCategoryName(e.target.value)}
                                                             onKeyDown={(e) => {
                                                                 if (e.key === 'Enter') handleSaveCategory();
-                                                                if (e.key === 'Escape') handleCancelEdit();
+                                                                if (e.key === 'Escape') setEditingCategory(null);
                                                             }}
                                                             autoFocus
                                                             style={{
@@ -173,17 +187,17 @@ function CategoryManager() {
                                                         />
                                                     ) : (
                                                         <span className="badge" style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
-                                                            {category}
+                                                            {category.name}
                                                         </span>
                                                     )}
                                                 </td>
                                                 <td>
                                                     <span style={{ color: 'var(--text-secondary)' }}>
-                                                        {getItemCountByCategory(category)} artículo(s)
+                                                        {getItemCount(category.id)} artículo(s)
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    {editingCategory === category ? (
+                                                    {editingCategory?.id === category.id ? (
                                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                             <button
                                                                 className="btn btn-primary"
@@ -194,7 +208,7 @@ function CategoryManager() {
                                                             </button>
                                                             <button
                                                                 className="btn btn-secondary"
-                                                                onClick={handleCancelEdit}
+                                                                onClick={() => setEditingCategory(null)}
                                                                 style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
                                                             >
                                                                 ✕ Cancelar
@@ -204,20 +218,15 @@ function CategoryManager() {
                                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                             <button
                                                                 className="action-btn edit-btn"
-                                                                onClick={() => handleEditCategory(category)}
+                                                                onClick={() => startEditing(category)}
                                                                 title="Editar categoría"
                                                             >
                                                                 ✏️
                                                             </button>
                                                             <button
                                                                 className="action-btn delete-btn"
-                                                                onClick={() => handleDeleteCategory(category)}
+                                                                onClick={() => handleDeleteCategory(category.id)}
                                                                 title="Eliminar categoría"
-                                                                disabled={getItemCountByCategory(category) > 0}
-                                                                style={{
-                                                                    opacity: getItemCountByCategory(category) > 0 ? 0.5 : 1,
-                                                                    cursor: getItemCountByCategory(category) > 0 ? 'not-allowed' : 'pointer'
-                                                                }}
                                                             >
                                                                 🗑️
                                                             </button>
@@ -232,22 +241,6 @@ function CategoryManager() {
                         )}
                     </div>
                 )}
-
-                <div style={{
-                    marginTop: '2rem',
-                    padding: '1rem',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '8px',
-                    fontSize: '0.85rem',
-                    color: 'var(--text-muted)'
-                }}>
-                    <strong>💡 Notas:</strong>
-                    <ul style={{ margin: '0.5rem 0 0 1.5rem', padding: 0 }}>
-                        <li>Solo puedes eliminar categorías sin artículos asignados</li>
-                        <li>Al renombrar una categoría, todos sus artículos se actualizarán automáticamente</li>
-                        <li>Las categorías se crean automáticamente al agregar artículos en el menú</li>
-                    </ul>
-                </div>
             </div>
         </div>
     );

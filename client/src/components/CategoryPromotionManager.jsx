@@ -2,23 +2,27 @@ import { useState, useEffect } from 'react';
 import './CategoryPromotionManager.css';
 import API_BASE_URL from '../config';
 
-const CATEGORY_API_URL = API_BASE_URL + '/category-promotions';
+const CATEGORY_PROMOS_URL = API_BASE_URL + '/category-promotions';
+const ITEM_PROMOS_URL = API_BASE_URL + '/item-promotions';
 const MENU_API_URL = API_BASE_URL + '/menu';
+const CATEGORIES_API_URL = API_BASE_URL + '/categories';
 
 function CategoryPromotionManager() {
     const [activePromoTab, setActivePromoTab] = useState('category'); // 'category' or 'item'
     const [categoryPromotions, setCategoryPromotions] = useState([]);
+    const [itemPromotions, setItemPromotions] = useState([]);
     const [menuItems, setMenuItems] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingPromo, setEditingPromo] = useState(null);
     const [modalType, setModalType] = useState('category'); // 'category' or 'item'
 
     const [formData, setFormData] = useState({
-        category: '',
-        item_id: '',
-        promotion_type: 'percentage',
-        promotion_value: '',
+        category_id: '',
+        menu_item_id: '',
+        type: 'PERCENTAGE',
+        value: '',
         active: true
     });
 
@@ -27,186 +31,109 @@ function CategoryPromotionManager() {
     const [itemCategoryFilter, setItemCategoryFilter] = useState('');
 
     useEffect(() => {
-        fetchCategoryPromotions();
-        fetchMenuItems();
+        fetchData();
     }, []);
 
-    const fetchCategoryPromotions = async () => {
+    const fetchData = async () => {
+        setLoading(true);
         try {
-            const res = await fetch(CATEGORY_API_URL, {
-                headers: { 'x-role': 'admin' }
-            });
-            const data = await res.json();
-            setCategoryPromotions(data);
+            const [catPromosRes, itemPromosRes, menuRes, catsRes] = await Promise.all([
+                fetch(CATEGORY_PROMOS_URL, { headers: { 'x-role': 'admin' } }),
+                fetch(ITEM_PROMOS_URL, { headers: { 'x-role': 'admin' } }),
+                fetch(MENU_API_URL),
+                fetch(CATEGORIES_API_URL)
+            ]);
+            
+            setCategoryPromotions(await catPromosRes.json());
+            setItemPromotions(await itemPromosRes.json());
+            setMenuItems(await menuRes.json());
+            setCategories(await catsRes.json());
         } catch (err) {
-            console.error('Error fetching category promotions:', err);
+            console.error('Error fetching data:', err);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const fetchMenuItems = async () => {
-        try {
-            const res = await fetch(MENU_API_URL);
-            const data = await res.json();
-            setMenuItems(data);
-        } catch (err) {
-            console.error('Error fetching menu items:', err);
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (modalType === 'category') {
-            // Handle category promotion
-            const method = editingPromo ? 'PUT' : 'POST';
-            const url = editingPromo ? `${CATEGORY_API_URL}/${editingPromo.id}` : CATEGORY_API_URL;
-
-            const payload = {
-                category: formData.category,
-                promotion_type: formData.promotion_type,
-                promotion_value: parseFloat(formData.promotion_value),
-                active: formData.active
-            };
-
-            try {
-                const res = await fetch(url, {
-                    method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-role': 'admin'
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                if (res.ok) {
-                    fetchCategoryPromotions();
-                    closeModal();
-                } else {
-                    alert('Error al guardar');
-                }
-            } catch (err) {
-                console.error('Error saving category promotion:', err);
-            }
-        } else {
-            // Handle item promotion
-            const item = menuItems.find(i => i.id === parseInt(formData.item_id));
-            if (!item) return;
-
-            const payload = {
-                ...item,
-                promotion_type: formData.promotion_type,
-                promotion_value: parseFloat(formData.promotion_value),
-                promotion_active: formData.active
-            };
-
-            try {
-                const res = await fetch(`${MENU_API_URL}/${item.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-role': 'admin'
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                if (res.ok) {
-                    fetchMenuItems();
-                    closeModal();
-                } else {
-                    alert('Error al guardar');
-                }
-            } catch (err) {
-                console.error('Error saving item promotion:', err);
-            }
-        }
-    };
-
-    const handleDeleteCategoryPromo = async (id) => {
-        if (!confirm('¿Seguro que deseas eliminar esta promoción?')) return;
-
-        try {
-            const res = await fetch(`${CATEGORY_API_URL}/${id}`, {
-                method: 'DELETE',
-                headers: { 'x-role': 'admin' }
-            });
-            if (res.ok) fetchCategoryPromotions();
-        } catch (err) {
-            console.error('Error deleting promotion:', err);
-        }
-    };
-
-    const handleRemoveItemPromo = async (item) => {
-        if (!confirm('¿Seguro que deseas eliminar esta promoción?')) return;
+        const isCategory = modalType === 'category';
+        const method = editingPromo ? 'PUT' : 'POST';
+        const baseUrl = isCategory ? CATEGORY_PROMOS_URL : ITEM_PROMOS_URL;
+        const url = editingPromo ? `${baseUrl}/${editingPromo.id}` : baseUrl;
 
         const payload = {
-            ...item,
-            promotion_type: null,
-            promotion_value: null,
-            promotion_active: false
+            type: formData.type,
+            value: parseFloat(formData.value),
+            active: formData.active
         };
 
+        if (isCategory) {
+            payload.category_id = parseInt(formData.category_id);
+        } else {
+            payload.menu_item_id = parseInt(formData.menu_item_id);
+        }
+
         try {
-            const res = await fetch(`${MENU_API_URL}/${item.id}`, {
-                method: 'PUT',
+            const res = await fetch(url, {
+                method,
                 headers: {
                     'Content-Type': 'application/json',
                     'x-role': 'admin'
                 },
                 body: JSON.stringify(payload)
             });
-            if (res.ok) fetchMenuItems();
+
+            if (res.ok) {
+                fetchData();
+                closeModal();
+            } else {
+                alert('Error al guardar promoción');
+            }
         } catch (err) {
-            console.error('Error removing item promotion:', err);
+            console.error('Error saving promotion:', err);
+        }
+    };
+
+    const handleDeletePromo = async (id, isCategory) => {
+        if (!confirm('¿Seguro que deseas eliminar esta promoción?')) return;
+
+        const url = isCategory ? `${CATEGORY_PROMOS_URL}/${id}` : `${ITEM_PROMOS_URL}/${id}`;
+
+        try {
+            const res = await fetch(url, {
+                method: 'DELETE',
+                headers: { 'x-role': 'admin' }
+            });
+            if (res.ok) fetchData();
+        } catch (err) {
+            console.error('Error deleting promotion:', err);
         }
     };
 
     const openModal = (type, promo = null) => {
         setModalType(type);
+        setEditingPromo(promo);
 
-        if (type === 'category') {
-            if (promo) {
-                setEditingPromo(promo);
-                setFormData({
-                    category: promo.category,
-                    item_id: '',
-                    promotion_type: promo.promotion_type,
-                    promotion_value: promo.promotion_value,
-                    active: Boolean(promo.active)
-                });
-            } else {
-                setEditingPromo(null);
-                setFormData({
-                    category: '',
-                    item_id: '',
-                    promotion_type: 'percentage',
-                    promotion_value: '',
-                    active: true
-                });
-            }
+        if (promo) {
+            setFormData({
+                category_id: type === 'category' ? promo.category_id : '',
+                menu_item_id: type === 'item' ? promo.menu_item_id : '',
+                type: promo.type,
+                value: promo.value,
+                active: Boolean(promo.active)
+            });
         } else {
-            // Item promotion
-            if (promo) {
-                setEditingPromo(promo);
-                setFormData({
-                    category: '',
-                    item_id: promo.id.toString(),
-                    promotion_type: promo.promotion_type || 'percentage',
-                    promotion_value: promo.promotion_value || '',
-                    active: Boolean(promo.promotion_active)
-                });
-            } else {
-                setEditingPromo(null);
-                setFormData({
-                    category: '',
-                    item_id: '',
-                    promotion_type: 'percentage',
-                    promotion_value: '',
-                    active: true
-                });
-            }
+            setFormData({
+                category_id: '',
+                menu_item_id: '',
+                type: 'PERCENTAGE',
+                value: '',
+                active: true
+            });
         }
+        
         setItemSearchQuery('');
         setItemCategoryFilter('');
         setShowModal(true);
@@ -215,34 +142,25 @@ function CategoryPromotionManager() {
     const closeModal = () => {
         setShowModal(false);
         setEditingPromo(null);
-        setItemSearchQuery('');
-        setItemCategoryFilter('');
     };
 
-    // Get unique categories from menu items
-    const categories = [...new Set(menuItems.map(item => item.category).filter(Boolean))].sort();
-
-    // Filter items for item promotion modal
     const filteredMenuItems = menuItems.filter(item => {
-        const matchesCategory = !itemCategoryFilter || item.category === itemCategoryFilter;
+        const matchesCategory = !itemCategoryFilter || item.category_id === parseInt(itemCategoryFilter);
         const matchesSearch = !itemSearchQuery ||
             item.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
             (item.category && item.category.toLowerCase().includes(itemSearchQuery.toLowerCase()));
         return matchesCategory && matchesSearch;
     });
 
-    // Get items affected by category promotion
-    const getAffectedItems = (category) => {
-        return menuItems.filter(item =>
-            item.category === category && !item.promotion_active
+    const getAffectedItemsForCategoryPromo = (categoryId) => {
+        // Items in category that do not have their own active item promotion.
+        return menuItems.filter(item => 
+            item.category_id === categoryId && 
+            !itemPromotions.some(ip => ip.menu_item_id === item.id && ip.active)
         );
     };
 
-    // Get items with active promotions
-    const itemsWithPromotions = menuItems.filter(item => item.promotion_active);
-
-    // Get selected item for preview
-    const selectedItem = formData.item_id ? menuItems.find(i => i.id === parseInt(formData.item_id)) : null;
+    const selectedItem = formData.menu_item_id ? menuItems.find(i => i.id === parseInt(formData.menu_item_id)) : null;
 
     return (
         <div className="category-promo-manager">
@@ -251,7 +169,6 @@ function CategoryPromotionManager() {
                     <h2>🔥 Gestión de Promociones</h2>
                 </div>
 
-                {/* Tabs for Category vs Item promotions */}
                 <div className="promo-tabs">
                     <button
                         className={`promo-tab-btn ${activePromoTab === 'category' ? 'active' : ''}`}
@@ -291,29 +208,31 @@ function CategoryPromotionManager() {
                                     </div>
                                 ) : (
                                     categoryPromotions.map(promo => {
-                                        const affectedItems = getAffectedItems(promo.category);
+                                        const affectedItems = getAffectedItemsForCategoryPromo(promo.category_id);
+                                        const category = categories.find(c => c.id === promo.category_id);
+                                        
                                         return (
                                             <div key={promo.id} className={`promo-card ${!promo.active ? 'inactive' : ''}`}>
                                                 <div className="promo-card-header">
                                                     <div className="promo-category">
-                                                        <span className="category-badge">{promo.category}</span>
+                                                        <span className="category-badge">{category ? category.name : `ID: ${promo.category_id}`}</span>
                                                         {!promo.active && <span className="inactive-badge">Inactiva</span>}
                                                     </div>
                                                     <div className="promo-actions">
                                                         <button className="action-btn edit-btn" onClick={() => openModal('category', promo)}>✏️</button>
-                                                        <button className="action-btn delete-btn" onClick={() => handleDeleteCategoryPromo(promo.id)}>🗑️</button>
+                                                        <button className="action-btn delete-btn" onClick={() => handleDeletePromo(promo.id, true)}>🗑️</button>
                                                     </div>
                                                 </div>
                                                 <div className="promo-card-body">
                                                     <div className="promo-discount">
                                                         <span className="discount-value">
-                                                            {promo.promotion_type === 'percentage'
-                                                                ? `${promo.promotion_value}% OFF`
-                                                                : `$${promo.promotion_value} OFF`
+                                                            {promo.type === 'PERCENTAGE'
+                                                                ? `${promo.value}% OFF`
+                                                                : `$${promo.value} OFF`
                                                             }
                                                         </span>
                                                         <span className="discount-type">
-                                                            {promo.promotion_type === 'percentage' ? 'Descuento porcentual' : 'Descuento fijo'}
+                                                            {promo.type === 'PERCENTAGE' ? 'Descuento porcentual' : 'Descuento fijo'}
                                                         </span>
                                                     </div>
                                                     <div className="affected-items">
@@ -351,44 +270,47 @@ function CategoryPromotionManager() {
 
                         {loading ? <p>Cargando...</p> : (
                             <div className="promo-grid">
-                                {itemsWithPromotions.length === 0 ? (
+                                {itemPromotions.length === 0 ? (
                                     <div className="empty-state">
                                         <span className="empty-icon">🍔</span>
                                         <h3>No hay promociones por artículo</h3>
                                         <p>Crea una promoción para aplicar descuentos a artículos específicos</p>
                                     </div>
                                 ) : (
-                                    itemsWithPromotions.map(item => {
-                                        const finalPrice = item.promotion_type === 'percentage'
-                                            ? item.price * (1 - item.promotion_value / 100)
-                                            : Math.max(0, item.price - item.promotion_value);
+                                    itemPromotions.map(promo => {
+                                        const item = menuItems.find(i => i.id === promo.menu_item_id);
+                                        const originalPrice = item ? item.original_price : 0;
+                                        const finalPrice = promo.type === 'PERCENTAGE'
+                                            ? originalPrice * (1 - promo.value / 100)
+                                            : Math.max(0, originalPrice - promo.value);
 
                                         return (
-                                            <div key={item.id} className="promo-card">
+                                            <div key={promo.id} className={`promo-card ${!promo.active ? 'inactive' : ''}`}>
                                                 <div className="promo-card-header">
                                                     <div className="promo-category">
-                                                        <span className="item-badge">{item.name}</span>
-                                                        <span className="category-tag">{item.category}</span>
+                                                        <span className="item-badge">{item ? item.name : `ID: ${promo.menu_item_id}`}</span>
+                                                        <span className="category-tag">{item?.category || 'Desconocida'}</span>
+                                                        {!promo.active && <span className="inactive-badge">Inactiva</span>}
                                                     </div>
                                                     <div className="promo-actions">
-                                                        <button className="action-btn edit-btn" onClick={() => openModal('item', item)}>✏️</button>
-                                                        <button className="action-btn delete-btn" onClick={() => handleRemoveItemPromo(item)}>🗑️</button>
+                                                        <button className="action-btn edit-btn" onClick={() => openModal('item', promo)}>✏️</button>
+                                                        <button className="action-btn delete-btn" onClick={() => handleDeletePromo(promo.id, false)}>🗑️</button>
                                                     </div>
                                                 </div>
                                                 <div className="promo-card-body">
                                                     <div className="promo-discount">
                                                         <span className="discount-value">
-                                                            {item.promotion_type === 'percentage'
-                                                                ? `${item.promotion_value}% OFF`
-                                                                : `$${item.promotion_value} OFF`
+                                                            {promo.type === 'PERCENTAGE'
+                                                                ? `${promo.value}% OFF`
+                                                                : `$${promo.value} OFF`
                                                             }
                                                         </span>
                                                         <span className="discount-type">
-                                                            {item.promotion_type === 'percentage' ? 'Descuento porcentual' : 'Descuento fijo'}
+                                                            {promo.type === 'PERCENTAGE' ? 'Descuento porcentual' : 'Descuento fijo'}
                                                         </span>
                                                     </div>
                                                     <div className="price-display">
-                                                        <span className="original-price">${item.price.toFixed(2)}</span>
+                                                        <span className="original-price">${originalPrice.toFixed(2)}</span>
                                                         <span className="arrow">→</span>
                                                         <span className="final-price">${finalPrice.toFixed(2)}</span>
                                                     </div>
@@ -405,11 +327,7 @@ function CategoryPromotionManager() {
 
             {showModal && (
                 <div className="modal-overlay" onClick={closeModal}>
-                    <form
-                        onSubmit={handleSubmit}
-                        className="modal-content glass-card slide-in"
-                        onClick={e => e.stopPropagation()}
-                    >
+                    <form onSubmit={handleSubmit} className="modal-content glass-card slide-in" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3>
                                 {modalType === 'category'
@@ -424,19 +342,19 @@ function CategoryPromotionManager() {
                                 <div className="form-group">
                                     <label>Categoría</label>
                                     <select
-                                        value={formData.category}
-                                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                        value={formData.category_id}
+                                        onChange={e => setFormData({ ...formData, category_id: e.target.value })}
                                         required
+                                        disabled={editingPromo}
                                     >
                                         <option value="">Seleccionar categoría...</option>
                                         {categories.map(cat => (
-                                            <option key={cat} value={cat}>{cat}</option>
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
                                         ))}
                                     </select>
                                 </div>
                             ) : (
                                 <>
-                                    {/* Search and Filter for Items */}
                                     {!editingPromo && (
                                         <div className="item-filters">
                                             <div className="form-group">
@@ -456,7 +374,7 @@ function CategoryPromotionManager() {
                                                 >
                                                     <option value="">Todas las categorías</option>
                                                     {categories.map(cat => (
-                                                        <option key={cat} value={cat}>{cat}</option>
+                                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
                                                     ))}
                                                 </select>
                                             </div>
@@ -466,15 +384,15 @@ function CategoryPromotionManager() {
                                     <div className="form-group">
                                         <label>Artículo</label>
                                         <select
-                                            value={formData.item_id}
-                                            onChange={e => setFormData({ ...formData, item_id: e.target.value })}
+                                            value={formData.menu_item_id}
+                                            onChange={e => setFormData({ ...formData, menu_item_id: e.target.value })}
                                             required
                                             disabled={editingPromo}
                                         >
                                             <option value="">Seleccionar artículo...</option>
                                             {filteredMenuItems.map(item => (
                                                 <option key={item.id} value={item.id}>
-                                                    {item.name} - ${item.price} ({item.category})
+                                                    {item.name} - ${item.original_price} ({item.category})
                                                 </option>
                                             ))}
                                         </select>
@@ -492,26 +410,26 @@ function CategoryPromotionManager() {
                                 <div className="form-group">
                                     <label>Tipo de Descuento</label>
                                     <select
-                                        value={formData.promotion_type}
-                                        onChange={e => setFormData({ ...formData, promotion_type: e.target.value })}
+                                        value={formData.type}
+                                        onChange={e => setFormData({ ...formData, type: e.target.value })}
                                         required
                                     >
-                                        <option value="percentage">Porcentaje (%)</option>
-                                        <option value="fixed">Monto Fijo ($)</option>
+                                        <option value="PERCENTAGE">Porcentaje (%)</option>
+                                        <option value="FIXED_AMOUNT">Monto Fijo ($)</option>
                                     </select>
                                 </div>
                                 <div className="form-group">
                                     <label>
-                                        {formData.promotion_type === 'percentage' ? 'Porcentaje (%)' : 'Descuento ($)'}
+                                        {formData.type === 'PERCENTAGE' ? 'Porcentaje (%)' : 'Descuento ($)'}
                                     </label>
                                     <input
                                         type="number"
                                         step="0.01"
                                         min="0"
-                                        max={formData.promotion_type === 'percentage' ? '100' : undefined}
-                                        value={formData.promotion_value}
-                                        onChange={e => setFormData({ ...formData, promotion_value: e.target.value })}
-                                        placeholder={formData.promotion_type === 'percentage' ? '20' : '10'}
+                                        max={formData.type === 'PERCENTAGE' ? '100' : undefined}
+                                        value={formData.value}
+                                        onChange={e => setFormData({ ...formData, value: e.target.value })}
+                                        placeholder={formData.type === 'PERCENTAGE' ? '20' : '10'}
                                         required
                                     />
                                 </div>
@@ -529,28 +447,28 @@ function CategoryPromotionManager() {
                                 </label>
                             </div>
 
-                            {modalType === 'category' && formData.category && (
+                            {modalType === 'category' && formData.category_id && (
                                 <div className="preview-info">
                                     <strong>Vista Previa:</strong>
-                                    <p>Esta promoción se aplicará a {getAffectedItems(formData.category).length} artículo(s) en la categoría "{formData.category}"</p>
+                                    <p>Esta promoción se aplicaría (si es activa) a {getAffectedItemsForCategoryPromo(parseInt(formData.category_id)).length} artículo(s) en la categoría seleccionada.</p>
                                 </div>
                             )}
 
-                            {modalType === 'item' && selectedItem && formData.promotion_value && (
+                            {modalType === 'item' && selectedItem && formData.value && (
                                 <div className="preview-info">
                                     <strong>Vista Previa:</strong>
                                     <div className="price-preview">
-                                        <span className="original-price">${selectedItem.price.toFixed(2)}</span>
+                                        <span className="original-price">${selectedItem.original_price.toFixed(2)}</span>
                                         <span className="promo-price">
-                                            ${formData.promotion_type === 'percentage'
-                                                ? (selectedItem.price * (1 - parseFloat(formData.promotion_value) / 100)).toFixed(2)
-                                                : Math.max(0, selectedItem.price - parseFloat(formData.promotion_value)).toFixed(2)
+                                            ${formData.type === 'PERCENTAGE'
+                                                ? (selectedItem.original_price * (1 - parseFloat(formData.value) / 100)).toFixed(2)
+                                                : Math.max(0, selectedItem.original_price - parseFloat(formData.value)).toFixed(2)
                                             }
                                         </span>
                                         <span className="savings">
-                                            Ahorro: ${formData.promotion_type === 'percentage'
-                                                ? (selectedItem.price * parseFloat(formData.promotion_value) / 100).toFixed(2)
-                                                : parseFloat(formData.promotion_value).toFixed(2)
+                                            Ahorro: ${formData.type === 'PERCENTAGE'
+                                                ? (selectedItem.original_price * parseFloat(formData.value) / 100).toFixed(2)
+                                                : parseFloat(formData.value).toFixed(2)
                                             }
                                         </span>
                                     </div>

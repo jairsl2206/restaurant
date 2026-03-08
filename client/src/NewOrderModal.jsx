@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './NewOrderModal.css';
 import API_BASE_URL from './config';
+import { ORDER_TYPE } from './constants';
 
 // Menu items will be fetched from API
 const API_MENU_URL = API_BASE_URL + '/menu';
@@ -15,11 +16,10 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
     const [expandedCategory, setExpandedCategory] = useState(null);
     const [maxTables, setMaxTables] = useState(20); // Default value
 
-    // Delivery mode states
     // Mode state for order type
     const [orderMode, setOrderMode] = useState('table'); // 'table', 'delivery', 'pickup'
     const isDelivery = orderMode === 'delivery';
-    const isPickup = orderMode === 'pickup';
+    const isPickup   = orderMode === 'pickup';
 
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
@@ -122,7 +122,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                 name: name,
                 note: note,
                 quantity: quantity,
-                price: menuItem ? menuItem.price : itemPrice,
+                price: itemPrice || (menuItem ? menuItem.price : 0),
                 image_url: menuItem ? menuItem.image_url : null
             });
         });
@@ -133,22 +133,22 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
         fetch(API_MENU_URL)
             .then(res => res.json())
             .then(data => {
-                const available = data.filter(item => item.available);
-                setMenuItems(available);
+                setMenuItems(data.filter(item => item.available));
                 setLoading(false);
 
                 if (initialOrder && initialOrder.items) {
                     setTableNumber(initialOrder.table_number);
-                    const parsed = parseInitialItems(initialOrder.items, available);
+                    const parsed = parseInitialItems(initialOrder.items, data);
                     setSelectedItems(parsed);
 
-                    // Set mode and customer info
-                    if (initialOrder.is_pickup) {
+                    // Set mode and customer info — supports both new `type` and legacy fields
+                    const orderType = initialOrder.type;
+                    if (initialOrder.is_pickup || orderType === ORDER_TYPE.PICKUP) {
                         setOrderMode('pickup');
                         setCustomerName(initialOrder.customer_name || '');
                         setCustomerPhone(initialOrder.customer_phone || '');
                         setCustomerAddress(initialOrder.customer_address || '');
-                    } else if (initialOrder.is_delivery) {
+                    } else if (initialOrder.is_delivery || orderType === ORDER_TYPE.DELIVERY) {
                         setOrderMode('delivery');
                         setCustomerName(initialOrder.customer_name || '');
                         setCustomerPhone(initialOrder.customer_phone || '');
@@ -202,7 +202,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
         setConfirmationChecks(newChecks);
     };
 
-    const total = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const total = selectedItems.reduce((sum, item) => sum + ((item.final_price || item.price) * item.quantity), 0);
 
     // For the checklist, we use selectedItems directly since we now keep them separate if they have notes
     const explodedItems = selectedItems.map((item) => ({
@@ -249,12 +249,11 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
 
         onSubmit({
             tableNumber: (isDelivery || isPickup) ? null : parseInt(tableNumber),
-            items: formattedItems,
-            isDelivery: isDelivery,
-            isPickup: isPickup,
+            items:       formattedItems,
+            type:        isDelivery ? ORDER_TYPE.DELIVERY : isPickup ? ORDER_TYPE.PICKUP : ORDER_TYPE.DINE_IN,
             customerData: (isDelivery || isPickup) ? {
-                name: customerName.trim(),
-                phone: customerPhone.trim(),
+                name:    customerName.trim(),
+                phone:   customerPhone.trim(),
                 address: isDelivery ? customerAddress.trim() : ''
             } : null
         });
@@ -429,15 +428,9 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                 return a.localeCompare(b);
                                             });
 
-                                            // Helper to calculate discounted price
-                                            const getDiscountedPrice = (item) => {
-                                                if (!item.promotion_active) return item.price;
-                                                if (item.promotion_type === 'percentage') {
-                                                    return item.price * (1 - (item.promotion_value / 100));
-                                                } else if (item.promotion_type === 'fixed') {
-                                                    return Math.max(0, item.price - item.promotion_value);
-                                                }
-                                                return item.price;
+                                            // Price is already calculated by backend in final_price
+                                            const getEffectivePrice = (item) => {
+                                                return item.final_price ?? item.price;
                                             };
 
                                             const getImageUrl = (url) => {
@@ -485,8 +478,8 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                                     <div className="accordion-content">
                                                                         <div className="menu-grid">
                                                                             {groupedItems[category].map(item => {
-                                                                                const discountedPrice = getDiscountedPrice(item);
-                                                                                const hasPromo = item.promotion_active;
+                                                                                const discountedPrice = item.final_price ?? item.price;
+                                                                                const hasPromo = item.has_promotion;
 
                                                                                 return (
                                                                                     <div
@@ -501,7 +494,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                                                             )}
                                                                                             {!!hasPromo && (
                                                                                                 <div className="promo-tag">
-                                                                                                    {item.promotion_type === 'percentage' ? `-${item.promotion_value}%` : `-$${item.promotion_value}`}
+                                                                                                    {item.promotion_type === 'PERCENTAGE' ? `-${item.promotion_value}%` : `-$${item.promotion_value}`}
                                                                                                 </div>
                                                                                             )}
                                                                                         </div>
@@ -512,8 +505,14 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                                                             )}
                                                                                             <div className="item-footer-premium">
                                                                                                 <div className="item-price-premium">
-                                                                                                    {!!hasPromo && <span className="old-price">${item.price.toFixed(2)}</span>}
-                                                                                                    <span className="current-price">${discountedPrice.toFixed(2)}</span>
+                                                                                                    {!!hasPromo && (
+                                                                                                        <span className="old-price" style={{ textDecoration: 'line-through', opacity: 0.6, fontSize: '0.8rem', marginRight: '5px' }}>
+                                                                                                            ${(item.original_price ?? item.price).toFixed(2)}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                    <span className="current-price" style={{ color: hasPromo ? 'var(--primary)' : 'inherit', fontWeight: 'bold' }}>
+                                                                                                        ${discountedPrice.toFixed(2)}
+                                                                                                    </span>
                                                                                                 </div>
                                                                                                 <button
                                                                                                     type="button"

@@ -2,74 +2,48 @@ const { ValidationError } = require('../../shared/errors/errorTypes');
 
 /**
  * UserRole Value Object
- * Represents user roles with validation
+ * Maps to the user_role ENUM: waiter | cook | admin | manager
  */
 class UserRole {
-    static ADMIN = 'admin';
-    static WAITER = 'waiter';
-    static COOK = 'cook';
+    static WAITER  = 'waiter';
+    static COOK    = 'cook';
+    static ADMIN   = 'admin';
+    static MANAGER = 'manager';
 
     static ALL_ROLES = [
-        UserRole.ADMIN,
         UserRole.WAITER,
-        UserRole.COOK
+        UserRole.COOK,
+        UserRole.ADMIN,
+        UserRole.MANAGER
     ];
 
     constructor(value) {
-        if (!this.isValid(value)) {
-            throw new ValidationError(`Invalid user role: ${value}`);
+        if (!UserRole.ALL_ROLES.includes(value)) {
+            throw new ValidationError(`Invalid user role: "${value}". Valid: ${UserRole.ALL_ROLES.join(', ')}`);
         }
         this._value = value;
         Object.freeze(this);
     }
 
-    get value() {
-        return this._value;
-    }
+    get value() { return this._value; }
 
-    isValid(value) {
-        return UserRole.ALL_ROLES.includes(value);
-    }
+    isAdmin()   { return this._value === UserRole.ADMIN;   }
+    isWaiter()  { return this._value === UserRole.WAITER;  }
+    isCook()    { return this._value === UserRole.COOK;    }
+    isManager() { return this._value === UserRole.MANAGER; }
 
-    isAdmin() {
-        return this._value === UserRole.ADMIN;
-    }
-
-    isWaiter() {
-        return this._value === UserRole.WAITER;
-    }
-
-    isCook() {
-        return this._value === UserRole.COOK;
-    }
-
-    canManageMenu() {
-        return this.isAdmin();
-    }
-
-    canManageUsers() {
-        return this.isAdmin();
-    }
-
-    canCreateOrders() {
-        return this.isWaiter() || this.isAdmin();
-    }
-
-    canEditOrders() {
-        return this.isWaiter() || this.isAdmin();
-    }
-
-    canViewKitchenQueue() {
-        return this.isCook() || this.isAdmin();
-    }
+    canManageMenu()       { return this.isAdmin() || this.isManager(); }
+    canManageUsers()      { return this.isAdmin() || this.isManager(); }
+    canViewReports()      { return this.isAdmin() || this.isManager(); }
+    canCreateOrders()     { return this.isWaiter() || this.isAdmin() || this.isManager(); }
+    canEditOrders()       { return this.isWaiter() || this.isAdmin() || this.isManager(); }
+    canViewKitchenQueue() { return this.isCook()   || this.isAdmin() || this.isManager(); }
 
     equals(other) {
         return other instanceof UserRole && this._value === other._value;
     }
 
-    toString() {
-        return this._value;
-    }
+    toString() { return this._value; }
 }
 
 module.exports = UserRole;
