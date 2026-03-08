@@ -1,27 +1,24 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
-import OrderCard from '../OrderCard';
-import { ORDER_STATUS } from '../constants';
+import { ORDER_STATUS, ORDER_TYPE } from '../constants';
 import './ActiveProductionOrders.css';
 
 const API_URL = API_BASE_URL;
 
 const statusIcons = {
-    [ORDER_STATUS.COOKING]: '🍳',
-    [ORDER_STATUS.READY]: '🥡',
-    [ORDER_STATUS.SERVED]: '✅',
-    [ORDER_STATUS.DELIVERING]: '🚗',
-    [ORDER_STATUS.PICKUP_READY]: '🛍️',
-    [ORDER_STATUS.PICKUP_COMPLETED]: '✅'
+    [ORDER_STATUS.CREADA]:     '📋',
+    [ORDER_STATUS.PREPARANDO]: '🍳',
+    [ORDER_STATUS.LISTA]:      '🥡',
+    [ORDER_STATUS.ENTREGADA]:  '✅',
+    [ORDER_STATUS.CANCELADA]:  '❌'
 };
 
 const statusLabels = {
-    [ORDER_STATUS.COOKING]: 'En Cocina',
-    [ORDER_STATUS.READY]: 'Listo para Servir',
-    [ORDER_STATUS.SERVED]: 'Servido',
-    [ORDER_STATUS.DELIVERING]: 'En Reparto',
-    [ORDER_STATUS.PICKUP_READY]: 'Listo para Pickup',
-    [ORDER_STATUS.PICKUP_COMPLETED]: 'Recogido'
+    [ORDER_STATUS.CREADA]:     'Creada',
+    [ORDER_STATUS.PREPARANDO]: 'En Cocina',
+    [ORDER_STATUS.LISTA]:      'Lista',
+    [ORDER_STATUS.ENTREGADA]:  'Entregada',
+    [ORDER_STATUS.CANCELADA]:  'Cancelada'
 };
 
 function ActiveProductionOrders() {
@@ -30,7 +27,6 @@ function ActiveProductionOrders() {
 
     useEffect(() => {
         fetchActiveOrders();
-        // Auto-refresh every 5 seconds
         const interval = setInterval(fetchActiveOrders, 5000);
         return () => clearInterval(interval);
     }, []);
@@ -48,23 +44,29 @@ function ActiveProductionOrders() {
     };
 
     const getGroupedOrders = () => {
-        const enCocina = orders.filter(o => o.status === ORDER_STATUS.COOKING);
-        const listoParaServir = orders.filter(o => o.status === ORDER_STATUS.READY || o.status === ORDER_STATUS.PICKUP_READY);
-        const servido = orders.filter(o => o.status === ORDER_STATUS.SERVED || o.status === ORDER_STATUS.DELIVERING || o.status === ORDER_STATUS.PICKUP_COMPLETED);
+        // Show 3 columns for the kitchen board: CREADA, PREPARANDO, LISTA
+        const creadas    = orders.filter(o => o.status === ORDER_STATUS.CREADA);
+        const preparando = orders.filter(o => o.status === ORDER_STATUS.PREPARANDO);
+        const listas     = orders.filter(o => o.status === ORDER_STATUS.LISTA);
 
-        // Sort all by updated_at (oldest first - FIFO)
-        enCocina.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-        listoParaServir.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-        servido.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        creadas.sort((a, b)    => new Date(a.updated_at) - new Date(b.updated_at));
+        preparando.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        listas.sort((a, b)     => new Date(a.updated_at) - new Date(b.updated_at));
 
         return {
-            [ORDER_STATUS.COOKING]: enCocina,
-            [ORDER_STATUS.READY]: listoParaServir,
-            [ORDER_STATUS.SERVED]: servido
+            [ORDER_STATUS.CREADA]:     creadas,
+            [ORDER_STATUS.PREPARANDO]: preparando,
+            [ORDER_STATUS.LISTA]:      listas
         };
     };
 
     const groupedOrders = getGroupedOrders();
+
+    const getOrderTypeLabel = (order) => {
+        if (order.type === ORDER_TYPE.DELIVERY || order.is_delivery) return `🚗 ${order.customer_name}`;
+        if (order.type === ORDER_TYPE.PICKUP   || order.is_pickup)   return `🛍️ ${order.customer_name}`;
+        return `Mesa ${order.table_number}`;
+    };
 
     return (
         <div className="active-production-container">
@@ -84,7 +86,7 @@ function ActiveProductionOrders() {
             ) : (
                 <div className="production-board">
                     {Object.entries(groupedOrders).map(([status, statusOrders]) => (
-                        <div key={status} className={`production-column status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}>
+                        <div key={status} className={`production-column status-col-${status.toLowerCase()}`}>
                             <div className="column-header">
                                 <h3>{statusIcons[status]} {statusLabels[status] || status}</h3>
                                 <span className="count-badge">{statusOrders.length}</span>
@@ -104,19 +106,13 @@ function ActiveProductionOrders() {
                                                 </span>
                                             </div>
                                             <div className="order-location">
-                                                {order.is_delivery ? (
-                                                    <span>🚗 {order.customer_name}</span>
-                                                ) : order.is_pickup ? (
-                                                    <span>🛍️ {order.customer_name}</span>
-                                                ) : (
-                                                    <span>Mesa {order.table_number}</span>
-                                                )}
+                                                <span>{getOrderTypeLabel(order)}</span>
                                             </div>
                                             <div className="order-items-preview">
                                                 {order.items ? order.items.substring(0, 60) + '...' : 'N/A'}
                                             </div>
                                             <div className="order-total">
-                                                Total: <strong>${order.total.toFixed(2)}</strong>
+                                                Total: <strong>${(order.total || 0).toFixed(2)}</strong>
                                             </div>
                                         </div>
                                     ))

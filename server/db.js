@@ -2,16 +2,9 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const logger = require('./logger');
-const { ORDER_STATUS } = require('./constants');
+const { ORDER_STATUS, ORDER_TYPE, USER_ROLE, PROMOTION_TYPE, PAYMENT_METHOD, PAYMENT_STATUS } = require('./constants');
 
 const DB_PATH = path.join(__dirname, '..', 'restaurant.db');
-
-// Helper for consistent date formatting (YYYY-MM-DD HH:mm:ss)
-const getCurrentTimestamp = () => {
-    const now = new Date();
-    const pad = (n) => n.toString().padStart(2, '0');
-    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-};
 
 class Database {
     constructor() {
@@ -20,6 +13,7 @@ class Database {
                 logger.error('Error opening database:', err.message);
             } else {
                 logger.info('Connected to SQLite database');
+                this.db.run('PRAGMA foreign_keys = ON');
                 this.initializeTables();
             }
         });
@@ -27,146 +21,348 @@ class Database {
 
     initializeTables() {
         this.db.serialize(() => {
-            // Users table
+
+            // ── USERS ───────────────────────────────────────────────────────────
             this.db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          username TEXT UNIQUE NOT NULL,
-          password_hash TEXT NOT NULL,
-          role TEXT DEFAULT 'waiter'
-        )
-      `);
+                CREATE TABLE IF NOT EXISTS users (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username      TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    role          TEXT NOT NULL DEFAULT 'waiter'
+                                  CHECK (role IN ('waiter','cook','admin','manager')),
+                    active        INTEGER NOT NULL DEFAULT 1,
+                    created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                    updated_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
 
-            // Customers table
+            // ── CUSTOMERS ───────────────────────────────────────────────────────
             this.db.run(`
-        CREATE TABLE IF NOT EXISTS customers (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          phone TEXT NOT NULL,
-          address TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+                CREATE TABLE IF NOT EXISTS customers (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name       TEXT NOT NULL,
+                    phone      TEXT NOT NULL,
+                    email      TEXT UNIQUE,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
 
-            // Orders table
+            // ── ADDRESSES ───────────────────────────────────────────────────────
             this.db.run(`
-        CREATE TABLE IF NOT EXISTS orders (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          table_number INTEGER,
-          status TEXT DEFAULT 'PREPARANDO ORDEN',
-          total REAL DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          is_updated INTEGER DEFAULT 0,
-          original_items_snapshot TEXT,
-          is_delivery INTEGER DEFAULT 0,
-          is_pickup INTEGER DEFAULT 0,
-          customer_id INTEGER,
-          FOREIGN KEY (customer_id) REFERENCES customers(id)
-        )
-      `);
+                CREATE TABLE IF NOT EXISTS addresses (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    line1       TEXT NOT NULL,
+                    line2       TEXT,
+                    city        TEXT,
+                    state       TEXT,
+                    postal_code TEXT,
+                    country     TEXT DEFAULT 'MX'
+                )
+            `);
 
-            // Migration for existing databases
-            this.db.run("ALTER TABLE orders ADD COLUMN is_updated INTEGER DEFAULT 0", (err) => { /* ignore */ });
-            this.db.run("ALTER TABLE orders ADD COLUMN original_items_snapshot TEXT", (err) => { /* ignore */ });
-            this.db.run("ALTER TABLE orders ADD COLUMN is_delivery INTEGER DEFAULT 0", (err) => { /* ignore */ });
-            this.db.run("ALTER TABLE orders ADD COLUMN is_pickup INTEGER DEFAULT 0", (err) => { /* ignore */ });
-            this.db.run("ALTER TABLE orders ADD COLUMN customer_id INTEGER", (err) => { /* ignore */ });
-
-            // Order items table
+            // ── CUSTOMER ADDRESSES ───────────────────────────────────────────────
             this.db.run(`
-        CREATE TABLE IF NOT EXISTS order_items (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          order_id INTEGER NOT NULL,
-          item_name TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
-          price REAL NOT NULL,
-          FOREIGN KEY (order_id) REFERENCES orders(id)
-        )
-      `);
+                CREATE TABLE IF NOT EXISTS customer_addresses (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                    address_id  INTEGER NOT NULL REFERENCES addresses(id) ON DELETE CASCADE,
+                    is_default  INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE (customer_id, address_id)
+                )
+            `);
 
-            // Menu Items table
+            // ── RESTAURANTS ─────────────────────────────────────────────────────
             this.db.run(`
-        CREATE TABLE IF NOT EXISTS menu_items (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          description TEXT,
-          price REAL NOT NULL,
-          image_url TEXT,
-          category TEXT,
-          available BOOLEAN DEFAULT 1,
-          promotion_type TEXT,
-          promotion_value REAL,
-          promotion_active BOOLEAN DEFAULT 0
-        )
-      `);
+                CREATE TABLE IF NOT EXISTS restaurants (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name       TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
 
-            // Migration for existing menu_items tables
-            this.db.run("ALTER TABLE menu_items ADD COLUMN promotion_type TEXT", (err) => { /* ignore */ });
-            this.db.run("ALTER TABLE menu_items ADD COLUMN promotion_value REAL", (err) => { /* ignore */ });
-            this.db.run("ALTER TABLE menu_items ADD COLUMN promotion_active BOOLEAN DEFAULT 0", (err) => { /* ignore */ });
-
-            // Category Promotions table
+            // ── RESTAURANT BRANCHES ─────────────────────────────────────────────
             this.db.run(`
-        CREATE TABLE IF NOT EXISTS category_promotions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          category TEXT NOT NULL,
-          promotion_type TEXT NOT NULL,
-          promotion_value REAL NOT NULL,
-          active BOOLEAN DEFAULT 1,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+                CREATE TABLE IF NOT EXISTS restaurant_branches (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+                    name          TEXT NOT NULL,
+                    address_id    INTEGER REFERENCES addresses(id),
+                    phone_number  TEXT,
+                    email         TEXT,
+                    website       TEXT,
+                    opening_hours TEXT,
+                    created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
 
-            // Settings table
+            // ── EMPLOYEES ───────────────────────────────────────────────────────
             this.db.run(`
-        CREATE TABLE IF NOT EXISTS settings (
-          key TEXT PRIMARY KEY,
-          value TEXT
-        )
-      `);
+                CREATE TABLE IF NOT EXISTS employees (
+                    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id INTEGER NOT NULL REFERENCES restaurant_branches(id) ON DELETE CASCADE,
+                    user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    position  TEXT NOT NULL,
+                    salary    REAL,
+                    hired_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                    active    INTEGER NOT NULL DEFAULT 1,
+                    UNIQUE (branch_id, user_id)
+                )
+            `);
 
+            // ── MENU CATEGORIES ─────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS menu_categories (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id   INTEGER NOT NULL REFERENCES restaurant_branches(id) ON DELETE CASCADE,
+                    name        TEXT NOT NULL,
+                    description TEXT,
+                    sort_order  INTEGER DEFAULT 0,
+                    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                    UNIQUE (branch_id, name)
+                )
+            `);
 
-            // Create default user if not exists
-            this.createDefaultUser();
+            // ── MENU ITEMS ──────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS menu_items (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id   INTEGER NOT NULL REFERENCES restaurant_branches(id) ON DELETE CASCADE,
+                    category_id INTEGER REFERENCES menu_categories(id) ON DELETE SET NULL,
+                    name        TEXT NOT NULL,
+                    description TEXT,
+                    price       REAL NOT NULL,
+                    image_url   TEXT,
+                    available   INTEGER NOT NULL DEFAULT 1,
+                    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
+
+            // ── ITEM PROMOTIONS ─────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS item_promotions (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    menu_item_id INTEGER NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+                    type         TEXT NOT NULL CHECK (type IN ('PERCENTAGE','FIXED_AMOUNT')),
+                    value        REAL NOT NULL,
+                    active       INTEGER NOT NULL DEFAULT 1,
+                    valid_from   TEXT,
+                    valid_to     TEXT
+                )
+            `);
+
+            // ── CATEGORY PROMOTIONS ─────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS category_promotions (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category_id INTEGER NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
+                    type        TEXT NOT NULL CHECK (type IN ('PERCENTAGE','FIXED_AMOUNT')),
+                    value       REAL NOT NULL,
+                    active      INTEGER NOT NULL DEFAULT 1,
+                    valid_from  TEXT,
+                    valid_to    TEXT,
+                    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
+
+            // ── ORDERS ──────────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS orders (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id       INTEGER NOT NULL REFERENCES restaurant_branches(id) ON DELETE CASCADE,
+                    customer_id     INTEGER REFERENCES customers(id),
+                    waiter_id       INTEGER REFERENCES employees(id),
+                    table_number    INTEGER,
+                    type            TEXT NOT NULL DEFAULT 'DINE_IN'
+                                    CHECK (type IN ('DINE_IN','DELIVERY','PICKUP')),
+                    status          TEXT NOT NULL DEFAULT 'CREADA'
+                                    CHECK (status IN ('CREADA','PREPARANDO','LISTA','ENTREGADA','CANCELADA')),
+                    subtotal        REAL NOT NULL DEFAULT 0,
+                    discount_total  REAL NOT NULL DEFAULT 0,
+                    tax_total       REAL NOT NULL DEFAULT 0,
+                    total           REAL NOT NULL DEFAULT 0,
+                    notes           TEXT,
+                    created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                    updated_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
+
+            // ── ORDER ITEMS ─────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS order_items (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    order_id        INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                    menu_item_id    INTEGER NOT NULL REFERENCES menu_items(id),
+                    quantity        INTEGER NOT NULL CHECK (quantity > 0),
+                    unit_price      REAL NOT NULL,
+                    discount_amount REAL NOT NULL DEFAULT 0,
+                    total_price     REAL NOT NULL,
+                    note            TEXT,
+                    created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
+
+            this.db.all("PRAGMA table_info(order_items)", (err, columns) => {
+                if (!err && columns && !columns.some(c => c.name === 'note')) {
+                    this.db.run("ALTER TABLE order_items ADD COLUMN note TEXT");
+                }
+            });
+
+            // ── PAYMENTS ────────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS payments (
+                    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                    order_id              INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                    method                TEXT NOT NULL CHECK (method IN ('CASH','CARD','TRANSFER','OTHER')),
+                    amount                REAL NOT NULL,
+                    status                TEXT NOT NULL DEFAULT 'PENDING'
+                                          CHECK (status IN ('PENDING','PAID','FAILED','REFUNDED')),
+                    transaction_reference TEXT,
+                    paid_at               TEXT,
+                    created_at            TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
+
+            // ── DELIVERIES ──────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS deliveries (
+                    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                    order_id            INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                    delivery_address_id INTEGER REFERENCES addresses(id),
+                    estimated_time      TEXT,
+                    delivered_at        TEXT,
+                    delivery_notes      TEXT
+                )
+            `);
+
+            // ── RESERVATIONS ────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS reservations (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id        INTEGER NOT NULL REFERENCES restaurant_branches(id) ON DELETE CASCADE,
+                    customer_id      INTEGER REFERENCES customers(id),
+                    reservation_time TEXT NOT NULL,
+                    number_of_people INTEGER NOT NULL CHECK (number_of_people > 0),
+                    table_number     INTEGER,
+                    status           TEXT NOT NULL DEFAULT 'PENDING',
+                    created_at       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
+
+            // ── REVIEWS ─────────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS reviews (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id   INTEGER NOT NULL REFERENCES restaurant_branches(id) ON DELETE CASCADE,
+                    customer_id INTEGER REFERENCES customers(id),
+                    rating      INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+                    comment     TEXT,
+                    review_date TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+            `);
+
+            // ── SUPPLIERS ───────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS suppliers (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name         TEXT NOT NULL,
+                    contact_name TEXT,
+                    phone_number TEXT,
+                    email        TEXT
+                )
+            `);
+
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS restaurant_suppliers (
+                    branch_id   INTEGER NOT NULL REFERENCES restaurant_branches(id) ON DELETE CASCADE,
+                    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+                    PRIMARY KEY (branch_id, supplier_id)
+                )
+            `);
+
+            // ── SETTINGS ────────────────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS settings (
+                    key   TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            `);
+
+            // ── ORDER STATUS HISTORY ─────────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS order_status_history (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    order_id   INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                    old_status TEXT CHECK (old_status IN ('CREADA','PREPARANDO','LISTA','ENTREGADA','CANCELADA')),
+                    new_status TEXT NOT NULL CHECK (new_status IN ('CREADA','PREPARANDO','LISTA','ENTREGADA','CANCELADA')),
+                    changed_by INTEGER REFERENCES users(id),
+                    changed_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                    note       TEXT
+                )
+            `);
+
+            // Seed: default restaurant + branch + admin user
+            this._seedDefaults();
         });
     }
 
-    createDefaultUser() {
-        // Create default waiter
-        this.createUserIfNotExists('mesero1', 'password123', 'waiter');
-        // Create default cook
-        this.createUserIfNotExists('cocinero1', 'password123', 'cook');
-        // Create default admin
-        this.createUserIfNotExists('admin', 'admin123', 'admin');
+    _seedDefaults() {
+        // Ensure default restaurant exists
+        this.db.get('SELECT id FROM restaurants WHERE id = 1', (err, row) => {
+            if (!row) {
+                this.db.run(
+                    "INSERT INTO restaurants (id, name) VALUES (1, 'Mi Restaurante')",
+                    (err) => {
+                        if (err) { logger.error('Error seeding restaurant:', err); return; }
+
+                        this.db.run(
+                            "INSERT INTO restaurant_branches (id, restaurant_id, name) VALUES (1, 1, 'Sucursal Principal')",
+                            (err) => {
+                                if (err) logger.error('Error seeding branch:', err);
+                                else logger.info('Default restaurant & branch created');
+                                this._seedDefaultUsers();
+                            }
+                        );
+                    }
+                );
+            } else {
+                this._seedDefaultUsers();
+            }
+        });
     }
 
-    createUserIfNotExists(username, password, role) {
-        this.db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
+    _seedDefaultUsers() {
+        const defaults = [
+            { username: 'mesero1',   password: 'password123', role: 'waiter'  },
+            { username: 'cocinero1', password: 'password123', role: 'cook'    },
+            { username: 'admin',     password: 'admin123',    role: 'admin'   }
+        ];
+        defaults.forEach(u => this._createUserIfNotExists(u.username, u.password, u.role));
+    }
+
+    _createUserIfNotExists(username, password, role) {
+        this.db.get('SELECT id FROM users WHERE username = ?', [username], (err, row) => {
             if (!row) {
                 const hash = bcrypt.hashSync(password, 10);
                 this.db.run(
                     'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
                     [username, hash, role],
                     (err) => {
-                        if (err) {
-                            logger.error(`Error creating user ${username}:`, err);
-                        } else {
-                            logger.info(`Default user created: ${username} (${role})`);
-                        }
+                        if (err) logger.error(`Error creating user ${username}:`, err);
+                        else logger.info(`Default user created: ${username} (${role})`);
                     }
                 );
             }
         });
     }
 
-    // User methods
+    // ── USER METHODS ────────────────────────────────────────────────────────────
+
     getUserByUsername(username, callback) {
-        this.db.get('SELECT * FROM users WHERE username = ?', [username], callback);
+        this.db.get('SELECT * FROM users WHERE username = ? AND active = 1', [username], callback);
     }
 
     getUsers(callback) {
-        this.db.all('SELECT id, username, role FROM users', callback);
+        this.db.all('SELECT id, username, role, active, created_at FROM users', callback);
     }
 
     createUser(username, password, role, callback) {
@@ -179,62 +375,139 @@ class Database {
     }
 
     deleteUser(id, callback) {
-        this.db.run('DELETE FROM users WHERE id = ?', [id], callback);
+        this.db.run('UPDATE users SET active = 0 WHERE id = ?', [id], callback);
     }
 
     updateUserRole(id, role, callback) {
-        this.db.run('UPDATE users SET role = ? WHERE id = ?', [role, id], callback);
+        this.db.run('UPDATE users SET role = ?, updated_at = datetime(\'now\',\'localtime\') WHERE id = ?', [role, id], callback);
     }
 
-    // Customer methods
+    // ── CUSTOMER METHODS ─────────────────────────────────────────────────────────
+
+    /**
+     * Creates a customer and optionally saves their address.
+     * Calls back with (err, customerId).
+     */
     createCustomer(name, phone, address, callback) {
-        const now = getCurrentTimestamp();
+        const self = this;
         this.db.run(
-            'INSERT INTO customers (name, phone, address, created_at) VALUES (?, ?, ?, ?)',
-            [name, phone, address, now],
+            'INSERT INTO customers (name, phone) VALUES (?, ?)',
+            [name, phone || 'N/A'],
             function (err) {
-                callback(err, this ? this.lastID : null);
+                if (err) return callback(err);
+                const customerId = this.lastID;
+                if (!address || address.trim() === '') return callback(null, customerId);
+
+                // Save address linked to customer
+                self.db.run(
+                    'INSERT INTO addresses (line1) VALUES (?)',
+                    [address],
+                    function (err) {
+                        if (err) return callback(null, customerId); // non-fatal
+                        const addressId = this.lastID;
+                        self.db.run(
+                            'INSERT INTO customer_addresses (customer_id, address_id, is_default) VALUES (?, ?, 1)',
+                            [customerId, addressId],
+                            () => callback(null, customerId)
+                        );
+                    }
+                );
             }
         );
     }
 
     getCustomerById(id, callback) {
-        this.db.get('SELECT * FROM customers WHERE id = ?', [id], callback);
+        this.db.get(`
+            SELECT c.*, a.line1 as address
+            FROM customers c
+            LEFT JOIN customer_addresses ca ON ca.customer_id = c.id AND ca.is_default = 1
+            LEFT JOIN addresses a ON a.id = ca.address_id
+            WHERE c.id = ?
+        `, [id], callback);
     }
 
     getCustomerByPhone(phone, callback) {
-        this.db.get('SELECT * FROM customers WHERE phone = ?', [phone], callback);
+        this.db.get(`
+            SELECT c.*, a.line1 as address
+            FROM customers c
+            LEFT JOIN customer_addresses ca ON ca.customer_id = c.id AND ca.is_default = 1
+            LEFT JOIN addresses a ON a.id = ca.address_id
+            WHERE c.phone = ?
+        `, [phone], callback);
     }
 
     updateCustomer(id, name, phone, address, callback) {
         this.db.run(
-            'UPDATE customers SET name = ?, phone = ?, address = ? WHERE id = ?',
-            [name, phone, address, id],
-            callback
+            'UPDATE customers SET name = ?, phone = ? WHERE id = ?',
+            [name, phone, id],
+            (err) => {
+                if (err || !address) return callback(err);
+                // Upsert default address
+                this.db.get(
+                    'SELECT ca.address_id FROM customer_addresses ca WHERE ca.customer_id = ? AND ca.is_default = 1',
+                    [id],
+                    (err2, row) => {
+                        if (row) {
+                            this.db.run('UPDATE addresses SET line1 = ? WHERE id = ?', [address, row.address_id], callback);
+                        } else {
+                            const self = this;
+                            this.db.run('INSERT INTO addresses (line1) VALUES (?)', [address], function (err3) {
+                                if (err3) return callback(err3);
+                                const addressId = this.lastID;
+                                self.db.run(
+                                    'INSERT INTO customer_addresses (customer_id, address_id, is_default) VALUES (?, ?, 1)',
+                                    [id, addressId],
+                                    callback
+                                );
+                            });
+                        }
+                    }
+                );
+            }
         );
     }
 
-    // Order methods
-    createOrder(tableNumber, items, isDelivery = false, customerId = null, callback) {
-        const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const db = this.db; // Store reference to db
+    // ── ORDER METHODS ────────────────────────────────────────────────────────────
 
-        // Fallback for tableNumber if the DB has NOT NULL constraint (e.g. existing dbs)
-        // We use 0 for delivery or unassigned tables
-        const finalTableNumber = tableNumber || 0;
+    /**
+     * items: [{ menu_item_id, name, quantity, price }]
+     * type: 'DINE_IN' | 'DELIVERY' | 'PICKUP'
+     */
+    createOrder(tableNumber, items, type = ORDER_TYPE.DINE_IN, customerId = null, callback) {
+        const itemType = type || ORDER_TYPE.DINE_IN;
+        const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const total    = subtotal; // taxes / discounts applied separately in future
+        const now      = "datetime('now','localtime')";
 
-        const now = getCurrentTimestamp();
-        db.run(
-            'INSERT INTO orders (table_number, total, status, created_at, updated_at, is_delivery, customer_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [finalTableNumber, total, ORDER_STATUS.COOKING, now, now, isDelivery ? 1 : 0, customerId],
+        const DEFAULT_BRANCH_ID = 1;
+        const self = this;
+
+        this.db.run(
+            `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
+            [DEFAULT_BRANCH_ID, customerId, tableNumber || null, itemType, ORDER_STATUS.CREADA, subtotal, total],
             function (err) {
                 if (err) return callback(err);
 
                 const orderId = this.lastID;
-                const stmt = db.prepare('INSERT INTO order_items (order_id, item_name, quantity, price) VALUES (?, ?, ?, ?)');
+                const stmt = self.db.prepare(
+                    'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
+                );
 
                 items.forEach(item => {
-                    stmt.run(orderId, item.name, item.quantity, item.price);
+                    let menuItemId = item.id || item.menu_item_id;
+                    // Ensure it's a number and not a legacy string
+                    if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) {
+                        menuItemId = null;
+                    }
+                    
+                    const unitPrice  = item.price;
+                    const totalPrice = unitPrice * item.quantity;
+                    const note       = item.note || null;
+                    
+                    stmt.run(orderId, menuItemId, item.quantity, unitPrice, totalPrice, note, (err) => {
+                        if (err) logger.error(`Error inserting order item: ${err.message}`, { orderId, menuItemId });
+                    });
                 });
 
                 stmt.finalize((err) => {
@@ -245,444 +518,143 @@ class Database {
         );
     }
 
+    /**
+     * Shared SELECT that joins all relevant tables.
+     */
+    _orderSelect() {
+        return `
+            SELECT
+                o.*,
+                c.name    AS customer_name,
+                c.phone   AS customer_phone,
+                a.line1   AS customer_address,
+                GROUP_CONCAT(
+                    COALESCE(mi.name, 'item') || 
+                    CASE WHEN oi.note IS NOT NULL AND oi.note != '' THEN ' (' || oi.note || ')' ELSE '' END ||
+                    ' x' || oi.quantity ||
+                    ' [' || oi.unit_price || ']'
+                ) AS items
+            FROM orders o
+            LEFT JOIN customers c         ON c.id = o.customer_id
+            LEFT JOIN customer_addresses ca ON ca.customer_id = c.id AND ca.is_default = 1
+            LEFT JOIN addresses a         ON a.id = ca.address_id
+            LEFT JOIN order_items oi      ON oi.order_id = o.id
+            LEFT JOIN menu_items mi       ON mi.id = oi.menu_item_id
+        `;
+    }
 
     getOrders(callback) {
-        this.db.all(`
-      SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items,
-        c.name as customer_name,
-        c.phone as customer_phone,
-        c.address as customer_address
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      LEFT JOIN customers c ON o.customer_id = c.id
-      GROUP BY o.id
-      ORDER BY o.created_at DESC
-    `, callback);
+        this.db.all(
+            `${this._orderSelect()} GROUP BY o.id ORDER BY o.created_at DESC`,
+            callback
+        );
     }
 
     getActiveOrders(callback) {
-        this.db.all(`
-      SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items,
-        c.name as customer_name,
-        c.phone as customer_phone,
-        c.address as customer_address
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      LEFT JOIN customers c ON o.customer_id = c.id
-      WHERE o.status != '${ORDER_STATUS.COMPLETED}'
-      GROUP BY o.id
-      ORDER BY o.created_at DESC
-    `, callback);
-    }
-
-    updateOrderStatus(orderId, status, callback) {
-        const now = getCurrentTimestamp();
-        this.db.run(
-            'UPDATE orders SET status = ?, updated_at = ? WHERE id = ?',
-            [status, now, orderId],
+        this.db.all(
+            `${this._orderSelect()}
+             WHERE o.status != ?
+             GROUP BY o.id ORDER BY o.created_at DESC`,
+            [ORDER_STATUS.ENTREGADA],
             callback
         );
     }
 
     getOrderById(orderId, callback) {
-        this.db.get(`
-      SELECT o.*, 
-        GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items,
-        c.name as customer_name,
-        c.phone as customer_phone,
-        c.address as customer_address
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      LEFT JOIN customers c ON o.customer_id = c.id
-      WHERE o.id = ?
-      GROUP BY o.id
-    `, [orderId], callback);
-    }
-
-    // Menu Item Methods
-    getMenuItems(callback) {
-        this.db.all('SELECT * FROM menu_items', callback);
-    }
-
-    getAvailableMenuItems(callback) {
-        this.db.all('SELECT * FROM menu_items WHERE available = 1', callback);
-    }
-
-    createMenuItem(item, callback) {
-        const { name, description, price, image_url, category, available, promotion_type, promotion_value, promotion_active } = item;
-        this.db.run(
-            'INSERT INTO menu_items (name, description, price, image_url, category, available, promotion_type, promotion_value, promotion_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [name, description, price, image_url, category, available ? 1 : 0, promotion_type || null, promotion_value || null, promotion_active ? 1 : 0],
-            function (err) {
-                callback(err, this ? this.lastID : null);
-            }
-        );
-    }
-
-    updateMenuItem(id, item, callback) {
-        const { name, description, price, image_url, category, available, promotion_type, promotion_value, promotion_active } = item;
-        this.db.run(
-            'UPDATE menu_items SET name = ?, description = ?, price = ?, image_url = ?, category = ?, available = ?, promotion_type = ?, promotion_value = ?, promotion_active = ? WHERE id = ?',
-            [name, description, price, image_url, category, available ? 1 : 0, promotion_type || null, promotion_value || null, promotion_active ? 1 : 0, id],
+        this.db.get(
+            `${this._orderSelect()} WHERE o.id = ? GROUP BY o.id`,
+            [orderId],
             callback
         );
     }
 
-    deleteMenuItem(id, callback) {
-        this.db.run('DELETE FROM menu_items WHERE id = ?', [id], callback);
-    }
-
-    // Category Promotion Methods
-    getCategoryPromotions(callback) {
-        this.db.all('SELECT * FROM category_promotions ORDER BY created_at DESC', callback);
-    }
-
-    createCategoryPromotion(data, callback) {
-        const { category, promotion_type, promotion_value, active } = data;
-        this.db.run(
-            'INSERT INTO category_promotions (category, promotion_type, promotion_value, active) VALUES (?, ?, ?, ?)',
-            [category, promotion_type, promotion_value, active ? 1 : 0],
-            function (err) {
-                callback(err, this ? this.lastID : null);
-            }
-        );
-    }
-
-    updateCategoryPromotion(id, data, callback) {
-        const { category, promotion_type, promotion_value, active } = data;
-        this.db.run(
-            'UPDATE category_promotions SET category = ?, promotion_type = ?, promotion_value = ?, active = ? WHERE id = ?',
-            [category, promotion_type, promotion_value, active ? 1 : 0, id],
+    getOrdersByDate(date, callback) {
+        const start = `${date} 00:00:00`;
+        const end   = `${date} 23:59:59`;
+        this.db.all(
+            `${this._orderSelect()}
+             WHERE o.created_at BETWEEN ? AND ?
+             GROUP BY o.id ORDER BY o.created_at DESC`,
+            [start, end],
             callback
         );
     }
 
-    deleteCategoryPromotion(id, callback) {
-        this.db.run('DELETE FROM category_promotions WHERE id = ?', [id], callback);
-    }
+    updateOrderStatus(orderId, status, changedByUserId, callback) {
+        // Support legacy calls without changedByUserId
+        if (typeof changedByUserId === 'function') {
+            callback = changedByUserId;
+            changedByUserId = null;
+        }
 
-    // Get menu items with calculated promotional prices
-    getMenuItemsWithPromotions(callback) {
-        // First get all menu items
-        this.db.all('SELECT * FROM menu_items', (err, items) => {
+        this.db.get('SELECT status FROM orders WHERE id = ?', [orderId], (err, row) => {
             if (err) return callback(err);
+            const oldStatus = row ? row.status : null;
 
-            // Then get all active category promotions
-            this.db.all('SELECT * FROM category_promotions WHERE active = 1', (err, categoryPromos) => {
-                if (err) return callback(err);
-
-                // Calculate promotional prices for each item
-                const itemsWithPromos = items.map(item => {
-                    let finalPrice = item.price;
-                    let hasPromotion = false;
-                    let promotionType = null;
-                    let promotionValue = null;
-                    let discountAmount = 0;
-
-                    // Check item-level promotion first (takes precedence)
-                    if (item.promotion_active && item.promotion_type && item.promotion_value) {
-                        hasPromotion = true;
-                        promotionType = item.promotion_type;
-                        promotionValue = item.promotion_value;
-
-                        if (item.promotion_type === 'percentage') {
-                            discountAmount = item.price * (item.promotion_value / 100);
-                            finalPrice = item.price - discountAmount;
-                        } else if (item.promotion_type === 'fixed') {
-                            discountAmount = item.promotion_value;
-                            finalPrice = Math.max(0, item.price - item.promotion_value);
-                        }
-                    }
-                    // If no item-level promotion, check category-level promotion
-                    else if (item.category) {
-                        const categoryPromo = categoryPromos.find(cp => cp.category === item.category && cp.active);
-                        if (categoryPromo) {
-                            hasPromotion = true;
-                            promotionType = categoryPromo.promotion_type;
-                            promotionValue = categoryPromo.promotion_value;
-
-                            if (categoryPromo.promotion_type === 'percentage') {
-                                discountAmount = item.price * (categoryPromo.promotion_value / 100);
-                                finalPrice = item.price - discountAmount;
-                            } else if (categoryPromo.promotion_type === 'fixed') {
-                                discountAmount = categoryPromo.promotion_value;
-                                finalPrice = Math.max(0, item.price - categoryPromo.promotion_value);
-                            }
-                        }
-                    }
-
-                    return {
-                        ...item,
-                        original_price: item.price,
-                        final_price: parseFloat(finalPrice.toFixed(2)),
-                        has_promotion: hasPromotion,
-                        promotion_type: promotionType,
-                        promotion_value: promotionValue,
-                        discount_amount: parseFloat(discountAmount.toFixed(2))
-                    };
-                });
-
-                callback(null, itemsWithPromos);
-            });
-        });
-    }
-
-    // Settings Methods
-    getSettings(callback) {
-        this.db.all('SELECT * FROM settings', (err, rows) => {
-            if (err) return callback(err);
-            const settings = {};
-            rows.forEach(row => {
-                settings[row.key] = row.value;
-            });
-            callback(null, settings);
-        });
-    }
-
-    updateSetting(key, value, callback) {
-        this.db.run(
-            'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-            [key, value],
-            callback
-        );
-    }
-
-    updateOrderItems(orderId, items, total, callback) {
-        const db = this.db;
-
-        // Helper to get current items string before update
-        const getCurrentItems = (cb) => {
-            db.get(`
-                SELECT GROUP_CONCAT(item_name || ' x' || quantity || ' [' || price || ']') as items, is_updated 
-                FROM order_items 
-                JOIN orders ON orders.id = order_items.order_id 
-                WHERE order_id = ?
-            `, [orderId], (err, row) => {
-                if (err) return cb(err);
-                cb(null, row);
-            });
-        };
-
-        getCurrentItems((err, currentRow) => {
-            if (err) return callback(err);
-
-            db.serialize(() => {
-                db.run('BEGIN TRANSACTION');
-
-                // If not already updated, save the snapshot
-                if (currentRow && currentRow.is_updated === 0 && currentRow.items) {
-                    db.run('UPDATE orders SET original_items_snapshot = ? WHERE id = ?', [currentRow.items, orderId]);
-                }
-
-                // 1. Delete old items
-                db.run('DELETE FROM order_items WHERE order_id = ?', [orderId], (err) => {
-                    if (err) {
-                        db.run('ROLLBACK');
-                        return callback(err);
-                    }
-
-                    // 2. Insert new items
-                    const stmt = db.prepare('INSERT INTO order_items (order_id, item_name, quantity, price) VALUES (?, ?, ?, ?)');
-                    items.forEach(item => {
-                        stmt.run(orderId, item.name, item.quantity, item.price);
-                    });
-
-                    stmt.finalize((err) => {
-                        if (err) {
-                            db.run('ROLLBACK');
-                            return callback(err);
-                        }
-
-                        const now = getCurrentTimestamp();
-                        // 3. Update order total and flag
-                        db.run(
-                            'UPDATE orders SET total = ?, is_updated = 1, updated_at = ? WHERE id = ?',
-                            [total, now, orderId],
-                            (err) => {
-                                if (err) {
-                                    db.run('ROLLBACK');
-                                    return callback(err);
-                                }
-
-                                db.run('COMMIT');
-                                callback(null);
-                            }
-                        );
-                    });
-                });
-            });
-        });
-    }
-
-    getSalesReport(startDate, endDate, callback) {
-        // Period-based reporting: 6am to 6am
-        // For a given date like "2026-02-12", the period is from "2026-02-12 06:00:00" to "2026-02-13 05:59:59"
-
-        const calculatePeriodBounds = (date) => {
-            const periodStart = `${date} 06:00:00`;
-            // Add one day for period end
-            const d = new Date(date);
-            d.setDate(d.getDate() + 1);
-            const nextDay = d.toISOString().split('T')[0];
-            const periodEnd = `${nextDay} 05:59:59`;
-            return { periodStart, periodEnd };
-        };
-
-        // Calculate period boundaries
-        const startPeriod = calculatePeriodBounds(startDate || '1970-01-01');
-        const endPeriod = calculatePeriodBounds(endDate || new Date().toISOString().split('T')[0]);
-
-        const start = startPeriod.periodStart;
-        const end = endPeriod.periodEnd;
-
-        const report = {
-            summary: {},
-            dailySales: [],
-            topItems: []
-        };
-
-        // 1. Summary (Total, Count, Average) - Only 'COMPLETED' orders
-        const sqlSummary = `
-            SELECT 
-                COUNT(*) as total_orders, 
-                SUM(total) as total_revenue, 
-                AVG(total) as average_ticket 
-            FROM orders 
-            WHERE status = '${ORDER_STATUS.COMPLETED}' 
-            AND created_at BETWEEN ? AND ?
-        `;
-
-        this.db.get(sqlSummary, [start, end], (err, summaryRow) => {
-            if (err) return callback(err);
-            report.summary = summaryRow || { total_orders: 0, total_revenue: 0, average_ticket: 0 };
-
-            // 2. Daily Sales by Period (6am-6am)
-            // We need to group orders into periods manually since SQLite doesn't have easy period grouping
-            const sqlDaily = `
-                SELECT 
-                    created_at,
-                    total
-                FROM orders 
-                WHERE status = '${ORDER_STATUS.COMPLETED}' 
-                AND created_at BETWEEN ? AND ? 
-                ORDER BY created_at ASC
-            `;
-
-            this.db.all(sqlDaily, [start, end], (err, orderRows) => {
-                if (err) return callback(err);
-
-                // Group orders by period
-                const periodMap = {};
-                orderRows.forEach(order => {
-                    const orderDate = new Date(order.created_at);
-                    const hour = orderDate.getHours();
-
-                    // Determine which period this order belongs to
-                    let periodDate = new Date(orderDate);
-                    if (hour < 6) {
-                        // Before 6am, belongs to previous day's period
-                        periodDate.setDate(periodDate.getDate() - 1);
-                    }
-
-                    const periodKey = periodDate.toISOString().split('T')[0];
-
-                    if (!periodMap[periodKey]) {
-                        periodMap[periodKey] = {
-                            date: periodKey,
-                            orders_count: 0,
-                            daily_revenue: 0
-                        };
-                    }
-
-                    periodMap[periodKey].orders_count++;
-                    periodMap[periodKey].daily_revenue += order.total;
-                });
-
-                report.dailySales = Object.values(periodMap).sort((a, b) => a.date.localeCompare(b.date));
-
-                // 3. Top Items Grouped by Category
-                const sqlItems = `
-                    SELECT 
-                        COALESCE(m.category, 'Sin Categoría') as category,
-                        oi.item_name, 
-                        SUM(oi.quantity) as quantity_sold, 
-                        SUM(oi.price * oi.quantity) as item_revenue 
-                    FROM order_items oi
-                    JOIN orders o ON oi.order_id = o.id
-                    LEFT JOIN menu_items m ON TRIM(
-                        CASE 
-                            WHEN oi.item_name LIKE '% (%)' THEN 
-                                SUBSTR(oi.item_name, 1, INSTR(oi.item_name, ' (') - 1)
-                            ELSE oi.item_name
-                        END
-                    ) = TRIM(m.name) COLLATE NOCASE
-                    WHERE o.status = '${ORDER_STATUS.COMPLETED}' 
-                    AND o.created_at BETWEEN ? AND ?
-                    GROUP BY m.category, oi.item_name
-                    ORDER BY m.category ASC, quantity_sold DESC
-                `;
-
-                this.db.all(sqlItems, [start, end], (err, itemRows) => {
+            this.db.run(
+                `UPDATE orders SET status = ?, updated_at = datetime('now','localtime') WHERE id = ?`,
+                [status, orderId],
+                (err) => {
                     if (err) return callback(err);
 
-                    // Group items by category
-                    const categoryMap = {};
-                    itemRows.forEach(item => {
-                        const category = item.category;
-                        if (!categoryMap[category]) {
-                            categoryMap[category] = {
-                                category: category,
-                                items: []
-                            };
-                        }
-                        categoryMap[category].items.push({
-                            item_name: item.item_name,
-                            quantity_sold: item.quantity_sold,
-                            item_revenue: item.item_revenue
-                        });
+                    // Record history
+                    this.db.run(
+                        'INSERT INTO order_status_history (order_id, old_status, new_status, changed_by) VALUES (?, ?, ?, ?)',
+                        [orderId, oldStatus, status, changedByUserId],
+                        () => {} // non-fatal
+                    );
+
+                    callback(null);
+                }
+            );
+        });
+    }
+
+    /**
+     * Update the items of an existing order.
+     * items: [{ menu_item_id, name, quantity, price }]
+     */
+    updateOrderItems(orderId, items, total, callback) {
+        this.db.serialize(() => {
+            this.db.run('BEGIN TRANSACTION');
+
+            this.db.run('DELETE FROM order_items WHERE order_id = ?', [orderId], (err) => {
+                if (err) { this.db.run('ROLLBACK'); return callback(err); }
+
+                const stmt = this.db.prepare(
+                    'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
+                );
+                items.forEach(item => {
+                    let menuItemId = item.id || item.menu_item_id;
+                    if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) {
+                        menuItemId = null;
+                    }
+                    const unitPrice  = item.price;
+                    const totalPrice = unitPrice * item.quantity;
+                    const note       = item.note || null;
+                    stmt.run(orderId, menuItemId, item.quantity, unitPrice, totalPrice, note, (err) => {
+                        if (err) logger.error(`Error updating order item: ${err.message}`, { orderId, menuItemId });
                     });
+                });
 
-                    // Convert to array and sort categories by total revenue
-                    report.topItems = Object.values(categoryMap).map(cat => {
-                        const totalRevenue = cat.items.reduce((sum, item) => sum + item.item_revenue, 0);
-                        return { ...cat, totalRevenue };
-                    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+                stmt.finalize((err) => {
+                    if (err) { this.db.run('ROLLBACK'); return callback(err); }
 
-                    callback(null, report);
+                    const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+                    this.db.run(
+                        `UPDATE orders SET subtotal = ?, total = ?, updated_at = datetime('now','localtime') WHERE id = ?`,
+                        [subtotal, subtotal, orderId],
+                        (err) => {
+                            if (err) { this.db.run('ROLLBACK'); return callback(err); }
+                            this.db.run('COMMIT');
+                            callback(null);
+                        }
+                    );
                 });
             });
         });
     }
 
-
-    // Cleanup Methods
-    clearAllMenuItems(callback) {
-        this.db.run('DELETE FROM menu_items', callback);
-    }
-
-    // Get orders by specific date (YYYY-MM-DD)
-    getOrdersByDate(date, callback) {
-        const startOfDay = `${date} 00:00:00`;
-        const endOfDay = `${date} 23:59:59`;
-
-        this.db.all(`
-            SELECT o.*, 
-                GROUP_CONCAT(oi.item_name || ' x' || oi.quantity || ' [' || oi.price || ']') as items,
-                c.name as customer_name,
-                c.phone as customer_phone,
-                c.address as customer_address
-            FROM orders o
-            LEFT JOIN order_items oi ON o.id = oi.order_id
-            LEFT JOIN customers c ON o.customer_id = c.id
-            WHERE o.created_at BETWEEN ? AND ?
-            GROUP BY o.id
-            ORDER BY o.created_at DESC
-        `, [startOfDay, endOfDay], callback);
-    }
-
-    // Delete an order and its items
     deleteOrder(orderId, callback) {
         this.db.serialize(() => {
             this.db.run('DELETE FROM order_items WHERE order_id = ?', [orderId], (err) => {
@@ -699,10 +671,346 @@ class Database {
         });
     }
 
+    // ── MENU ITEM METHODS ────────────────────────────────────────────────────────
+
+    getMenuItems(callback) {
+        this.db.all(`
+            SELECT mi.*, mc.name AS category
+            FROM menu_items mi
+            LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+        `, callback);
+    }
+
+    getAvailableMenuItems(callback) {
+        this.db.all(`
+            SELECT mi.*, mc.name AS category
+            FROM menu_items mi
+            LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+            WHERE mi.available = 1
+        `, callback);
+    }
+
+    createMenuItem(item, callback) {
+        const { name, description, price, image_url, category_id, available } = item;
+        const DEFAULT_BRANCH_ID = 1;
+        this.db.run(
+            'INSERT INTO menu_items (branch_id, category_id, name, description, price, image_url, available) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [DEFAULT_BRANCH_ID, category_id || null, name, description || null, price, image_url || null, available ? 1 : 0],
+            function (err) { callback(err, this ? this.lastID : null); }
+        );
+    }
+
+    updateMenuItem(id, item, callback) {
+        const { name, description, price, image_url, category_id, available } = item;
+        this.db.run(
+            'UPDATE menu_items SET category_id = ?, name = ?, description = ?, price = ?, image_url = ?, available = ? WHERE id = ?',
+            [category_id || null, name, description || null, price, image_url || null, available ? 1 : 0, id],
+            callback
+        );
+    }
+
+    deleteMenuItem(id, callback) {
+        this.db.run('DELETE FROM menu_items WHERE id = ?', [id], callback);
+    }
+
+    clearAllMenuItems(callback) {
+        this.db.run('DELETE FROM menu_items', callback);
+    }
+
+    // ── MENU CATEGORIES ─────────────────────────────────────────────────────────
+
+    getMenuCategories(callback) {
+        this.db.all(
+            'SELECT * FROM menu_categories WHERE branch_id = 1 ORDER BY sort_order ASC, name ASC',
+            callback
+        );
+    }
+
+    createMenuCategory(data, callback) {
+        const { name, description, sort_order } = data;
+        this.db.run(
+            'INSERT INTO menu_categories (branch_id, name, description, sort_order) VALUES (1, ?, ?, ?)',
+            [name, description || null, sort_order || 0],
+            function (err) { callback(err, this ? this.lastID : null); }
+        );
+    }
+
+    updateMenuCategory(id, data, callback) {
+        const { name, description, sort_order } = data;
+        this.db.run(
+            'UPDATE menu_categories SET name = ?, description = ?, sort_order = ? WHERE id = ?',
+            [name, description || null, sort_order || 0, id],
+            callback
+        );
+    }
+
+    deleteMenuCategory(id, callback) {
+        this.db.run('DELETE FROM menu_categories WHERE id = ?', [id], callback);
+    }
+
+    // ── PROMOTIONS (item-level) ──────────────────────────────────────────────────
+
+    getItemPromotions(callback) {
+        this.db.all('SELECT * FROM item_promotions ORDER BY id DESC', callback);
+    }
+
+    createItemPromotion(data, callback) {
+        const { menu_item_id, type, value, active, valid_from, valid_to } = data;
+        this.db.run(
+            'INSERT INTO item_promotions (menu_item_id, type, value, active, valid_from, valid_to) VALUES (?, ?, ?, ?, ?, ?)',
+            [menu_item_id, type, value, active ? 1 : 0, valid_from || null, valid_to || null],
+            function (err) { callback(err, this ? this.lastID : null); }
+        );
+    }
+
+    updateItemPromotion(id, data, callback) {
+        const { menu_item_id, type, value, active, valid_from, valid_to } = data;
+        this.db.run(
+            'UPDATE item_promotions SET menu_item_id = ?, type = ?, value = ?, active = ?, valid_from = ?, valid_to = ? WHERE id = ?',
+            [menu_item_id, type, value, active ? 1 : 0, valid_from || null, valid_to || null, id],
+            callback
+        );
+    }
+
+    deleteItemPromotion(id, callback) {
+        this.db.run('DELETE FROM item_promotions WHERE id = ?', [id], callback);
+    }
+
+    // ── PROMOTIONS (category-level) ──────────────────────────────────────────────
+
+    getCategoryPromotions(callback) {
+        this.db.all(`
+            SELECT cp.*, mc.name AS category_name
+            FROM category_promotions cp
+            LEFT JOIN menu_categories mc ON mc.id = cp.category_id
+            ORDER BY cp.created_at DESC
+        `, callback);
+    }
+
+    createCategoryPromotion(data, callback) {
+        const { category_id, type, value, active, valid_from, valid_to } = data;
+        this.db.run(
+            'INSERT INTO category_promotions (category_id, type, value, active, valid_from, valid_to) VALUES (?, ?, ?, ?, ?, ?)',
+            [category_id, type, value, active ? 1 : 0, valid_from || null, valid_to || null],
+            function (err) { callback(err, this ? this.lastID : null); }
+        );
+    }
+
+    updateCategoryPromotion(id, data, callback) {
+        const { category_id, type, value, active, valid_from, valid_to } = data;
+        this.db.run(
+            'UPDATE category_promotions SET category_id = ?, type = ?, value = ?, active = ?, valid_from = ?, valid_to = ? WHERE id = ?',
+            [category_id, type, value, active ? 1 : 0, valid_from || null, valid_to || null, id],
+            callback
+        );
+    }
+
+    deleteCategoryPromotion(id, callback) {
+        this.db.run('DELETE FROM category_promotions WHERE id = ?', [id], callback);
+    }
+
+    /**
+     * Returns menu items with their effective promotional price calculated.
+     */
+    getMenuItemsWithPromotions(callback) {
+        const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+        this.db.all(`
+            SELECT mi.*, mc.name AS category,
+                   ip.type  AS item_promo_type,
+                   ip.value AS item_promo_value,
+                   ip.id    AS item_promo_id,
+                   cp.type  AS cat_promo_type,
+                   cp.value AS cat_promo_value,
+                   cp.id    AS cat_promo_id
+            FROM menu_items mi
+            LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+            LEFT JOIN item_promotions ip ON ip.menu_item_id = mi.id
+                AND ip.active = 1
+                AND (ip.valid_from IS NULL OR ip.valid_from <= ?)
+                AND (ip.valid_to   IS NULL OR ip.valid_to   >= ?)
+            LEFT JOIN category_promotions cp ON cp.category_id = mi.category_id
+                AND cp.active = 1
+                AND (cp.valid_from IS NULL OR cp.valid_from <= ?)
+                AND (cp.valid_to   IS NULL OR cp.valid_to   >= ?)
+        `, [now, now, now, now], (err, items) => {
+            if (err) return callback(err);
+
+            const result = items.map(item => {
+                let finalPrice = item.price;
+                let hasPromo   = false;
+                let promoType  = null;
+                let promoValue = null;
+                let discount   = 0;
+
+                const applyPromo = (type, value) => {
+                    hasPromo   = true;
+                    promoType  = type;
+                    promoValue = value;
+                    if (type === 'PERCENTAGE')   { discount = item.price * value / 100; }
+                    else if (type === 'FIXED_AMOUNT') { discount = value; }
+                    finalPrice = Math.max(0, item.price - discount);
+                };
+
+                if (item.item_promo_id) {
+                    applyPromo(item.item_promo_type, item.item_promo_value);
+                } else if (item.cat_promo_id) {
+                    applyPromo(item.cat_promo_type, item.cat_promo_value);
+                }
+
+                return {
+                    id:               item.id,
+                    branch_id:        item.branch_id,
+                    category_id:      item.category_id,
+                    category:         item.category,
+                    name:             item.name,
+                    description:      item.description,
+                    price:            item.price,
+                    image_url:        item.image_url,
+                    available:        item.available,
+                    created_at:       item.created_at,
+                    original_price:   item.price,
+                    final_price:      parseFloat(finalPrice.toFixed(2)),
+                    has_promotion:    hasPromo,
+                    promotion_type:   promoType,
+                    promotion_value:  promoValue,
+                    discount_amount:  parseFloat(discount.toFixed(2))
+                };
+            });
+
+            callback(null, result);
+        });
+    }
+
+    // ── PAYMENTS ────────────────────────────────────────────────────────────────
+
+    getPaymentsByOrder(orderId, callback) {
+        this.db.all('SELECT * FROM payments WHERE order_id = ?', [orderId], callback);
+    }
+
+    createPayment(data, callback) {
+        const { order_id, method, amount, status, transaction_reference } = data;
+        this.db.run(
+            'INSERT INTO payments (order_id, method, amount, status, transaction_reference) VALUES (?, ?, ?, ?, ?)',
+            [order_id, method, amount, status || PAYMENT_STATUS.PENDING, transaction_reference || null],
+            function (err) { callback(err, this ? this.lastID : null); }
+        );
+    }
+
+    // ── SETTINGS ────────────────────────────────────────────────────────────────
+
+    getSettings(callback) {
+        this.db.all('SELECT * FROM settings', (err, rows) => {
+            if (err) return callback(err);
+            const settings = {};
+            rows.forEach(row => { settings[row.key] = row.value; });
+            callback(null, settings);
+        });
+    }
+
+    updateSetting(key, value, callback) {
+        this.db.run(
+            'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+            [key, value],
+            callback
+        );
+    }
+
+    // ── REPORTS ──────────────────────────────────────────────────────────────────
+
+    getSalesReport(startDate, endDate, callback) {
+        const start = startDate ? `${startDate} 06:00:00` : '1970-01-01 00:00:00';
+
+        let endD = endDate ? new Date(endDate) : new Date();
+        endD.setDate(endD.getDate() + 1);
+        const endStr = endD.toISOString().split('T')[0];
+        const end = `${endStr} 05:59:59`;
+
+        const report = { summary: {}, dailySales: [], topItems: [] };
+
+        this.db.get(`
+            SELECT COUNT(*) AS total_orders,
+                   SUM(total) AS total_revenue,
+                   AVG(total) AS average_ticket
+            FROM orders
+            WHERE status = ? AND created_at BETWEEN ? AND ?
+        `, [ORDER_STATUS.ENTREGADA, start, end], (err, summaryRow) => {
+            if (err) return callback(err);
+            report.summary = summaryRow || { total_orders: 0, total_revenue: 0, average_ticket: 0 };
+
+            this.db.all(`
+                SELECT created_at, total
+                FROM orders
+                WHERE status = ? AND created_at BETWEEN ? AND ?
+                ORDER BY created_at ASC
+            `, [ORDER_STATUS.ENTREGADA, start, end], (err, orderRows) => {
+                if (err) return callback(err);
+
+                const periodMap = {};
+                orderRows.forEach(order => {
+                    const d    = new Date(order.created_at);
+                    const hour = d.getHours();
+                    const key  = (hour < 6)
+                        ? new Date(d.getTime() - 86400000).toISOString().split('T')[0]
+                        : d.toISOString().split('T')[0];
+
+                    if (!periodMap[key]) periodMap[key] = { date: key, orders_count: 0, daily_revenue: 0 };
+                    periodMap[key].orders_count++;
+                    periodMap[key].daily_revenue += order.total;
+                });
+                report.dailySales = Object.values(periodMap).sort((a, b) => a.date.localeCompare(b.date));
+
+                this.db.all(`
+                    SELECT
+                        COALESCE(mc.name, 'Sin Categoría') AS category,
+                        COALESCE(mi.name, 'Producto') AS item_name,
+                        SUM(oi.quantity)               AS quantity_sold,
+                        SUM(oi.total_price)            AS item_revenue
+                    FROM order_items oi
+                    JOIN orders o ON o.id = oi.order_id
+                    LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+                    LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+                    WHERE o.status = ? AND o.created_at BETWEEN ? AND ?
+                    GROUP BY mc.name, mi.name
+                    ORDER BY mc.name ASC, quantity_sold DESC
+                `, [ORDER_STATUS.ENTREGADA, start, end], (err, itemRows) => {
+                    if (err) return callback(err);
+
+                    const catMap = {};
+                    itemRows.forEach(item => {
+                        if (!catMap[item.category]) catMap[item.category] = { category: item.category, items: [] };
+                        catMap[item.category].items.push({
+                            item_name:     item.item_name,
+                            quantity_sold: item.quantity_sold,
+                            item_revenue:  item.item_revenue
+                        });
+                    });
+                    report.topItems = Object.values(catMap).map(cat => {
+                        const totalRevenue = cat.items.reduce((s, i) => s + i.item_revenue, 0);
+                        return { ...cat, totalRevenue };
+                    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+                    callback(null, report);
+                });
+            });
+        });
+    }
+
+    // ── ORDER STATUS HISTORY ─────────────────────────────────────────────────────
+
+    getOrderStatusHistory(orderId, callback) {
+        this.db.all(`
+            SELECT h.*, u.username AS changed_by_username
+            FROM order_status_history h
+            LEFT JOIN users u ON u.id = h.changed_by
+            WHERE h.order_id = ?
+            ORDER BY h.changed_at ASC
+        `, [orderId], callback);
+    }
+
     close() {
         this.db.close();
     }
 }
-
 
 module.exports = new Database();

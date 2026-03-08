@@ -5,172 +5,143 @@ const { ValidationError } = require('../../shared/errors/errorTypes');
 
 /**
  * Order Entity
- * Represents a restaurant order with business rules
+ * Represents a restaurant order with business rules.
+ * Aligned with the new schema: type (DINE_IN|DELIVERY|PICKUP),
+ * subtotal / discount_total / tax_total / total, branchId, customerId, waiterId.
  */
 class Order {
     constructor({
         id,
-        tableNumber,
+        branchId,
+        customerId  = null,
+        waiterId    = null,
+        tableNumber = null,
+        type        = 'DINE_IN',
         status,
-        items = [],
+        items       = [],
+        subtotal    = 0,
+        discountTotal = 0,
+        taxTotal    = 0,
+        notes       = null,
         createdAt,
-        updatedAt,
-        isUpdated = false,
-        originalItemsSnapshot = null
+        updatedAt
     }) {
-        this.validate(tableNumber, items);
+        this._validateItems(items);
 
-        this.id = id;
-        this.tableNumber = tableNumber;
-        this.status = status instanceof OrderStatus ? status : new OrderStatus(status);
-        this.items = items.map(item => item instanceof OrderItem ? item : new OrderItem(item));
-        this.createdAt = createdAt || new Date();
-        this.updatedAt = updatedAt || new Date();
-        this.isUpdated = isUpdated;
-        this.originalItemsSnapshot = originalItemsSnapshot;
+        this.id           = id;
+        this.branchId     = branchId;
+        this.customerId   = customerId;
+        this.waiterId     = waiterId;
+        this.tableNumber  = tableNumber;
+        this.type         = type;
+        this.status       = status instanceof OrderStatus ? status : new OrderStatus(status);
+        this.items        = items.map(item => item instanceof OrderItem ? item : new OrderItem(item));
+        this.discountTotal = discountTotal;
+        this.taxTotal     = taxTotal;
+        this.notes        = notes;
+        this.createdAt    = createdAt || new Date();
+        this.updatedAt    = updatedAt || new Date();
     }
 
-    validate(tableNumber, items) {
-        if (!Number.isInteger(tableNumber) || tableNumber <= 0) {
-            throw new ValidationError('Table number must be a positive integer');
-        }
+    _validateItems(items) {
         if (!Array.isArray(items) || items.length === 0) {
             throw new ValidationError('Order must have at least one item');
         }
     }
 
-    // Business Rules
+    // ── Totals ──────────────────────────────────────────────────────────────────
 
-    canBeEdited() {
-        return this.status.isCreated();
-    }
-
-    canBeMovedToKitchen() {
-        return this.status.isCreated() && this.items.length > 0;
-    }
-
-    canBeMarkedAsReady() {
-        return this.status.isInKitchen();
-    }
-
-    canBeServed() {
-        return this.status.isReadyToServe();
-    }
-
-    canBePaid() {
-        return this.status.isServed();
-    }
-
-    // Calculations
-
-    calculateTotal() {
+    get subtotal() {
         return this.items.reduce(
-            (total, item) => total.add(item.subtotal),
+            (acc, item) => acc.add(item.subtotal),
             new Money(0)
         );
     }
 
     get total() {
-        return this.calculateTotal();
+        const base = this.subtotal.amount - this.discountTotal + this.taxTotal;
+        return new Money(Math.max(0, base));
     }
 
-    // Actions
+    // ── Business Rules ──────────────────────────────────────────────────────────
+
+    canBeEdited()    { return this.status.isCreada(); }
+    canBePrepared()  { return this.status.isCreada(); }
+    canBeMarkedReady() { return this.status.isPreparando(); }
+    canBeDelivered() { return this.status.isLista(); }
+    canBeCancelled() { return this.status.isActive(); }
+
+    isDineIn()   { return this.type === 'DINE_IN';  }
+    isDelivery() { return this.type === 'DELIVERY'; }
+    isPickup()   { return this.type === 'PICKUP';   }
+
+    // ── Actions ─────────────────────────────────────────────────────────────────
 
     updateStatus(newStatus) {
         const newStatusObj = newStatus instanceof OrderStatus ? newStatus : new OrderStatus(newStatus);
-
         if (!this.status.canTransitionTo(newStatusObj.value)) {
             throw new ValidationError(
                 `Cannot transition from ${this.status.value} to ${newStatusObj.value}`
             );
         }
-
-        return new Order({
-            ...this.toJSON(),
-            status: newStatusObj,
-            updatedAt: new Date()
-        });
+        return new Order({ ...this._data(), status: newStatusObj, updatedAt: new Date() });
     }
 
     updateItems(newItems) {
         if (!this.canBeEdited()) {
-            throw new ValidationError('Cannot edit order that is not in Created status');
+            throw new ValidationError('Cannot edit an order that is not in CREADA status');
         }
-
-        // Save snapshot of original items if this is the first edit
-        const originalSnapshot = !this.isUpdated && !this.originalItemsSnapshot
-            ? this.items.map(item => item.toJSON())
-            : this.originalItemsSnapshot;
-
-        return new Order({
-            ...this.toJSON(),
-            items: newItems,
-            isUpdated: true,
-            originalItemsSnapshot: originalSnapshot,
-            updatedAt: new Date()
-        });
-    }
-
-    acknowledgeUpdate() {
-        return new Order({
-            ...this.toJSON(),
-            isUpdated: false,
-            originalItemsSnapshot: null,
-            updatedAt: new Date()
-        });
+        return new Order({ ...this._data(), items: newItems, updatedAt: new Date() });
     }
 
     addItem(item) {
         const newItem = item instanceof OrderItem ? item : new OrderItem(item);
-        return new Order({
-            ...this.toJSON(),
-            items: [...this.items, newItem],
-            updatedAt: new Date()
-        });
+        return new Order({ ...this._data(), items: [...this.items, newItem], updatedAt: new Date() });
     }
 
     removeItem(itemId) {
-        const filteredItems = this.items.filter(item => item.id !== itemId);
-        if (filteredItems.length === 0) {
-            throw new ValidationError('Order must have at least one item');
-        }
-        return new Order({
-            ...this.toJSON(),
-            items: filteredItems,
-            updatedAt: new Date()
-        });
+        const filtered = this.items.filter(i => i.id !== itemId);
+        if (filtered.length === 0) throw new ValidationError('Order must have at least one item');
+        return new Order({ ...this._data(), items: filtered, updatedAt: new Date() });
     }
 
-    // Serialization
+    // ── Serialization ───────────────────────────────────────────────────────────
 
-    toJSON() {
+    _data() {
         return {
-            id: this.id,
-            tableNumber: this.tableNumber,
-            status: this.status.value,
-            items: this.items.map(item => item.toJSON()),
-            total: this.total.amount,
-            createdAt: this.createdAt,
-            updatedAt: this.updatedAt,
-            isUpdated: this.isUpdated,
-            originalItemsSnapshot: this.originalItemsSnapshot
+            id:            this.id,
+            branchId:      this.branchId,
+            customerId:    this.customerId,
+            waiterId:      this.waiterId,
+            tableNumber:   this.tableNumber,
+            type:          this.type,
+            status:        this.status,
+            items:         this.items,
+            discountTotal: this.discountTotal,
+            taxTotal:      this.taxTotal,
+            notes:         this.notes,
+            createdAt:     this.createdAt,
+            updatedAt:     this.updatedAt
         };
     }
 
-    // For database compatibility (legacy format)
-    toLegacyFormat() {
+    toJSON() {
         return {
-            id: this.id,
-            table_number: this.tableNumber,
-            status: this.status.value,
-            total: this.total.amount,
-            items: this.items.map(item => `${item.itemName} x${item.quantity}`).join(', '),
-            created_at: this.createdAt,
-            updated_at: this.updatedAt,
-            is_updated: this.isUpdated ? 1 : 0,
-            original_items_snapshot: this.originalItemsSnapshot
-                ? JSON.stringify(this.originalItemsSnapshot)
-                : null
+            id:            this.id,
+            branchId:      this.branchId,
+            customerId:    this.customerId,
+            waiterId:      this.waiterId,
+            tableNumber:   this.tableNumber,
+            type:          this.type,
+            status:        this.status.value,
+            items:         this.items.map(i => i.toJSON()),
+            subtotal:      this.subtotal.amount,
+            discountTotal: this.discountTotal,
+            taxTotal:      this.taxTotal,
+            total:         this.total.amount,
+            notes:         this.notes,
+            createdAt:     this.createdAt,
+            updatedAt:     this.updatedAt
         };
     }
 }

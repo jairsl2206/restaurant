@@ -130,31 +130,23 @@
     transition: transform var(--transition-base);
 }
 
-.status-col-creado {
+.status-col-creada {
     border-top-color: #3498db;
 }
 
-.status-col-preparando-orden {
+.status-col-preparando {
     border-top-color: #f39c12;
 }
 
-.status-col-en-reparto {
-    border-top-color: #2ecc71;
-}
-
-.status-col-orden-lista {
+.status-col-lista {
     border-top-color: #e74c3c;
 }
 
-.status-col-orden-servida {
-    border-top-color: #2ecc71;
-}
-
-.status-col-finalizada {
+.status-col-entregada {
     border-top-color: #9b59b6;
 }
 
-.status-col-cancelado {
+.status-col-cancelada {
     border-top-color: #7f8c8d;
 }
 
@@ -210,27 +202,23 @@
 }
 
 /* ... mobile ... */
-.mobile-status-card.status-col-preparando-orden {
+.mobile-status-card.status-col-creada {
+    border-left-color: #3498db;
+}
+
+.mobile-status-card.status-col-preparando {
     border-left-color: #f39c12;
 }
 
-.mobile-status-card.status-col-en-reparto {
-    border-left-color: #2ecc71;
-}
-
-.mobile-status-card.status-col-orden-lista {
+.mobile-status-card.status-col-lista {
     border-left-color: #e74c3c;
 }
 
-.mobile-status-card.status-col-orden-servida {
-    border-left-color: #2ecc71;
-}
-
-.mobile-status-card.status-col-finalizada {
+.mobile-status-card.status-col-entregada {
     border-left-color: #9b59b6;
 }
 
-.mobile-status-card.status-col-cancelado {
+.mobile-status-card.status-col-cancelada {
     border-left-color: #7f8c8d;
 }
 

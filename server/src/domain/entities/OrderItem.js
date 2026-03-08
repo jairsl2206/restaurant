@@ -3,62 +3,69 @@ const { ValidationError } = require('../../shared/errors/errorTypes');
 
 /**
  * OrderItem Entity
- * Represents an item within an order
+ * Aligned with new schema: menu_item_id, unit_price, discount_amount, total_price.
  */
 class OrderItem {
-    constructor({ id, orderId, itemName, quantity, price }) {
-        this.validate(itemName, quantity, price);
+    constructor({ id, orderId, menuItemId = null, itemName, quantity, unitPrice, discountAmount = 0 }) {
+        this._validate(itemName, quantity, unitPrice);
 
-        this.id = id;
-        this.orderId = orderId;
-        this.itemName = itemName;
-        this.quantity = quantity;
-        this.price = price instanceof Money ? price : new Money(price);
+        this.id             = id;
+        this.orderId        = orderId;
+        this.menuItemId     = menuItemId;
+        this.itemName       = itemName;
+        this.quantity       = quantity;
+        this.unitPrice      = unitPrice instanceof Money ? unitPrice : new Money(unitPrice);
+        this.discountAmount = discountAmount;
     }
 
-    validate(itemName, quantity, price) {
+    _validate(itemName, quantity, unitPrice) {
         if (!itemName || typeof itemName !== 'string' || itemName.trim() === '') {
             throw new ValidationError('Item name is required');
         }
         if (!Number.isInteger(quantity) || quantity <= 0) {
             throw new ValidationError('Quantity must be a positive integer');
         }
-        if (typeof price !== 'number' && !(price instanceof Money)) {
-            throw new ValidationError('Price must be a number or Money object');
+        if (typeof unitPrice !== 'number' && !(unitPrice instanceof Money)) {
+            throw new ValidationError('Unit price must be a number or Money object');
         }
     }
 
-    get subtotal() {
-        return this.price.multiply(this.quantity);
+    /** Gross line total before discounts */
+    get grossTotal() {
+        return this.unitPrice.multiply(this.quantity);
     }
+
+    /** Net line total after discount */
+    get subtotal() {
+        return new Money(Math.max(0, this.grossTotal.amount - this.discountAmount));
+    }
+
+    /** Alias for compatibility */
+    get price() { return this.unitPrice; }
 
     updateQuantity(newQuantity) {
         if (!Number.isInteger(newQuantity) || newQuantity <= 0) {
             throw new ValidationError('Quantity must be a positive integer');
         }
-        return new OrderItem({
-            id: this.id,
-            orderId: this.orderId,
-            itemName: this.itemName,
-            quantity: newQuantity,
-            price: this.price
-        });
+        return new OrderItem({ ...this.toJSON(), quantity: newQuantity });
     }
 
     equals(other) {
         return other instanceof OrderItem &&
             this.itemName === other.itemName &&
-            this.price.equals(other.price);
+            this.unitPrice.equals(other.unitPrice);
     }
 
     toJSON() {
         return {
-            id: this.id,
-            orderId: this.orderId,
-            itemName: this.itemName,
-            quantity: this.quantity,
-            price: this.price.amount,
-            subtotal: this.subtotal.amount
+            id:             this.id,
+            orderId:        this.orderId,
+            menuItemId:     this.menuItemId,
+            itemName:       this.itemName,
+            quantity:       this.quantity,
+            unitPrice:      this.unitPrice.amount,
+            discountAmount: this.discountAmount,
+            subtotal:       this.subtotal.amount
         };
     }
 }

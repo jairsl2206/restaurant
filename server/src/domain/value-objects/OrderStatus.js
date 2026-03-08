@@ -2,78 +2,62 @@ const { ValidationError } = require('../../shared/errors/errorTypes');
 
 /**
  * OrderStatus Value Object
- * Represents the status of an order with validation
+ * Maps to the order_status ENUM: CREADA | PREPARANDO | LISTA | ENTREGADA | CANCELADA
  */
 class OrderStatus {
-    static CREATED = 'Creado';
-    static IN_KITCHEN = 'En Cocina';
-    static READY_TO_SERVE = 'Listo para Servir';
-    static SERVED = 'Servido';
-    static PAID = 'Pagado';
+    static CREADA     = 'CREADA';
+    static PREPARANDO = 'PREPARANDO';
+    static LISTA      = 'LISTA';
+    static ENTREGADA  = 'ENTREGADA';
+    static CANCELADA  = 'CANCELADA';
 
     static ALL_STATUSES = [
-        OrderStatus.CREATED,
-        OrderStatus.IN_KITCHEN,
-        OrderStatus.READY_TO_SERVE,
-        OrderStatus.SERVED,
-        OrderStatus.PAID
+        OrderStatus.CREADA,
+        OrderStatus.PREPARANDO,
+        OrderStatus.LISTA,
+        OrderStatus.ENTREGADA,
+        OrderStatus.CANCELADA
     ];
 
+    // Allowed transitions — kitchen flow
+    static TRANSITIONS = {
+        [OrderStatus.CREADA]:     [OrderStatus.PREPARANDO, OrderStatus.CANCELADA],
+        [OrderStatus.PREPARANDO]: [OrderStatus.LISTA,      OrderStatus.CANCELADA],
+        [OrderStatus.LISTA]:      [OrderStatus.ENTREGADA,  OrderStatus.CANCELADA],
+        [OrderStatus.ENTREGADA]:  [],
+        [OrderStatus.CANCELADA]:  []
+    };
+
     constructor(value) {
-        if (!this.isValid(value)) {
-            throw new ValidationError(`Invalid order status: ${value}`);
+        if (!OrderStatus.ALL_STATUSES.includes(value)) {
+            throw new ValidationError(`Invalid order status: "${value}". Valid: ${OrderStatus.ALL_STATUSES.join(', ')}`);
         }
         this._value = value;
         Object.freeze(this);
     }
 
-    get value() {
-        return this._value;
-    }
+    get value() { return this._value; }
 
-    isValid(value) {
-        return OrderStatus.ALL_STATUSES.includes(value);
-    }
+    isCreada()     { return this._value === OrderStatus.CREADA;     }
+    isPreparando() { return this._value === OrderStatus.PREPARANDO; }
+    isLista()      { return this._value === OrderStatus.LISTA;      }
+    isEntregada()  { return this._value === OrderStatus.ENTREGADA;  }
+    isCancelada()  { return this._value === OrderStatus.CANCELADA;  }
 
-    isCreated() {
-        return this._value === OrderStatus.CREATED;
-    }
-
-    isInKitchen() {
-        return this._value === OrderStatus.IN_KITCHEN;
-    }
-
-    isReadyToServe() {
-        return this._value === OrderStatus.READY_TO_SERVE;
-    }
-
-    isServed() {
-        return this._value === OrderStatus.SERVED;
-    }
-
-    isPaid() {
-        return this._value === OrderStatus.PAID;
+    /** Is the order still "open" (not delivered or cancelled)? */
+    isActive() {
+        return this._value !== OrderStatus.ENTREGADA && this._value !== OrderStatus.CANCELADA;
     }
 
     canTransitionTo(newStatus) {
-        const transitions = {
-            [OrderStatus.CREATED]: [OrderStatus.IN_KITCHEN],
-            [OrderStatus.IN_KITCHEN]: [OrderStatus.READY_TO_SERVE],
-            [OrderStatus.READY_TO_SERVE]: [OrderStatus.SERVED],
-            [OrderStatus.SERVED]: [OrderStatus.PAID],
-            [OrderStatus.PAID]: []
-        };
-
-        return transitions[this._value]?.includes(newStatus) || false;
+        return (OrderStatus.TRANSITIONS[this._value] || []).includes(newStatus);
     }
 
     equals(other) {
         return other instanceof OrderStatus && this._value === other._value;
     }
 
-    toString() {
-        return this._value;
-    }
+    toString() { return this._value; }
 }
 
 module.exports = OrderStatus;

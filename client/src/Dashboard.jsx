@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import OrderCard from './OrderCard';
-import { ORDER_STATUS } from './constants';
+import { ORDER_STATUS, ORDER_TYPE } from './constants';
 import NewOrderModal from './NewOrderModal';
 import NotificationCenter from './components/NotificationCenter';
 import { playNotificationSound } from './utils/sound';
@@ -10,21 +10,19 @@ import API_BASE_URL from './config';
 const API_URL = API_BASE_URL;
 
 const statusIcons = {
-    [ORDER_STATUS.COOKING]: '🍳',
-    [ORDER_STATUS.READY]: '🥡',
-    [ORDER_STATUS.SERVED]: '✅',
-    [ORDER_STATUS.DELIVERING]: '🚗',
-    [ORDER_STATUS.COMPLETED]: '💰',
-    [ORDER_STATUS.CANCELLED]: '❌'
+    [ORDER_STATUS.CREADA]:     '📋',
+    [ORDER_STATUS.PREPARANDO]: '🍳',
+    [ORDER_STATUS.LISTA]:      '🥡',
+    [ORDER_STATUS.ENTREGADA]:  '✅',
+    [ORDER_STATUS.CANCELADA]:  '❌'
 };
 
 const statusLabels = {
-    [ORDER_STATUS.COOKING]: 'En Cocina',
-    [ORDER_STATUS.READY]: 'Listo para Servir',
-    [ORDER_STATUS.SERVED]: 'Servido',
-    [ORDER_STATUS.DELIVERING]: 'En Reparto',
-    [ORDER_STATUS.COMPLETED]: 'Finalizada',
-    [ORDER_STATUS.CANCELLED]: 'Cancelado'
+    [ORDER_STATUS.CREADA]:     'Creadas',
+    [ORDER_STATUS.PREPARANDO]: 'En Cocina',
+    [ORDER_STATUS.LISTA]:      'Listas',
+    [ORDER_STATUS.ENTREGADA]:  'Entregadas',
+    [ORDER_STATUS.CANCELADA]:  'Canceladas'
 };
 
 function Dashboard({ user, onLogout, settings }) {
@@ -73,93 +71,66 @@ function Dashboard({ user, onLogout, settings }) {
             const response = await fetch(`${API_URL}${endpoint}`);
             const data = await response.json();
 
-            // Notification Logic for Waiters
+            // Waiter: LISTA = ready to serve/deliver/hand off
             if (user.role === 'waiter' && prevOrdersRef.current.length > 0) {
-                const readyStatuses = [ORDER_STATUS.READY, ORDER_STATUS.PICKUP_READY];
-                const newReadyOrders = data.filter(o => readyStatuses.includes(o.status));
-
-                // Check against prevOrders
-                const justReadyOrders = newReadyOrders.filter(newOrder => {
-                    const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
-                    return !oldOrder || !readyStatuses.includes(oldOrder.status);
+                const readyOrders = data.filter(o => o.status === ORDER_STATUS.LISTA);
+                const justReady   = readyOrders.filter(newOrder => {
+                    const old = prevOrdersRef.current.find(o => o.id === newOrder.id);
+                    return !old || old.status !== ORDER_STATUS.LISTA;
                 });
 
-                justReadyOrders.forEach(order => {
-                    let action = 'servir';
-                    if (order.is_delivery) action = 'entregar';
-                    else if (order.is_pickup) action = 'recoger';
+                justReady.forEach(order => {
+                    const isDelivery = order.type === ORDER_TYPE.DELIVERY || order.is_delivery;
+                    const isPickup   = order.type === ORDER_TYPE.PICKUP   || order.is_pickup;
+                    const action     = isDelivery ? 'entregar' : isPickup ? 'recoger' : 'servir';
+                    const loc        = isDelivery ? `Delivery - ${order.customer_name}` :
+                                      isPickup   ? `Pickup - ${order.customer_name}` :
+                                                   `Mesa ${order.table_number}`;
 
-                    const locationInfo = order.is_delivery ? `Delivery - ${order.customer_name}` :
-                        order.is_pickup ? `Pickup - ${order.customer_name}` :
-                            `Mesa ${order.table_number}`;
-
-                    addNotification(
-                        `¡Orden #${order.id} (${locationInfo}) lista para ${action}!`,
-                        'success',
-                        order.id
-                    );
+                    addNotification(`¡Orden #${order.id} (${loc}) lista para ${action}!`, 'success', order.id);
                 });
             }
 
-            // Notification for Cooks: Sent to Kitchen (COOKING)
+            // Cook: new PREPARANDO orders
             if (user.role === 'cook') {
-                const kitchenOrders = data.filter(o => o.status === ORDER_STATUS.COOKING);
-
-                // Find order that is NOW 'En Cocina' but wasn't before
-                const justArrived = kitchenOrders.find(newOrder => {
-                    const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
-
-                    // If not found in previous (unlikely if created first, but possible), notify
-                    if (!oldOrder) return true;
-
-                    // IF it existed before but was NOT 'COOKING' (e.g. was 'Creado'), notify
-                    return oldOrder.status !== ORDER_STATUS.COOKING;
+                const kitchenOrders = data.filter(o => o.status === ORDER_STATUS.PREPARANDO);
+                const justArrived   = kitchenOrders.find(newOrder => {
+                    const old = prevOrdersRef.current.find(o => o.id === newOrder.id);
+                    return !old || old.status !== ORDER_STATUS.PREPARANDO;
                 });
 
                 if (justArrived) {
-                    const locationInfo = justArrived.is_delivery ? `Delivery - ${justArrived.customer_name}` : `Mesa ${justArrived.table_number}`;
-                    addNotification(
-                        `🔔 ¡Nueva Orden en Cocina #${justArrived.id}! (${locationInfo})`,
-                        'info',
-                        justArrived.id
-                    );
+                    const isDelivery = justArrived.type === ORDER_TYPE.DELIVERY || justArrived.is_delivery;
+                    const loc = isDelivery ? `Delivery - ${justArrived.customer_name}` : `Mesa ${justArrived.table_number}`;
+                    addNotification(`🔔 ¡Nueva Orden en Cocina #${justArrived.id}! (${loc})`, 'info', justArrived.id);
                 }
             }
 
-            // Notification for Cooks: Order Cancelled
+            // Cook: CANCELADA orders
             if (user.role === 'cook' && prevOrdersRef.current.length > 0) {
-                const newCancelledOrders = data.filter(o => o.status === ORDER_STATUS.CANCELLED);
-                const justCancelled = newCancelledOrders.find(newOrder => {
-                    const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
-                    return !oldOrder || oldOrder.status !== ORDER_STATUS.CANCELLED;
+                const cancelled  = data.filter(o => o.status === ORDER_STATUS.CANCELADA);
+                const justCancelled = cancelled.find(newOrder => {
+                    const old = prevOrdersRef.current.find(o => o.id === newOrder.id);
+                    return !old || old.status !== ORDER_STATUS.CANCELADA;
                 });
-
                 if (justCancelled) {
-                    const locationInfo = justCancelled.is_delivery ? `Delivery - ${justCancelled.customer_name}` : `Mesa ${justCancelled.table_number}`;
-                    addNotification(
-                        `⚠️ ATENCIÓN: La Orden #${justCancelled.id} (${locationInfo}) ha sido CANCELADA.`,
-                        'error',
-                        justCancelled.id
-                    );
+                    const isDelivery = justCancelled.type === ORDER_TYPE.DELIVERY || justCancelled.is_delivery;
+                    const loc = isDelivery ? `Delivery - ${justCancelled.customer_name}` : `Mesa ${justCancelled.table_number}`;
+                    addNotification(`⚠️ ATENCIÓN: La Orden #${justCancelled.id} (${loc}) fue CANCELADA.`, 'error', justCancelled.id);
                 }
             }
 
-            // Cleanup obsolete notifications
             setNotifications(prev => prev.filter(n => {
                 if (!n.orderId) return true;
                 const currentOrder = data.find(o => o.id === n.orderId);
-                if (!currentOrder) return true; // Keep if order not found (safety)
+                if (!currentOrder) return true;
 
-                if (user.role === 'cook') {
-                    // For cooks, 'info' is "New Order in Kitchen". Remove if not 'En Cocina'.
-                    if (n.type === 'info' && currentOrder.status !== ORDER_STATUS.COOKING) return false;
+                if (user.role === 'cook' && n.type === 'info') {
+                    return currentOrder.status === ORDER_STATUS.PREPARANDO;
                 }
-
-                if (user.role === 'waiter') {
-                    // For waiters, 'success' is "Order Ready". Remove if not 'Listo para Servir'.
-                    if (n.type === 'success' && currentOrder.status !== ORDER_STATUS.READY) return false;
+                if (user.role === 'waiter' && n.type === 'success') {
+                    return currentOrder.status === ORDER_STATUS.LISTA;
                 }
-
                 return true;
             }));
 
@@ -253,40 +224,38 @@ function Dashboard({ user, onLogout, settings }) {
         if (!window.confirm('¿Estás seguro de que deseas CANCELAR esta orden? Esta acción no se puede deshacer.')) {
             return;
         }
-        await handleStatusChange(orderId, ORDER_STATUS.CANCELLED);
+        await handleStatusChange(orderId, ORDER_STATUS.CANCELADA);
     };
 
     const getColumns = () => {
         if (isCook) {
-            // Cook views FIFO queue - only orders in "En Cocina" status, plus recently cancelled for visibility
-            // We want to show "Cancelado" orders to the cook so they know to stop, but maybe they want to clear them?
-            // For now, listing them is good.
-            const cooking = orders.filter(o => o.status === ORDER_STATUS.COOKING);
-            // Sort by updated_at (oldest first - FIFO)
-            cooking.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-
+            // Cook sees PREPARANDO queue (FIFO) + CREADA so they know what's coming
+            const creadas    = orders.filter(o => o.status === ORDER_STATUS.CREADA);
+            const preparando = orders.filter(o => o.status === ORDER_STATUS.PREPARANDO);
+            creadas.sort((a, b)    => new Date(a.created_at) - new Date(b.created_at));
+            preparando.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
             return {
-                'Cola de Cocina': cooking
+                [ORDER_STATUS.CREADA]:     creadas,
+                [ORDER_STATUS.PREPARANDO]: preparando
             };
         }
 
-        // Waiter views everything grouped - all columns use FIFO
-        const enCocina = orders.filter(o => o.status === ORDER_STATUS.COOKING);
-        const listoParaServir = orders.filter(o => o.status === ORDER_STATUS.READY);
-        const servido = orders.filter(o => o.status === ORDER_STATUS.SERVED || o.status === ORDER_STATUS.DELIVERING);
-        const pagado = orders.filter(o => o.status === ORDER_STATUS.COMPLETED);
+        // Waiter/admin sees all 4 active columns
+        const creadas    = orders.filter(o => o.status === ORDER_STATUS.CREADA);
+        const preparando = orders.filter(o => o.status === ORDER_STATUS.PREPARANDO);
+        const listas     = orders.filter(o => o.status === ORDER_STATUS.LISTA);
+        const entregadas = orders.filter(o => o.status === ORDER_STATUS.ENTREGADA);
 
-        // Sort all by updated_at (oldest first - FIFO)
-        enCocina.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-        listoParaServir.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-        servido.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-        pagado.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        creadas.sort((a, b)    => new Date(a.updated_at) - new Date(b.updated_at));
+        preparando.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        listas.sort((a, b)     => new Date(a.updated_at) - new Date(b.updated_at));
+        entregadas.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
 
         return {
-            [ORDER_STATUS.COOKING]: enCocina,
-            [ORDER_STATUS.READY]: listoParaServir,
-            [ORDER_STATUS.SERVED]: servido,
-            [ORDER_STATUS.COMPLETED]: pagado,
+            [ORDER_STATUS.CREADA]:     creadas,
+            [ORDER_STATUS.PREPARANDO]: preparando,
+            [ORDER_STATUS.LISTA]:      listas,
+            [ORDER_STATUS.ENTREGADA]:  entregadas
         };
     };
 
@@ -411,7 +380,7 @@ function Dashboard({ user, onLogout, settings }) {
                                             >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                                                     <strong>Orden #{order.id}</strong>
-                                                    <span>{order.is_delivery ? `🚗 ${order.customer_name}` : `Mesa ${order.table_number}`}</span>
+                                                    <span>{(order.type === ORDER_TYPE.DELIVERY || order.is_delivery) ? `🚗 ${order.customer_name}` : `Mesa ${order.table_number}`}</span>
                                                 </div>
                                                 <div style={{ fontSize: '0.9rem', color: '#aaa' }}>
                                                     {order.items.substring(0, 30)}...
@@ -429,7 +398,7 @@ function Dashboard({ user, onLogout, settings }) {
                             <div className="mobile-view-level-1">
                                 {Object.entries(groupedOrders).map(([status, statusOrders]) => {
                                     // Highlight priorities
-                                    const isPriority = status === ORDER_STATUS.COOKING || status === ORDER_STATUS.READY;
+                                    const isPriority = status === ORDER_STATUS.PREPARANDO || status === ORDER_STATUS.LISTA;
                                     const count = statusOrders.length;
 
                                     return (
