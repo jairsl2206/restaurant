@@ -78,9 +78,10 @@ class OrderRepository extends IOrderRepository {
     async save(order) {
         const DEFAULT_BRANCH_ID = 1;
         const branchId = order.branchId || DEFAULT_BRANCH_ID;
+        const self = this;
 
         return new Promise((resolve, reject) => {
-            this.db.run(
+            self.db.run(
                 `INSERT INTO orders
                     (branch_id, customer_id, waiter_id, table_number, type, status,
                      subtotal, discount_total, tax_total, total, notes, created_at, updated_at)
@@ -100,12 +101,12 @@ class OrderRepository extends IOrderRepository {
                 ],
                 async function (err) {
                     if (err) return reject(new DatabaseError(`Failed to save order: ${err.message}`));
-                    const orderId = this.lastID;
+                    const orderId = this.lastID; // SQLite statement context
 
                     try {
                         // Insert items
                         await new Promise((res, rej) => {
-                            const stmt = this.db.prepare(
+                            const stmt = self.db.prepare(
                                 'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, discount_amount, total_price) VALUES (?, ?, ?, ?, ?, ?)'
                             );
                             order.items.forEach(item => {
@@ -121,12 +122,12 @@ class OrderRepository extends IOrderRepository {
                             stmt.finalize(err2 => err2 ? rej(err2) : res());
                         });
 
-                        const savedOrder = await this.findById(orderId);
+                        const savedOrder = await self.findById(orderId);
                         resolve(savedOrder);
                     } catch (e) {
                         reject(new DatabaseError(`Failed to save order items: ${e.message}`));
                     }
-                }.bind(this)
+                }
             );
         });
     }
@@ -252,22 +253,23 @@ class OrderRepository extends IOrderRepository {
     }
 
     async delete(id) {
+        const self = this;
         return new Promise((resolve, reject) => {
-            this.db.serialize(() => {
-                this.db.run('BEGIN TRANSACTION');
-                this.db.run('DELETE FROM order_items WHERE order_id = ?', [id], (err) => {
+            self.db.serialize(() => {
+                self.db.run('BEGIN TRANSACTION');
+                self.db.run('DELETE FROM order_items WHERE order_id = ?', [id], (err) => {
                     if (err) {
-                        this.db.run('ROLLBACK');
+                        self.db.run('ROLLBACK');
                         return reject(new DatabaseError(`Failed to delete items: ${err.message}`));
                     }
-                    this.db.run('DELETE FROM orders WHERE id = ?', [id], function (err) {
+                    self.db.run('DELETE FROM orders WHERE id = ?', [id], function (err) {
                         if (err) {
-                            this.db.run('ROLLBACK');
+                            self.db.run('ROLLBACK');
                             return reject(new DatabaseError(`Failed to delete order: ${err.message}`));
                         }
-                        this.db.run('COMMIT');
-                        resolve(this.changes > 0);
-                    }.bind(this));
+                        self.db.run('COMMIT');
+                        resolve(this.changes > 0); // SQLite statement context
+                    });
                 });
             });
         });

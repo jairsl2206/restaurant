@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import { authHeaders } from '../utils/api';
 import './SalesReport.css';
 import './SalesReportPeriod.css';
 
@@ -22,7 +23,7 @@ function SalesReport() {
     const fetchReport = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/reports/sales?startDate=${startDate}&endDate=${endDate}`);
+            const response = await fetch(`${API_BASE_URL}/reports/sales?startDate=${startDate}&endDate=${endDate}`, { headers: authHeaders() });
             if (response.ok) {
                 const data = await response.json();
                 setReport(data);

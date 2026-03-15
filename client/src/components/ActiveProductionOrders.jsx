@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import { authHeaders } from '../utils/api';
 import { ORDER_STATUS, ORDER_TYPE } from '../constants';
 import './ActiveProductionOrders.css';
 
@@ -33,7 +34,7 @@ function ActiveProductionOrders() {
 
     const fetchActiveOrders = async () => {
         try {
-            const response = await fetch(`${API_URL}/orders`);
+            const response = await fetch(`${API_URL}/orders`, { headers: authHeaders() });
             const data = await response.json();
             setOrders(data);
         } catch (err) {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import { authHeaders } from '../utils/api';
 
 const API_URL = API_BASE_URL + '/settings';
 
@@ -29,7 +30,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
     useEffect(() => {
         const checkStatus = async () => {
             try {
-                const res = await fetch(API_BASE_URL + '/whatsapp/status');
+                const res = await fetch(API_BASE_URL + '/whatsapp/status', { headers: authHeaders() });
                 const data = await res.json();
                 setWhatsappStatus(data);
             } catch (err) {
@@ -53,7 +54,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
         if (loadingGroups) return;
         setLoadingGroups(true);
         try {
-            const res = await fetch(API_BASE_URL + '/whatsapp/groups');
+            const res = await fetch(API_BASE_URL + '/whatsapp/groups', { headers: authHeaders() });
             const data = await res.json();
             setWhatsappGroups(data);
         } catch (err) {
@@ -69,7 +70,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
         try {
             const res = await fetch(API_BASE_URL + '/whatsapp/reset', {
                 method: 'POST',
-                headers: { 'x-role': 'admin' }
+                headers: authHeaders()
             });
             if (res.ok) {
                 alert('Reinicio iniciado. Por favor espera el nuevo código QR.');
@@ -82,12 +83,9 @@ function SettingsManager({ settings, onSettingsUpdate }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await fetch(API_URL, { // Note: Server route checks for whatsapp_number too
-                method: 'POST', // Changed to POST as per routes.js implementation
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-role': 'admin'
-                },
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({
                     ...formData,
                     whatsapp_number: whatsappNumber // Send whatsapp number too
@@ -117,6 +115,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
         try {
             const res = await fetch(API_BASE_URL + '/upload', {
                 method: 'POST',
+                headers: authHeaders(),
                 body: formDataUpload
             });
             const data = await res.json();
@@ -344,7 +343,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                                             try {
                                                 const res = await fetch(API_BASE_URL + '/menu/all', {
                                                     method: 'DELETE',
-                                                    headers: { 'x-role': 'admin' }
+                                                    headers: authHeaders()
                                                 });
                                                 if (res.ok) {
                                                     alert('Menú borrado exitosamente.');
@@ -373,7 +372,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                                             try {
                                                 const res = await fetch(API_BASE_URL + '/orders/all', {
                                                     method: 'DELETE',
-                                                    headers: { 'x-role': 'admin' }
+                                                    headers: authHeaders()
                                                 });
                                                 if (res.ok) {
                                                     alert('Historial de pedidos borrado exitosamente.');

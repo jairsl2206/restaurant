@@ -8,7 +8,11 @@ const { ORDER_STATUS, ORDER_TYPE, USER_ROLE, PAYMENT_METHOD } = require('./const
 const router = express.Router();
 
 // JWT Configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'restaurant-pos-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    logger.error('FATAL: JWT_SECRET environment variable is not set. Server cannot start securely.');
+    process.exit(1);
+}
 const JWT_EXPIRES_IN = '6h';
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -48,12 +52,25 @@ router.get('/verify-session', (req, res) => {
 
 // ── MIDDLEWARE ───────────────────────────────────────────────────────────────
 
-const isAdmin = (req, res, next) => {
-    const role = req.headers['x-role'];
-    if (role !== USER_ROLE.ADMIN && role !== USER_ROLE.MANAGER) {
-        return res.status(403).json({ error: 'Admin access required' });
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Authentication required' });
+    try {
+        req.user = jwt.verify(token, JWT_SECRET);
+        next();
+    } catch {
+        res.status(401).json({ error: 'Invalid or expired token' });
     }
-    next();
+};
+
+const isAdmin = (req, res, next) => {
+    verifyToken(req, res, () => {
+        if (req.user.role !== USER_ROLE.ADMIN && req.user.role !== USER_ROLE.MANAGER) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        next();
+    });
 };
 
 // ── WHATSAPP HELPER ──────────────────────────────────────────────────────────
@@ -70,7 +87,7 @@ const notifyWhatsApp = (req, message) => {
 // ── ORDERS ────────────────────────────────────────────────────────────────────
 
 // GET /api/orders — active orders
-router.get('/orders', (req, res) => {
+router.get('/orders', verifyToken, (req, res) => {
     db.getActiveOrders((err, orders) => {
         if (err) return res.status(500).json({ error: 'Database error' });
         res.json(_mapOrders(orders));
@@ -78,7 +95,7 @@ router.get('/orders', (req, res) => {
 });
 
 // GET /api/orders/all — all orders
-router.get('/orders/all', (req, res) => {
+router.get('/orders/all', verifyToken, (req, res) => {
     db.getOrders((err, orders) => {
         if (err) return res.status(500).json({ error: 'Database error' });
         res.json(_mapOrders(orders));
@@ -86,9 +103,12 @@ router.get('/orders/all', (req, res) => {
 });
 
 // GET /api/orders/by-date?date=YYYY-MM-DD
-router.get('/orders/by-date', (req, res) => {
+router.get('/orders/by-date', verifyToken, (req, res) => {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+    }
 
     db.getOrdersByDate(date, (err, orders) => {
         if (err) return res.status(500).json({ error: 'Database error' });
@@ -97,7 +117,7 @@ router.get('/orders/by-date', (req, res) => {
 });
 
 // GET /api/orders/:id
-router.get('/orders/:id', (req, res) => {
+router.get('/orders/:id', verifyToken, (req, res) => {
     db.getOrderById(req.params.id, (err, order) => {
         if (err)    return res.status(500).json({ error: 'Database error' });
         if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -106,7 +126,7 @@ router.get('/orders/:id', (req, res) => {
 });
 
 // POST /api/orders — create order
-router.post('/orders', (req, res) => {
+router.post('/orders', verifyToken, (req, res) => {
     const { tableNumber, items, type, customerData, notes } = req.body;
     const orderType = type || ORDER_TYPE.DINE_IN;
 
@@ -189,7 +209,7 @@ router.post('/orders', (req, res) => {
 });
 
 // PUT /api/orders/:id — update items
-router.put('/orders/:id', (req, res) => {
+router.put('/orders/:id', verifyToken, (req, res) => {
     const { id } = req.params;
     const { items } = req.body;
 
@@ -217,7 +237,7 @@ router.put('/orders/:id', (req, res) => {
 });
 
 // PUT /api/orders/:id/status
-router.put('/orders/:id/status', (req, res) => {
+router.put('/orders/:id/status', verifyToken, (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
@@ -246,19 +266,19 @@ router.put('/orders/:id/status', (req, res) => {
     });
 });
 
-// DELETE /api/orders/:id
-router.delete('/orders/:id', (req, res) => {
-    db.deleteOrder(req.params.id, (err) => {
-        if (err) return res.status(500).json({ error: 'Failed to delete order' });
-        res.json({ success: true, message: 'Order deleted successfully' });
-    });
-});
-
-// Delete all orders (admin)
+// DELETE /orders/all must be declared before DELETE /orders/:id to avoid shadowing
 router.delete('/orders/all', isAdmin, (req, res) => {
     db.clearAllOrders((err) => {
         if (err) return res.status(500).json({ error: 'Failed to clear orders' });
         res.json({ success: true, message: 'All orders cleared successfully' });
+    });
+});
+
+// DELETE /api/orders/:id
+router.delete('/orders/:id', verifyToken, (req, res) => {
+    db.deleteOrder(req.params.id, (err) => {
+        if (err) return res.status(500).json({ error: 'Failed to delete order' });
+        res.json({ success: true, message: 'Order deleted successfully' });
     });
 });
 
@@ -393,14 +413,14 @@ router.delete('/item-promotions/:id', isAdmin, (req, res) => {
 
 // ── PAYMENTS ──────────────────────────────────────────────────────────────────
 
-router.get('/orders/:id/payments', (req, res) => {
+router.get('/orders/:id/payments', verifyToken, (req, res) => {
     db.getPaymentsByOrder(req.params.id, (err, payments) => {
         if (err) return res.status(500).json({ error: 'Database error' });
         res.json(payments);
     });
 });
 
-router.post('/orders/:id/payments', (req, res) => {
+router.post('/orders/:id/payments', verifyToken, (req, res) => {
     const { method, amount, transaction_reference } = req.body;
     if (!method || !amount) return res.status(400).json({ error: 'method and amount required' });
     db.createPayment(
@@ -424,6 +444,7 @@ router.get('/users', isAdmin, (req, res) => {
 router.post('/users', isAdmin, (req, res) => {
     const { username, password, role } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
     const validRole = Object.values(USER_ROLE).includes(role) ? role : USER_ROLE.WAITER;
     db.createUser(username, password, validRole, (err) => {
@@ -460,24 +481,28 @@ router.get('/settings', (req, res) => {
     });
 });
 
-router.post('/settings', isAdmin, (req, res) => {
+router.post('/settings', isAdmin, async (req, res) => {
     const { restaurant_name, restaurant_logo, max_tables, whatsapp_number } = req.body;
     const updates = [];
-    if (restaurant_name)             updates.push(['restaurant_name', restaurant_name]);
-    if (restaurant_logo)             updates.push(['restaurant_logo', restaurant_logo]);
-    if (max_tables !== undefined)    updates.push(['max_tables', max_tables.toString()]);
+    if (restaurant_name)               updates.push(['restaurant_name', restaurant_name]);
+    if (restaurant_logo)               updates.push(['restaurant_logo', restaurant_logo]);
+    if (max_tables !== undefined)      updates.push(['max_tables', max_tables.toString()]);
     if (whatsapp_number !== undefined) updates.push(['whatsapp_number', whatsapp_number]);
 
-    updates.forEach(([k, v]) => db.updateSetting(k, v, (err) => {
-        if (err) logger.error(`Error updating setting ${k}:`, err);
-    }));
-
-    setTimeout(() => res.json({ success: true }), 100);
+    try {
+        await Promise.all(updates.map(([k, v]) => new Promise((resolve, reject) => {
+            db.updateSetting(k, v, (err) => err ? reject(err) : resolve());
+        })));
+        res.json({ success: true });
+    } catch (err) {
+        logger.error('Error updating settings:', err);
+        res.status(500).json({ error: 'Failed to update settings' });
+    }
 });
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────
 
-router.get('/reports/sales', (req, res) => {
+router.get('/reports/sales', verifyToken, (req, res) => {
     const { startDate, endDate } = req.query;
     db.getSalesReport(startDate, endDate, (err, report) => {
         if (err) {
@@ -490,7 +515,7 @@ router.get('/reports/sales', (req, res) => {
 
 // ── ORDER STATUS HISTORY ──────────────────────────────────────────────────────
 
-router.get('/orders/:id/history', (req, res) => {
+router.get('/orders/:id/history', verifyToken, (req, res) => {
     db.getOrderStatusHistory(req.params.id, (err, history) => {
         if (err) return res.status(500).json({ error: 'Database error' });
         res.json(history);
@@ -499,12 +524,12 @@ router.get('/orders/:id/history', (req, res) => {
 
 // ── WHATSAPP ────────────────────────────────────────────────────────────────
 
-router.get('/whatsapp/status', (req, res) => {
+router.get('/whatsapp/status', verifyToken, (req, res) => {
     if (!req.whatsapp) return res.json({ isReady: false });
     res.json(req.whatsapp.getStatus());
 });
 
-router.get('/whatsapp/groups', async (req, res) => {
+router.get('/whatsapp/groups', verifyToken, async (req, res) => {
     logger.info('GET /whatsapp/groups endpoint hit');
     if (!req.whatsapp) return res.json([]);
     const groups = await req.whatsapp.getGroups();

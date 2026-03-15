@@ -16,7 +16,7 @@ function errorHandler(err, req, res, next) {
     }
 
     // Handle unexpected errors
-    console.error('[Unexpected Error]', err.stack);
+    console.error('[Unexpected Error]', err && err.stack);
     res.status(500).json({
         error: 'Internal server error',
         status: 500
