@@ -195,31 +195,59 @@ router.post('/orders', (req, res) => {
 
     // Handle customer creation for delivery/pickup orders
     if ((isDelivery || isPickup) && customerData) {
-        const phone = customerData.phone ? customerData.phone.trim() : '';
+        const rawPhone = customerData.phone ? customerData.phone.trim() : '';
+        const name = customerData.name ? customerData.name.trim() : '';
+        const email = customerData.email ? customerData.email.trim() : null;
+        const address = customerData.address ? customerData.address.trim() : null;
 
-        // If phone is missing or is a common placeholder, create a new record every time 
-        // to avoid overwriting other people's data sharing the same placeholder.
-        const isPlaceholder = !phone || phone === '0' || phone === '00' || phone === '000';
+        // Returns true when the phone value carries no real information
+        const isPlaceholderPhone = (p) => !p || p === '0' || p === '00' || p === '000';
 
-        if (isPlaceholder) {
-            db.createCustomer(customerData.name, phone || 'N/A', customerData.address || '', (err, customerId) => {
-                if (err) return res.status(500).json({ error: 'Failed to create customer' });
-                createOrderWithCustomer(customerId);
-            });
-        } else {
-            // Check if customer exists by phone
-            db.getCustomerByPhone(phone, (err, existingCustomer) => {
-                if (err) return res.status(500).json({ error: 'Database error' });
+        const hasRealPhone = !isPlaceholderPhone(rawPhone);
+        const phone = hasRealPhone ? rawPhone : '';
+
+        if (!hasRealPhone && !name) {
+            // No usable identity — attach order without a customer record
+            createOrderWithCustomer(null);
+        } else if (!hasRealPhone) {
+            // Has name but no real phone — deduplicate by name among phoneless customers
+            db.findCustomerByNameOnly(name, (err, existingCustomer) => {
+                if (err) {
+                    console.error('Error looking up customer by name:', err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
 
                 if (existingCustomer) {
-                    // Update existing customer info
-                    db.updateCustomer(existingCustomer.id, customerData.name, phone, customerData.address || '', (err) => {
-                        if (err) logger.error('Error updating customer:', err);
+                    // Reuse and refresh the existing record
+                    db.updateCustomer(existingCustomer.id, name, '', email, address, (err) => {
+                        if (err) console.error('Error updating phoneless customer:', err);
                         createOrderWithCustomer(existingCustomer.id);
                     });
                 } else {
-                    // Create new customer
-                    db.createCustomer(customerData.name, phone, customerData.address || '', (err, customerId) => {
+                    // Create a new phoneless customer
+                    db.createCustomer(name, '', email, address, (err, customerId) => {
+                        if (err) return res.status(500).json({ error: 'Failed to create customer' });
+                        createOrderWithCustomer(customerId);
+                    });
+                }
+            });
+        } else {
+            // Real phone — look up by phone and upsert all fields (Item 4)
+            db.getCustomerByPhone(phone, (err, existingCustomer) => {
+                if (err) {
+                    console.error('Error looking up customer by phone:', err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
+
+                if (existingCustomer) {
+                    // Always overwrite name, email and address with the freshest data
+                    db.updateCustomer(existingCustomer.id, name, phone, email, address, (err) => {
+                        if (err) console.error('Error updating customer:', err);
+                        createOrderWithCustomer(existingCustomer.id);
+                    });
+                } else {
+                    // New customer
+                    db.createCustomer(name, phone, email, address, (err, customerId) => {
                         if (err) return res.status(500).json({ error: 'Failed to create customer' });
                         createOrderWithCustomer(customerId);
                     });
