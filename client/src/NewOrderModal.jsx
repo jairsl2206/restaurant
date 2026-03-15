@@ -218,13 +218,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
         e.preventDefault();
 
         // Validate based on mode
-        if (isDelivery || isPickup) {
-            const trimmedName = customerName.trim();
-            if (!trimmedName) {
-                alert('Por favor completa el nombre del cliente');
-                return;
-            }
-        } else {
+        if (!(isDelivery || isPickup)) {
             if (!tableNumber) {
                 alert('Por favor selecciona una mesa');
                 return;
@@ -334,7 +328,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                 <div className="customer-form" style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                                     <div className="form-group">
                                         <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
-                                            Nombre del Cliente *
+                                            Nombre del Cliente (Opcional)
                                         </label>
                                         <input
                                             type="text"
@@ -630,13 +624,13 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                         type="submit"
                                         className="btn btn-primary btn-block btn-lg"
                                         disabled={
-                                            (orderMode === 'table' ? !tableNumber : !customerName.trim()) ||
+                                            (orderMode === 'table' && !tableNumber) ||
                                             selectedItems.length === 0 ||
                                             !isAllConfirmed
                                         }
                                         style={{
                                             opacity: (
-                                                (orderMode === 'table' ? !tableNumber : !customerName.trim()) ||
+                                                (orderMode === 'table' && !tableNumber) ||
                                                 selectedItems.length === 0 ||
                                                 !isAllConfirmed
                                             ) ? 0.6 : 1

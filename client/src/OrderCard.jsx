@@ -613,7 +613,7 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                 </div>
 
                 <div className="order-meta">
-                    <div className="meta-item"><span className="meta-label">Total</span><span className="meta-value">${order.total.toFixed(2)}</span></div>
+                    <div className="meta-item"><span className="meta-label">Total</span><span className="meta-value">${(order.total + (order.additions_total || 0)).toFixed(2)}</span></div>
                     <div className="meta-item"><span className="meta-label">Hora</span><span className="meta-value">{formatDate(order.created_at)}</span></div>
                 </div>
             </div>
