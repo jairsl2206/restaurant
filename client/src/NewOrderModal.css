@@ -157,6 +157,10 @@
     box-shadow: 0 0 15px var(--primary-glow);
 }
 
+.delivery-toggle {
+    flex-wrap: wrap;
+}
+
 .delivery-toggle .table-btn {
     aspect-ratio: auto;
     min-height: 38px;
@@ -594,6 +598,29 @@
         width: 100%;
         border-radius: 0;
         border: none;
+    }
+
+    /* Ensure modal is full screen */
+    .new-order-modal {
+        border-radius: 0;
+        height: 100dvh;
+        max-height: 100dvh;
+    }
+
+    /* Better menu grid on small phones */
+    .menu-grid {
+        grid-template-columns: repeat(auto-fill, minmax(min(190px, 45%), 1fr));
+    }
+
+    /* Make checklist items bigger touch targets */
+    .checklist-item {
+        min-height: 44px;
+        padding: 0.75rem 0;
+    }
+
+    /* Table buttons bigger */
+    .table-btn {
+        min-height: 52px;
     }
 
     .modal-form {

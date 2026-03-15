@@ -113,6 +113,27 @@
     white-space: nowrap;
 }
 
+@media (max-width: 560px) {
+    .items-cell {
+        white-space: normal;
+        max-width: 100%;
+        font-size: 0.8rem;
+        color: var(--text-secondary, #bdc3c7);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .orders-table tbody tr {
+        cursor: pointer;
+    }
+
+    .orders-table tbody tr:active {
+        background: rgba(255, 255, 255, 0.1) !important;
+    }
+}
+
 .total-cell {
     font-weight: 600;
     color: var(--primary, #3498db);
@@ -161,53 +182,38 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+    .past-orders-container {
+        padding: 12px;
+    }
+
     .past-orders-header {
         flex-direction: column;
         align-items: flex-start;
-    }
-
-    .past-orders-container {
-        padding: 12px;
+        gap: 10px;
     }
 
     .past-orders-header h2 {
         font-size: 1.4rem;
     }
 
-    .orders-table-container {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+    .date-picker-container {
+        width: 100%;
+        justify-content: space-between;
     }
 
-    .orders-table {
-        min-width: 600px;
-    }
-}
-
-@media (max-width: 600px) {
-    /* Hide Items column (col 4) — it's truncated anyway */
-    .orders-table thead th:nth-child(4),
-    .orders-table tbody td:nth-child(4) {
-        display: none;
-    }
-
-    .orders-table {
-        min-width: 480px;
+    .date-picker-container input[type="date"] {
+        flex: 1;
     }
 }
 
-@media (max-width: 420px) {
-    /* Also hide Estado column (col 5 after items is hidden — was col 6) */
-    .orders-table thead th:nth-child(6),
-    .orders-table tbody td:nth-child(6) {
-        display: none;
-    }
-
-    .orders-table {
-        min-width: 360px;
-    }
-
+@media (max-width: 480px) {
     .past-orders-container {
         padding: 8px;
+    }
+
+    .orders-table-container {
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
     }
 }

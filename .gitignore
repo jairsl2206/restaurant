@@ -50,3 +50,5 @@ server/uploads/*
 .wwebjs_auth/
 .wwebjs_cache/
 
+#The Office
+the_office/

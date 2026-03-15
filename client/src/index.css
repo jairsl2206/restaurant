@@ -435,7 +435,7 @@ textarea:focus {
 }
 
 .grid-2 {
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
 }
 
 .grid-3 {
@@ -516,4 +516,8 @@ textarea:focus {
 
 .data-table tr:hover td {
   background: rgba(255, 255, 255, 0.02);
+}
+
+button, [role="button"], input[type="submit"], input[type="button"] {
+  -webkit-tap-highlight-color: transparent;
 }

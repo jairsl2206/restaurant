@@ -121,9 +121,9 @@ function UserManager() {
                             <tbody>
                                 {users.map(user => (
                                     <tr key={user.id}>
-                                        <td>#{user.id}</td>
-                                        <td><strong>{user.username}</strong></td>
-                                        <td>
+                                        <td className="td-id" data-label="ID">#{user.id}</td>
+                                        <td className="td-primary" data-label="Usuario"><strong>{user.username}</strong></td>
+                                        <td data-label="Rol">
                                             <select
                                                 value={user.role}
                                                 onChange={(e) => handleRoleChange(user.id, e.target.value)}
@@ -134,7 +134,7 @@ function UserManager() {
                                                 ))}
                                             </select>
                                         </td>
-                                        <td>
+                                        <td className="td-actions">
                                             <button className="action-btn delete-btn" onClick={() => setConfirmDeleteId(user.id)} aria-label={`Eliminar usuario ${user.username}`}>🗑️</button>
                                         </td>
                                     </tr>

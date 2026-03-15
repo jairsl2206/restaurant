@@ -410,10 +410,12 @@
     .mobile-sub-items {
         display: flex;
         gap: 0.4rem;
+        flex-wrap: wrap;
     }
 
     .mobile-sub-btn {
         flex: 1;
+        min-width: 60px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -583,7 +585,7 @@
     }
 
     .content-wrapper {
-        padding: 0.75rem;
+        padding: 0.5rem;
     }
 
     .data-table {
@@ -618,6 +620,103 @@
     .role-select {
         padding: 0.4rem;
         font-size: 0.8rem;
+    }
+}
+
+/* ── Mobile: data-table → card stack ── */
+@media (max-width: 560px) {
+    .data-table-wrapper {
+        overflow-x: visible;
+        margin: 0;
+        padding: 0;
+    }
+
+    .data-table {
+        min-width: 0 !important;
+        display: block;
+        width: 100%;
+    }
+
+    .data-table thead {
+        display: none;
+    }
+
+    .data-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .data-table tbody tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 0.35rem 0.75rem;
+        padding: 0.875rem;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        transition: background 0.2s;
+    }
+
+    .data-table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.07);
+    }
+
+    .data-table tbody td {
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        border: none !important;
+        white-space: normal;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .data-table tbody td[data-label]::before {
+        content: attr(data-label);
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted);
+        font-weight: 700;
+        margin-bottom: 0.2rem;
+    }
+
+    /* Actions column — always right-aligned, row span */
+    .data-table tbody td.td-actions {
+        flex-direction: row;
+        margin-left: auto;
+        align-self: center;
+        gap: 0.35rem;
+    }
+
+    .data-table tbody td.td-actions::before {
+        display: none;
+    }
+
+    /* Primary cell takes full width */
+    .data-table tbody td.td-primary {
+        width: 100%;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    /* Hide the #ID column on very small screens */
+    .data-table tbody td.td-id {
+        display: none;
+    }
+
+    .item-thumbnail {
+        width: 40px;
+        height: 40px;
+    }
+
+    .role-select {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.5rem;
     }
 }
 
