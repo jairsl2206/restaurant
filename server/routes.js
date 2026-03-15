@@ -247,19 +247,58 @@ router.put('/orders/:id', verifyToken, (req, res) => {
 
     const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
-    db.updateOrderItems(id, items, total, (err) => {
-        if (err) return res.status(500).json({ error: 'Failed to update order items' });
+    // Capture items before update to compute diff
+    db.getOrderById(id, (err, orderBefore) => {
+        if (err) return res.status(500).json({ error: 'Failed to retrieve order before update' });
 
-        db.getOrderById(id, (err, order) => {
-            if (err) return res.status(500).json({ error: 'Updated but failed to retrieve' });
+        // Parse itemsBefore from the order's current items string (format: "name x{qty} [{price}], ...")
+        const itemsBefore = [];
+        if (orderBefore && orderBefore.items) {
+            orderBefore.items.split(/,\s*(?![^(]*\))/).forEach(part => {
+                let content = part.trim();
+                const priceMatch = content.match(/(.+) \[(\d+\.?\d*)\]$/);
+                if (priceMatch) content = priceMatch[1].trim();
+                const qtyMatch = content.match(/(.+) x(\d+)$/);
+                const name = qtyMatch ? qtyMatch[1].trim() : content;
+                const qty  = qtyMatch ? parseInt(qtyMatch[2], 10) : 1;
+                itemsBefore.push({ name: name.toLowerCase(), qty });
+            });
+        }
 
-            const maxLen = 25;
-            const itemList = items.map(i =>
-                `- ${i.quantity}x ${i.name.length > maxLen ? i.name.substring(0, maxLen) + '...' : i.name}`
-            ).join('\n');
-            notifyWhatsApp(req, `📝 *ORDEN ACTUALIZADA #${id}*\n🪑 Mesa: ${order.table_number || 'N/A'}\n\n${itemList}\n\n💰 Nuevo Total: $${total.toFixed(2)}\n🕒 ${new Date().toLocaleTimeString()}`);
+        const beforeMap = {};
+        itemsBefore.forEach(i => { beforeMap[i.name] = (beforeMap[i.name] || 0) + i.qty; });
+        const afterMap = {};
+        items.forEach(i => { const k = i.name.trim().toLowerCase(); afterMap[k] = (afterMap[k] || 0) + i.quantity; });
 
-            res.json(_mapOrder(order));
+        const keptItems    = items.filter(i =>  beforeMap[i.name.trim().toLowerCase()] !== undefined).map(i => ({ ...i, diffStatus: 'kept' }));
+        const addedItems   = items.filter(i =>  beforeMap[i.name.trim().toLowerCase()] === undefined).map(i => ({ ...i, diffStatus: 'added' }));
+        const removedItems = Object.keys(beforeMap).filter(k => afterMap[k] === undefined).map(k => ({ name: k, quantity: beforeMap[k], diffStatus: 'removed' }));
+        const diff = [...keptItems, ...addedItems, ...removedItems];
+
+        db.updateOrderItems(id, items, total, (err) => {
+            if (err) return res.status(500).json({ error: 'Failed to update order items' });
+
+            db.getOrderById(id, (err, order) => {
+                if (err) return res.status(500).json({ error: 'Updated but failed to retrieve' });
+
+                const maxLen = 25;
+                const trunc = (n) => n.length > maxLen ? n.substring(0, maxLen) + '...' : n;
+                const locationInfo = order.type === 'DELIVERY'
+                    ? `🚗 Delivery: ${order.customer_name || 'N/A'}`
+                    : order.type === 'PICKUP'
+                        ? `🛍️ Pickup: ${order.customer_name || 'N/A'}`
+                        : `🪑 Mesa: ${order.table_number || 'N/A'}`;
+
+                const diffLines = [
+                    ...keptItems.map(i  => `  • ${trunc(i.name)} x${i.quantity}`),
+                    ...addedItems.map(i => `  ✅ ${trunc(i.name)} x${i.quantity} (AGREGADO)`),
+                    ...removedItems.map(i => `  ❌ ${trunc(i.name)} (CANCELADO)`),
+                ].join('\n');
+
+                notifyWhatsApp(req, `📝 *ORDEN ACTUALIZADA #${id}*\n${locationInfo}\n\n${diffLines}\n\n💰 Nuevo Total: $${total.toFixed(2)}\n🕒 ${new Date().toLocaleTimeString()}`);
+
+                res.json({ order: _mapOrder(order), diff });
+            });
         });
     });
 });
