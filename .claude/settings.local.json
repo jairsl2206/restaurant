@@ -9,6 +9,10 @@
       "Bash(git:*)",
       "Bash(for f:*)",
       "Bash(do echo:*)",
+<<<<<<< HEAD
+=======
+      "Read(//c/Users/Jair S/Documents/Proyectos/restaurant/.claude/worktrees/agent-ad5c367e/client/**)",
+>>>>>>> bd270796b062e4fccb7928e4a88d71215e3419e9
       "Bash(done)"
     ]
   }

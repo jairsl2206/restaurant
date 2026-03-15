@@ -144,12 +144,8 @@ router.post('/orders', (req, res) => {
         return res.status(400).json({ error: 'Items required' });
     }
 
-    // Validate delivery/pickup orders
-    if (isDelivery || isPickup) {
-        if (!customerData || !customerData.name) {
-            return res.status(400).json({ error: 'Customer name required for delivery/pickup orders' });
-        }
-    } else {
+    // Validate dine-in orders require a table number
+    if (!isDelivery && !isPickup) {
         if (!tableNumber) {
             return res.status(400).json({ error: 'Table number required for dine-in orders' });
         }
@@ -178,9 +174,14 @@ router.post('/orders', (req, res) => {
 
                 let deliveryInfo = '';
                 if (isDelivery) {
-                    deliveryInfo = `🚗 Delivery\n👤 ${customerData.name}\n📞 ${customerData.phone || 'N/A'}\n📍 ${customerData.address || 'N/A'}\n`;
+                    const cName = (customerData && customerData.name) || 'N/A';
+                    const cPhone = (customerData && customerData.phone) || 'N/A';
+                    const cAddress = (customerData && customerData.address) || 'N/A';
+                    deliveryInfo = `🚗 Delivery\n👤 ${cName}\n📞 ${cPhone}\n📍 ${cAddress}\n`;
                 } else if (isPickup) {
-                    deliveryInfo = `🛍️ Pickup\n👤 ${customerData.name}\n📞 ${customerData.phone || 'N/A'}\n`;
+                    const cName = (customerData && customerData.name) || 'N/A';
+                    const cPhone = (customerData && customerData.phone) || 'N/A';
+                    deliveryInfo = `🛍️ Pickup\n👤 ${cName}\n📞 ${cPhone}\n`;
                 } else {
                     deliveryInfo = `🪑 Mesa: ${tableNumber}\n`;
                 }
@@ -194,6 +195,7 @@ router.post('/orders', (req, res) => {
     };
 
     // Handle customer creation for delivery/pickup orders
+<<<<<<< HEAD
     if ((isDelivery || isPickup) && customerData) {
         const rawPhone = customerData.phone ? customerData.phone.trim() : '';
         const name = customerData.name ? customerData.name.trim() : '';
@@ -248,6 +250,38 @@ router.post('/orders', (req, res) => {
                 } else {
                     // New customer
                     db.createCustomer(name, phone, email, address, (err, customerId) => {
+=======
+    // If both name and phone are absent/empty, treat as anonymous order (no customer record)
+    const hasCustomerData = (isDelivery || isPickup) && customerData &&
+        (customerData.name || customerData.phone);
+
+    if (hasCustomerData) {
+        const phone = customerData.phone ? customerData.phone.trim() : '';
+
+        // If phone is missing or is a common placeholder, create a new record every time
+        // to avoid overwriting other people's data sharing the same placeholder.
+        const isPlaceholder = !phone || phone === '0' || phone === '00' || phone === '000';
+
+        if (isPlaceholder) {
+            db.createCustomer(customerData.name || '', phone || 'N/A', customerData.address || '', (err, customerId) => {
+                if (err) return res.status(500).json({ error: 'Failed to create customer' });
+                createOrderWithCustomer(customerId);
+            });
+        } else {
+            // Check if customer exists by phone
+            db.getCustomerByPhone(phone, (err, existingCustomer) => {
+                if (err) return res.status(500).json({ error: 'Database error' });
+
+                if (existingCustomer) {
+                    // Update existing customer info
+                    db.updateCustomer(existingCustomer.id, customerData.name || '', phone, customerData.address || '', (err) => {
+                        if (err) logger.error('Error updating customer:', err);
+                        createOrderWithCustomer(existingCustomer.id);
+                    });
+                } else {
+                    // Create new customer
+                    db.createCustomer(customerData.name || '', phone, customerData.address || '', (err, customerId) => {
+>>>>>>> bd270796b062e4fccb7928e4a88d71215e3419e9
                         if (err) return res.status(500).json({ error: 'Failed to create customer' });
                         createOrderWithCustomer(customerId);
                     });
@@ -255,7 +289,7 @@ router.post('/orders', (req, res) => {
             });
         }
     } else {
-        // Dine-in order, no customer
+        // Dine-in order, or delivery/pickup with no identifying data — no customer record
         createOrderWithCustomer(null);
     }
 });
@@ -269,22 +303,32 @@ router.put('/orders/:id', (req, res) => {
         return res.status(400).json({ error: 'Items required' });
     }
 
-    const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    db.getOrderById(id, (err, existingOrder) => {
+        if (err || !existingOrder) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
 
-    db.updateOrderItems(id, items, total, (err) => {
-        if (err) return res.status(500).json({ error: 'Failed to update order items' });
+        if (existingOrder.status === ORDER_STATUS.COMPLETED) {
+            return res.status(400).json({ error: 'No se puede editar un pedido finalizado' });
+        }
 
-        // Return updated order
-        db.getOrderById(id, (err, order) => {
-            if (err) return res.status(500).json({ error: 'Updated but failed to retrieve' });
+        const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-            // Notify WhatsApp of Update
-            const maxLen = 25;
-            const itemDetails = items.map(i => `- ${i.quantity}x ${i.name.length > maxLen ? i.name.substring(0, maxLen) + '...' : i.name}`).join('\n');
-            const msg = `📝 *ORDEN ACTUALIZADA #${id}*\n🪑 Mesa: ${order.table_number}\n\n${itemDetails}\n\n💰 Nuevo Total: $${total.toFixed(2)}\n🕒 ${new Date().toLocaleTimeString()}`;
-            notifyWhatsApp(req, msg);
+        db.updateOrderItems(id, items, total, (err) => {
+            if (err) return res.status(500).json({ error: 'Failed to update order items' });
 
-            res.json(order);
+            // Return updated order
+            db.getOrderById(id, (err, order) => {
+                if (err) return res.status(500).json({ error: 'Updated but failed to retrieve' });
+
+                // Notify WhatsApp of Update
+                const maxLen = 25;
+                const itemDetails = items.map(i => `- ${i.quantity}x ${i.name.length > maxLen ? i.name.substring(0, maxLen) + '...' : i.name}`).join('\n');
+                const msg = `📝 *ORDEN ACTUALIZADA #${id}*\n🪑 Mesa: ${order.table_number}\n\n${itemDetails}\n\n💰 Nuevo Total: $${total.toFixed(2)}\n🕒 ${new Date().toLocaleTimeString()}`;
+                notifyWhatsApp(req, msg);
+
+                res.json(order);
+            });
         });
     });
 });
