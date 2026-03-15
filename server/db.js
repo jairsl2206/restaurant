@@ -43,10 +43,14 @@ class Database {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
           phone TEXT NOT NULL,
+          email TEXT,
           address TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
+
+            // Migration: add email column to existing customers tables
+            this.db.run("ALTER TABLE customers ADD COLUMN email TEXT", (err) => { /* ignore if already exists */ });
 
             // Orders table
             this.db.run(`
@@ -187,11 +191,12 @@ class Database {
     }
 
     // Customer methods
-    createCustomer(name, phone, address, callback) {
+    createCustomer(name, phone, email, address, callback) {
         const now = getCurrentTimestamp();
+        // phone may be '' (empty string) when the customer has no real phone number
         this.db.run(
-            'INSERT INTO customers (name, phone, address, created_at) VALUES (?, ?, ?, ?)',
-            [name, phone, address, now],
+            'INSERT INTO customers (name, phone, email, address, created_at) VALUES (?, ?, ?, ?, ?)',
+            [name, phone || '', email || null, address || null, now],
             function (err) {
                 callback(err, this ? this.lastID : null);
             }
@@ -206,10 +211,22 @@ class Database {
         this.db.get('SELECT * FROM customers WHERE phone = ?', [phone], callback);
     }
 
-    updateCustomer(id, name, phone, address, callback) {
+    // Find a customer that has no real phone (phone = '') by exact name match.
+    // Used to deduplicate placeholder-phone customers.
+    findCustomerByNameOnly(name, callback) {
+        this.db.get(
+            "SELECT * FROM customers WHERE (phone = '' OR phone IS NULL) AND name = ? LIMIT 1",
+            [name],
+            callback
+        );
+    }
+
+    // Update all mutable customer fields. email is optional (null keeps existing value
+    // if not provided, but here we always pass whatever the caller has).
+    updateCustomer(id, name, phone, email, address, callback) {
         this.db.run(
-            'UPDATE customers SET name = ?, phone = ?, address = ? WHERE id = ?',
-            [name, phone, address, id],
+            'UPDATE customers SET name = ?, phone = ?, email = ?, address = ? WHERE id = ?',
+            [name, phone || '', email || null, address || null, id],
             callback
         );
     }
