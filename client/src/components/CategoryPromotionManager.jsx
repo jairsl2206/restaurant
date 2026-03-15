@@ -1,13 +1,8 @@
 import { useState, useEffect } from 'react';
 import './CategoryPromotionManager.css';
 import API_BASE_URL from '../config';
-import { authHeaders } from '../utils/api';
+import { apiGet, apiPost, apiPut, apiDelete } from '../utils/api';
 import { useToast } from './Toast';
-
-const CATEGORY_PROMOS_URL = API_BASE_URL + '/category-promotions';
-const ITEM_PROMOS_URL = API_BASE_URL + '/item-promotions';
-const MENU_API_URL = API_BASE_URL + '/menu';
-const CATEGORIES_API_URL = API_BASE_URL + '/categories';
 
 function CategoryPromotionManager() {
     const showToast = useToast();
@@ -26,6 +21,8 @@ function CategoryPromotionManager() {
         menu_item_id: '',
         type: 'PERCENTAGE',
         value: '',
+        buy_quantity: '',
+        pay_quantity: '',
         active: true
     });
 
@@ -40,17 +37,16 @@ function CategoryPromotionManager() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [catPromosRes, itemPromosRes, menuRes, catsRes] = await Promise.all([
-                fetch(CATEGORY_PROMOS_URL, { headers: authHeaders() }),
-                fetch(ITEM_PROMOS_URL, { headers: authHeaders() }),
-                fetch(MENU_API_URL),
-                fetch(CATEGORIES_API_URL)
+            const [catPromos, itemPromos, menuData, catsData] = await Promise.all([
+                apiGet(`${API_BASE_URL}/category-promotions`),
+                apiGet(`${API_BASE_URL}/item-promotions`),
+                apiGet(`${API_BASE_URL}/menu`, { auth: false }),
+                apiGet(`${API_BASE_URL}/categories`, { auth: false })
             ]);
-            
-            setCategoryPromotions(await catPromosRes.json());
-            setItemPromotions(await itemPromosRes.json());
-            setMenuItems(await menuRes.json());
-            setCategories(await catsRes.json());
+            setCategoryPromotions(catPromos);
+            setItemPromotions(itemPromos);
+            setMenuItems(menuData);
+            setCategories(catsData);
         } catch (err) {
             console.error('Error fetching data:', err);
         } finally {
@@ -62,28 +58,34 @@ function CategoryPromotionManager() {
         e.preventDefault();
 
         const isCategory = modalType === 'category';
-        const method = editingPromo ? 'PUT' : 'POST';
-        const baseUrl = isCategory ? CATEGORY_PROMOS_URL : ITEM_PROMOS_URL;
+        const baseUrl = `${API_BASE_URL}/${isCategory ? 'category-promotions' : 'item-promotions'}`;
         const url = editingPromo ? `${baseUrl}/${editingPromo.id}` : baseUrl;
+
+        const isBundle = formData.type === 'BUNDLE';
+        if (isBundle) {
+            const bq = parseInt(formData.buy_quantity, 10);
+            const pq = parseInt(formData.pay_quantity, 10);
+            if (!bq || !pq || isNaN(bq) || isNaN(pq) || pq <= 0 || bq <= pq) {
+                alert('Para Bundle: "Compra cuántos" debe ser mayor que "Paga cuántos" y ambos deben ser mayores que 0.');
+                return;
+            }
+        }
 
         const payload = {
             type: formData.type,
-            value: parseFloat(formData.value),
-            active: formData.active
+            value: isBundle ? null : parseFloat(formData.value),
+            active: formData.active,
+            buy_quantity: isBundle ? parseInt(formData.buy_quantity, 10) : null,
+            pay_quantity: isBundle ? parseInt(formData.pay_quantity, 10) : null,
+            ...(isCategory
+                ? { category_id: parseInt(formData.category_id) }
+                : { menu_item_id: parseInt(formData.menu_item_id) })
         };
 
-        if (isCategory) {
-            payload.category_id = parseInt(formData.category_id);
-        } else {
-            payload.menu_item_id = parseInt(formData.menu_item_id);
-        }
-
         try {
-            const res = await fetch(url, {
-                method,
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify(payload)
-            });
+            const res = editingPromo
+                ? await apiPut(url, payload, { json: false })
+                : await apiPost(url, payload, { json: false });
 
             if (res.ok) {
                 showToast('Promoción guardada correctamente', 'success');
@@ -98,13 +100,9 @@ function CategoryPromotionManager() {
     };
 
     const handleDeletePromo = async (id, isCategory) => {
-        const url = isCategory ? `${CATEGORY_PROMOS_URL}/${id}` : `${ITEM_PROMOS_URL}/${id}`;
-
+        const url = `${API_BASE_URL}/${isCategory ? 'category-promotions' : 'item-promotions'}/${id}`;
         try {
-            const res = await fetch(url, {
-                method: 'DELETE',
-                headers: authHeaders()
-            });
+            const res = await apiDelete(url, { json: false });
             if (res.ok) {
                 showToast('Promoción eliminada', 'success');
                 fetchData();
@@ -230,13 +228,20 @@ function CategoryPromotionManager() {
                                                 <div className="promo-card-body">
                                                     <div className="promo-discount">
                                                         <span className="discount-value">
-                                                            {promo.type === 'PERCENTAGE'
-                                                                ? `${promo.value}% OFF`
-                                                                : `$${promo.value} OFF`
+                                                            {promo.type === 'BUNDLE'
+                                                                ? `Compra ${promo.buy_quantity}, paga ${promo.pay_quantity}`
+                                                                : promo.type === 'PERCENTAGE'
+                                                                    ? `${promo.value}% OFF`
+                                                                    : `$${promo.value} OFF`
                                                             }
                                                         </span>
                                                         <span className="discount-type">
-                                                            {promo.type === 'PERCENTAGE' ? 'Descuento porcentual' : 'Descuento fijo'}
+                                                            {promo.type === 'BUNDLE'
+                                                                ? 'Bundle (el más barato va gratis)'
+                                                                : promo.type === 'PERCENTAGE'
+                                                                    ? 'Descuento porcentual'
+                                                                    : 'Descuento fijo'
+                                                            }
                                                         </span>
                                                     </div>
                                                     <div className="affected-items">
@@ -304,13 +309,20 @@ function CategoryPromotionManager() {
                                                 <div className="promo-card-body">
                                                     <div className="promo-discount">
                                                         <span className="discount-value">
-                                                            {promo.type === 'PERCENTAGE'
-                                                                ? `${promo.value}% OFF`
-                                                                : `$${promo.value} OFF`
+                                                            {promo.type === 'BUNDLE'
+                                                                ? `Compra ${promo.buy_quantity}, paga ${promo.pay_quantity}`
+                                                                : promo.type === 'PERCENTAGE'
+                                                                    ? `${promo.value}% OFF`
+                                                                    : `$${promo.value} OFF`
                                                             }
                                                         </span>
                                                         <span className="discount-type">
-                                                            {promo.type === 'PERCENTAGE' ? 'Descuento porcentual' : 'Descuento fijo'}
+                                                            {promo.type === 'BUNDLE'
+                                                                ? 'Bundle (el más barato va gratis)'
+                                                                : promo.type === 'PERCENTAGE'
+                                                                    ? 'Descuento porcentual'
+                                                                    : 'Descuento fijo'
+                                                            }
                                                         </span>
                                                     </div>
                                                     <div className="price-display">
@@ -420,24 +432,51 @@ function CategoryPromotionManager() {
                                     >
                                         <option value="PERCENTAGE">Porcentaje (%)</option>
                                         <option value="FIXED_AMOUNT">Monto Fijo ($)</option>
+                                        {modalType === 'category' && (
+                                            <option value="BUNDLE">Bundle (lleva N, paga M)</option>
+                                        )}
                                     </select>
                                 </div>
-                                <div className="form-group">
-                                    <label>
-                                        {formData.type === 'PERCENTAGE' ? 'Porcentaje (%)' : 'Descuento ($)'}
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        max={formData.type === 'PERCENTAGE' ? '100' : undefined}
-                                        value={formData.value}
-                                        onChange={e => setFormData({ ...formData, value: e.target.value })}
-                                        placeholder={formData.type === 'PERCENTAGE' ? '20' : '10'}
-                                        required
-                                    />
-                                </div>
+                                {formData.type !== 'BUNDLE' && (
+                                    <div className="form-group">
+                                        <label>
+                                            {formData.type === 'PERCENTAGE' ? 'Porcentaje (%)' : 'Descuento ($)'}
+                                        </label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max={formData.type === 'PERCENTAGE' ? '100' : undefined}
+                                            value={formData.value}
+                                            onChange={e => setFormData({ ...formData, value: e.target.value })}
+                                            placeholder={formData.type === 'PERCENTAGE' ? '20' : '10'}
+                                            required
+                                        />
+                                    </div>
+                                )}
                             </div>
+                            {formData.type === 'BUNDLE' && (
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Compra cuántos</label>
+                                        <input
+                                            type="number" min="2" step="1"
+                                            value={formData.buy_quantity}
+                                            onChange={e => setFormData({ ...formData, buy_quantity: e.target.value })}
+                                            placeholder="3" required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Paga cuántos</label>
+                                        <input
+                                            type="number" min="1" step="1"
+                                            value={formData.pay_quantity}
+                                            onChange={e => setFormData({ ...formData, pay_quantity: e.target.value })}
+                                            placeholder="2" required
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="form-group checkbox-group">
                                 <label>

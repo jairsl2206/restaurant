@@ -450,6 +450,14 @@ router.get('/category-promotions', isAdmin, (req, res) => {
 });
 
 router.post('/category-promotions', isAdmin, (req, res) => {
+    const { type, buy_quantity, pay_quantity } = req.body;
+    if (type === 'BUNDLE') {
+        const bq = parseInt(buy_quantity, 10);
+        const pq = parseInt(pay_quantity, 10);
+        if (!bq || !pq || isNaN(bq) || isNaN(pq) || pq <= 0 || bq <= pq) {
+            return res.status(400).json({ error: 'BUNDLE requiere buy_quantity > pay_quantity > 0' });
+        }
+    }
     db.createCategoryPromotion(req.body, (err, id) => {
         if (err) return res.status(500).json({ error: 'Database error' });
         res.status(201).json({ id, message: 'Category promotion created successfully' });
@@ -457,6 +465,14 @@ router.post('/category-promotions', isAdmin, (req, res) => {
 });
 
 router.put('/category-promotions/:id', isAdmin, (req, res) => {
+    const { type, buy_quantity, pay_quantity } = req.body;
+    if (type === 'BUNDLE') {
+        const bq = parseInt(buy_quantity, 10);
+        const pq = parseInt(pay_quantity, 10);
+        if (!bq || !pq || isNaN(bq) || isNaN(pq) || pq <= 0 || bq <= pq) {
+            return res.status(400).json({ error: 'BUNDLE requiere buy_quantity > pay_quantity > 0' });
+        }
+    }
     db.updateCategoryPromotion(req.params.id, req.body, (err) => {
         if (err) return res.status(500).json({ error: 'Database error' });
         res.json({ message: 'Category promotion updated successfully' });

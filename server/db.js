@@ -156,16 +156,22 @@ class Database {
             // ── CATEGORY PROMOTIONS ─────────────────────────────────────────────
             this.db.run(`
                 CREATE TABLE IF NOT EXISTS category_promotions (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    category_id INTEGER NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
-                    type        TEXT NOT NULL CHECK (type IN ('PERCENTAGE','FIXED_AMOUNT')),
-                    value       REAL NOT NULL,
-                    active      INTEGER NOT NULL DEFAULT 1,
-                    valid_from  TEXT,
-                    valid_to    TEXT,
-                    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category_id  INTEGER NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
+                    type         TEXT NOT NULL CHECK (type IN ('PERCENTAGE','FIXED_AMOUNT','BUNDLE')),
+                    value        REAL,
+                    active       INTEGER NOT NULL DEFAULT 1,
+                    valid_from   TEXT,
+                    valid_to     TEXT,
+                    created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                    buy_quantity INTEGER,
+                    pay_quantity INTEGER
                 )
             `);
+
+            // Migrations: add BUNDLE columns to existing category_promotions tables (idempotent)
+            this.db.run("ALTER TABLE category_promotions ADD COLUMN buy_quantity INTEGER", () => {});
+            this.db.run("ALTER TABLE category_promotions ADD COLUMN pay_quantity INTEGER", () => {});
 
             // ── ORDERS ──────────────────────────────────────────────────────────
             this.db.run(`
@@ -882,19 +888,19 @@ class Database {
     }
 
     createCategoryPromotion(data, callback) {
-        const { category_id, type, value, active, valid_from, valid_to } = data;
+        const { category_id, type, value, active, valid_from, valid_to, buy_quantity, pay_quantity } = data;
         this.db.run(
-            'INSERT INTO category_promotions (category_id, type, value, active, valid_from, valid_to) VALUES (?, ?, ?, ?, ?, ?)',
-            [category_id, type, value, active ? 1 : 0, valid_from || null, valid_to || null],
+            'INSERT INTO category_promotions (category_id, type, value, active, valid_from, valid_to, buy_quantity, pay_quantity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [category_id, type, value || null, active ? 1 : 0, valid_from || null, valid_to || null, buy_quantity || null, pay_quantity || null],
             function (err) { callback(err, this ? this.lastID : null); }
         );
     }
 
     updateCategoryPromotion(id, data, callback) {
-        const { category_id, type, value, active, valid_from, valid_to } = data;
+        const { category_id, type, value, active, valid_from, valid_to, buy_quantity, pay_quantity } = data;
         this.db.run(
-            'UPDATE category_promotions SET category_id = ?, type = ?, value = ?, active = ?, valid_from = ?, valid_to = ? WHERE id = ?',
-            [category_id, type, value, active ? 1 : 0, valid_from || null, valid_to || null, id],
+            'UPDATE category_promotions SET category_id = ?, type = ?, value = ?, active = ?, valid_from = ?, valid_to = ?, buy_quantity = ?, pay_quantity = ? WHERE id = ?',
+            [category_id, type, value || null, active ? 1 : 0, valid_from || null, valid_to || null, buy_quantity || null, pay_quantity || null, id],
             callback
         );
     }
@@ -1246,4 +1252,51 @@ class Database {
     }
 }
 
-module.exports = new Database();
+/**
+ * Applies BUNDLE promotions to a list of order items.
+ * For each active BUNDLE promotion on a category, groups items from that category,
+ * calculates free units (Math.floor(total_qty / buy_quantity) * freePerGroup),
+ * and discounts the cheapest units first.
+ *
+ * @param {Array} items - Array of { category_id, quantity, unit_price, ... }
+ * @param {Array} categoryPromotions - Active BUNDLE promos with { category_id, type, buy_quantity, pay_quantity }
+ * @returns {Array} Items with updated discount_amount and total_price
+ */
+function applyBundleDiscount(items, categoryPromotions) {
+    const result = items.map(i => ({ ...i }));
+
+    for (const promo of categoryPromotions) {
+        if (promo.type !== 'BUNDLE') continue;
+        const { category_id, buy_quantity, pay_quantity } = promo;
+        const freePerGroup = buy_quantity - pay_quantity;
+
+        // Expand items of this category into individual units
+        const units = [];
+        for (const item of result) {
+            if (item.category_id !== category_id) continue;
+            for (let u = 0; u < item.quantity; u++) {
+                units.push({ ref: item, unit_price: item.unit_price });
+            }
+        }
+
+        // Cheapest first — those are the ones that go free
+        units.sort((a, b) => a.unit_price - b.unit_price);
+
+        const freeUnits = Math.floor(units.length / buy_quantity) * freePerGroup;
+        for (let i = 0; i < freeUnits && i < units.length; i++) {
+            units[i].ref.discount_amount = (units[i].ref.discount_amount || 0) + units[i].unit_price;
+        }
+    }
+
+    // Recalculate total_price for all affected items
+    for (const item of result) {
+        item.total_price = Math.max(0, item.unit_price * item.quantity - (item.discount_amount || 0));
+    }
+
+    return result;
+}
+
+const dbInstance = new Database();
+dbInstance.applyBundleDiscount = applyBundleDiscount;
+
+module.exports = dbInstance;
