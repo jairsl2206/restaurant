@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
-import { authHeaders } from '../utils/api';
+import { apiGet, apiPost, apiPut, apiDelete } from '../utils/api';
 import { useToast } from './Toast';
-
-const CATEGORIES_URL = API_BASE_URL + '/categories';
-const MENU_URL = API_BASE_URL + '/menu';
 
 function CategoryManager() {
     const showToast = useToast();
@@ -23,12 +20,12 @@ function CategoryManager() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [catsRes, menuRes] = await Promise.all([
-                fetch(CATEGORIES_URL),
-                fetch(MENU_URL)
+            const [catsData, menuData] = await Promise.all([
+                apiGet(`${API_BASE_URL}/categories`, { auth: false }),
+                apiGet(`${API_BASE_URL}/menu`, { auth: false })
             ]);
-            setCategories(await catsRes.json());
-            setMenuItems(await menuRes.json());
+            setCategories(catsData);
+            setMenuItems(menuData);
         } catch (err) {
             console.error('Error fetching data:', err);
         } finally {
@@ -45,12 +42,7 @@ function CategoryManager() {
         if (!newCategoryInput.trim()) return;
 
         try {
-            const res = await fetch(CATEGORIES_URL, {
-                method: 'POST',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({ name: newCategoryInput.trim() })
-            });
-
+            const res = await apiPost(`${API_BASE_URL}/categories`, { name: newCategoryInput.trim() }, { json: false });
             if (res.ok) {
                 setNewCategoryInput('');
                 fetchData();
@@ -66,12 +58,7 @@ function CategoryManager() {
         if (!newCategoryName.trim() || !editingCategory) return;
 
         try {
-            const res = await fetch(`${CATEGORIES_URL}/${editingCategory.id}`, {
-                method: 'PUT',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({ name: newCategoryName.trim() })
-            });
-
+            const res = await apiPut(`${API_BASE_URL}/categories/${editingCategory.id}`, { name: newCategoryName.trim() }, { json: false });
             if (res.ok) {
                 setEditingCategory(null);
                 showToast('Categoría actualizada', 'success');
@@ -87,11 +74,7 @@ function CategoryManager() {
     const handleDeleteCategory = async (categoryId) => {
         setConfirmDeleteId(null);
         try {
-            const res = await fetch(`${CATEGORIES_URL}/${categoryId}`, {
-                method: 'DELETE',
-                headers: authHeaders()
-            });
-
+            const res = await apiDelete(`${API_BASE_URL}/categories/${categoryId}`, { json: false });
             if (res.ok) {
                 showToast('Categoría eliminada', 'success');
                 fetchData();

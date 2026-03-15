@@ -110,6 +110,10 @@
     gap: 1.5rem;
 }
 
+.charts-grid--single {
+    grid-template-columns: 1fr;
+}
+
 @media (max-width: 900px) {
     .charts-grid {
         grid-template-columns: 1fr;

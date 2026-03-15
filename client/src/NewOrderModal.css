@@ -742,3 +742,16 @@
         opacity: 1;
     }
 }
+
+/* ── Replaces inline styles ─────────────────────────────────────────────────── */
+.delivery-toggle { margin-bottom: 18px; gap: 8px; }
+
+.mode-toggle-btn { flex: 1; font-size: 0.85rem; }
+.mode-toggle-btn--disabled { opacity: 0.6; cursor: default; }
+
+.customer-form { display: flex; flex-direction: column; gap: 0; }
+.form-label { display: block; color: var(--text-secondary); }
+
+.form-input-glass--readonly { background: rgba(255,255,255,0.03) !important; }
+
+.form-input-glass textarea { resize: none; font-family: inherit; min-height: 45px; }

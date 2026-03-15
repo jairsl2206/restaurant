@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
-import { authHeaders } from '../utils/api';
+import { apiGet, apiPost, apiPut, apiDelete } from '../utils/api';
 import { USER_ROLE, USER_ROLE_LABELS } from '../constants';
 import { useToast } from './Toast';
-
-const API_URL = API_BASE_URL + '/users';
 
 function UserManager() {
     const showToast = useToast();
@@ -26,10 +24,7 @@ function UserManager() {
 
     const fetchUsers = async () => {
         try {
-            const res = await fetch(API_URL, {
-                headers: authHeaders()
-            });
-            const data = await res.json();
+            const data = await apiGet(`${API_BASE_URL}/users`);
             setUsers(data);
         } catch (err) {
             console.error('Error fetching users:', err);
@@ -41,14 +36,7 @@ function UserManager() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    ...authHeaders({ 'Content-Type': 'application/json' })
-                },
-                body: JSON.stringify(formData)
-            });
-
+            const res = await apiPost(`${API_BASE_URL}/users`, formData, { json: false });
             if (res.ok) {
                 showToast('Usuario creado correctamente', 'success');
                 fetchUsers();
@@ -64,10 +52,7 @@ function UserManager() {
     const handleDelete = async (id) => {
         setConfirmDeleteId(null);
         try {
-            const res = await fetch(`${API_URL}/${id}`, {
-                method: 'DELETE',
-                headers: authHeaders()
-            });
+            const res = await apiDelete(`${API_BASE_URL}/users/${id}`, { json: false });
             if (res.ok) {
                 showToast('Usuario eliminado', 'success');
                 fetchUsers();
@@ -79,13 +64,7 @@ function UserManager() {
 
     const handleRoleChange = async (id, newRole) => {
         try {
-            const res = await fetch(`${API_URL}/${id}/role`, {
-                method: 'PUT',
-                headers: {
-                    ...authHeaders({ 'Content-Type': 'application/json' })
-                },
-                body: JSON.stringify({ role: newRole })
-            });
+            const res = await apiPut(`${API_BASE_URL}/users/${id}/role`, { role: newRole }, { json: false });
             if (res.ok) fetchUsers();
         } catch (err) {
             console.error('Error updating role:', err);
