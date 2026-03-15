@@ -1,28 +1,8 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import { authHeaders } from '../utils/api';
-import { ORDER_STATUS, ORDER_TYPE } from '../constants';
+import { ORDER_STATUS, ORDER_TYPE, STATUS_ICONS, ORDER_STATUS_LABELS, POLL_INTERVAL_MS } from '../constants';
 import './ActiveProductionOrders.css';
-
-const API_URL = API_BASE_URL;
-
-const statusIcons = {
-    [ORDER_STATUS.EN_COCINA]:          '🍳',
-    [ORDER_STATUS.LISTO_PARA_SERVIR]:  '🥡',
-    [ORDER_STATUS.SERVIDO]:            '🍽️',
-    [ORDER_STATUS.EN_REPARTO]:         '🚗',
-    [ORDER_STATUS.LISTO_PARA_RECOGER]: '📦',
-    [ORDER_STATUS.FINALIZADO]:         '✅'
-};
-
-const statusLabels = {
-    [ORDER_STATUS.EN_COCINA]:          'En cocina',
-    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'Listo para servir',
-    [ORDER_STATUS.SERVIDO]:            'Servido (En mesa)',
-    [ORDER_STATUS.EN_REPARTO]:         'En reparto',
-    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'Listo para recoger',
-    [ORDER_STATUS.FINALIZADO]:         'Finalizado'
-};
 
 function ActiveProductionOrders() {
     const [orders, setOrders] = useState([]);
@@ -30,13 +10,13 @@ function ActiveProductionOrders() {
 
     useEffect(() => {
         fetchActiveOrders();
-        const interval = setInterval(fetchActiveOrders, 5000);
+        const interval = setInterval(fetchActiveOrders, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
     }, []);
 
     const fetchActiveOrders = async () => {
         try {
-            const response = await fetch(`${API_URL}/orders`, { headers: authHeaders() });
+            const response = await fetch(`${API_BASE_URL}/orders`, { headers: authHeaders() });
             const data = await response.json();
             setOrders(data);
         } catch (err) {
@@ -90,7 +70,7 @@ function ActiveProductionOrders() {
                     {Object.entries(groupedOrders).map(([status, statusOrders]) => (
                         <div key={status} className={`production-column status-col-${status.toLowerCase()}`}>
                             <div className="column-header">
-                                <h3>{statusIcons[status]} {statusLabels[status] || status}</h3>
+                                <h3>{STATUS_ICONS[status]} {ORDER_STATUS_LABELS[status] || status}</h3>
                                 <span className="count-badge">{statusOrders.length}</span>
                             </div>
                             <div className="column-content">

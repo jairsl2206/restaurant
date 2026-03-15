@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
-import { authHeaders } from '../utils/api';
+import { apiGet } from '../utils/api';
 import './SalesReport.css';
 import './SalesReportPeriod.css';
 
@@ -29,8 +29,8 @@ function SalesReport() {
     const fetchReport = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/reports/sales?startDate=${startDate}&endDate=${endDate}`, { headers: authHeaders() });
-            if (response.ok) setReport(await response.json());
+            const data = await apiGet(`${API_BASE_URL}/reports/sales?startDate=${startDate}&endDate=${endDate}`);
+            setReport(data);
         } catch (err) { console.error('Error fetching report:', err); }
         finally { setLoading(false); }
     };
@@ -38,8 +38,8 @@ function SalesReport() {
     const fetchPeriods = async () => {
         setPeriodsLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/sale-periods`, { headers: authHeaders() });
-            if (res.ok) setPeriods(await res.json());
+            const data = await apiGet(`${API_BASE_URL}/sale-periods`);
+            setPeriods(data);
         } catch (err) { console.error('Error fetching periods:', err); }
         finally { setPeriodsLoading(false); }
     };
@@ -49,8 +49,8 @@ function SalesReport() {
         setPeriodReportLoading(true);
         setPeriodReport(null);
         try {
-            const res = await fetch(`${API_BASE_URL}/sale-periods/${id}/report`, { headers: authHeaders() });
-            if (res.ok) setPeriodReport(await res.json());
+            const data = await apiGet(`${API_BASE_URL}/sale-periods/${id}/report`);
+            setPeriodReport(data);
         } catch (err) { console.error('Error fetching period report:', err); }
         finally { setPeriodReportLoading(false); }
     };
@@ -176,29 +176,30 @@ function SalesReport() {
                             </div>
                         </div>
 
-                        <div className="charts-grid">
-                            {/* Daily Sales Chart */}
-                            <div className="chart-section card">
-                                <h3>Ventas por Día</h3>
-                                <div className="chart-container">
-                                    {activeReport.dailySales.length === 0 ? (
-                                        <p className="no-data">No hay datos en este periodo</p>
-                                    ) : (
-                                        <div className="bar-chart">
-                                            {activeReport.dailySales.map((day) => (
-                                                <div key={day.date} className="chart-bar-group">
-                                                    <div
-                                                        className="chart-bar"
-                                                        style={{ height: `${(day.daily_revenue / maxDailyRevenue) * 100}%` }}
-                                                        title={`$${day.daily_revenue.toFixed(2)} - ${day.orders_count} órdenes`}
-                                                    ></div>
-                                                    <span className="bar-label">{day.date.split('-')[2]}/{day.date.split('-')[1]}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                        <div className={mode === 'date' ? 'charts-grid' : 'charts-grid charts-grid--single'}>
+                            {mode === 'date' && (
+                                <div className="chart-section card">
+                                    <h3>Ventas por Día</h3>
+                                    <div className="chart-container">
+                                        {activeReport.dailySales.length === 0 ? (
+                                            <p className="no-data">No hay datos en este periodo</p>
+                                        ) : (
+                                            <div className="bar-chart">
+                                                {activeReport.dailySales.map((day) => (
+                                                    <div key={day.date} className="chart-bar-group">
+                                                        <div
+                                                            className="chart-bar"
+                                                            style={{ height: `${(day.daily_revenue / maxDailyRevenue) * 100}%` }}
+                                                            title={`$${day.daily_revenue.toFixed(2)} - ${day.orders_count} órdenes`}
+                                                        ></div>
+                                                        <span className="bar-label">{day.date.split('-')[2]}/{day.date.split('-')[1]}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Top Items by Category */}
                             <div className="top-items-section card">

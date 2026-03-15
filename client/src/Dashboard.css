@@ -230,7 +230,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 6px 10px;
-    margin-bottom: 8px;
+    margin: 8px 0 4px;
     background: rgba(255, 255, 255, 0.04);
     border-radius: var(--radius-sm, 6px);
     border-left: 3px solid rgba(255, 255, 255, 0.15);
@@ -501,6 +501,11 @@
     border-radius: var(--radius-md);
     background: var(--bg-card);
 }
+
+/* ── Mobile order brief sub-classes (replace inline styles) ─────────────────── */
+.mobile-order-brief-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.mobile-order-brief-items  { font-size: 0.9rem; color: #aaa; }
+.mobile-order-brief-cta    { text-align: right; margin-top: 5px; color: var(--primary); }
 
 .btn-back {
     background: none;

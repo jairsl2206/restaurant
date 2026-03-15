@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
-import { authHeaders } from '../utils/api';
+import { apiGet, apiPost, apiFetch } from '../utils/api';
 import { useToast } from './Toast';
-
-const API_URL = API_BASE_URL + '/settings';
+import { POLL_INTERVAL_WHATSAPP_MS } from '../constants';
 
 function SettingsManager({ settings, onSettingsUpdate }) {
     const showToast = useToast();
@@ -32,8 +31,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
     useEffect(() => {
         const checkStatus = async () => {
             try {
-                const res = await fetch(API_BASE_URL + '/whatsapp/status', { headers: authHeaders() });
-                const data = await res.json();
+                const data = await apiGet(`${API_BASE_URL}/whatsapp/status`);
                 setWhatsappStatus(data);
             } catch (err) {
                 console.error('Error checking WhatsApp status', err);
@@ -41,7 +39,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
         };
 
         checkStatus();
-        const interval = setInterval(checkStatus, 3000);
+        const interval = setInterval(checkStatus, POLL_INTERVAL_WHATSAPP_MS);
         return () => clearInterval(interval);
     }, []);
 
@@ -56,8 +54,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
         if (loadingGroups) return;
         setLoadingGroups(true);
         try {
-            const res = await fetch(API_BASE_URL + '/whatsapp/groups', { headers: authHeaders() });
-            const data = await res.json();
+            const data = await apiGet(`${API_BASE_URL}/whatsapp/groups`);
             setWhatsappGroups(data);
         } catch (err) {
             console.error('Error fetching groups', err);
@@ -70,13 +67,8 @@ function SettingsManager({ settings, onSettingsUpdate }) {
         if (!window.confirm('¿Estás seguro de reiniciar la sesión de WhatsApp? Esto cerrará la conexión actual.')) return;
 
         try {
-            const res = await fetch(API_BASE_URL + '/whatsapp/reset', {
-                method: 'POST',
-                headers: authHeaders()
-            });
-            if (res.ok) {
-                showToast('Reinicio iniciado. Por favor espera el nuevo código QR.', 'info');
-            }
+            const res = await apiPost(`${API_BASE_URL}/whatsapp/reset`, {}, { json: false });
+            if (res.ok) showToast('Reinicio iniciado. Por favor espera el nuevo código QR.', 'info');
         } catch (err) {
             console.error('Error resetting WhatsApp', err);
         }
@@ -85,15 +77,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({
-                    ...formData,
-                    whatsapp_number: whatsappNumber // Send whatsapp number too
-                })
-            });
-
+            const res = await apiPost(`${API_BASE_URL}/settings`, { ...formData, whatsapp_number: whatsappNumber }, { json: false });
             if (res.ok) {
                 showToast('Configuración actualizada exitosamente', 'success');
                 onSettingsUpdate();
@@ -115,12 +99,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
         formDataUpload.append('file', file);
 
         try {
-            const res = await fetch(API_BASE_URL + '/upload', {
-                method: 'POST',
-                headers: authHeaders(),
-                body: formDataUpload
-            });
-            const data = await res.json();
+            const data = await apiFetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formDataUpload });
             if (data.url) {
                 setFormData(prev => ({ ...prev, restaurant_logo: data.url }));
             }

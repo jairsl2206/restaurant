@@ -172,4 +172,15 @@ function AdminDashboard({ user, onLogout, settings, onSettingsUpdate }) {
     );
 }
 
+import PropTypes from 'prop-types';
+
+AdminDashboard.propTypes = {
+    user: PropTypes.shape({
+        role: PropTypes.string.isRequired
+    }).isRequired,
+    onLogout:         PropTypes.func.isRequired,
+    settings:         PropTypes.object,
+    onSettingsUpdate: PropTypes.func
+};
+
 export default AdminDashboard;

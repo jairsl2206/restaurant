@@ -431,3 +431,78 @@
         width: 100%;
     }
 }
+
+/* ── Checklist item layout (replaces inline styles) ─────────────────────────── */
+.checklist-label {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+.checklist-label--active  { cursor: pointer; }
+.checklist-label--locked  { cursor: not-allowed; }
+.checklist-label--removed { cursor: default; }
+
+.checklist-checkbox { margin-right: 10px; }
+
+.checklist-item.item-removed { opacity: 0.6; }
+
+.checklist-item-body { flex: 1; display: flex; flex-direction: column; }
+.checklist-item-row  { display: flex; align-items: center; }
+
+.item-text--removed { text-decoration: line-through; color: #e74c3c; }
+.item-removed-label { margin-left: auto; color: #e74c3c; font-size: 0.8rem; }
+
+.item-note-badge {
+    align-self: flex-start;
+    font-size: 0.75rem;
+    background: rgba(231, 76, 60, 0.2);
+    color: #ff6b6b;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-top: 2px;
+    font-weight: bold;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+.note-icon { margin-right: 4px; filter: none; }
+
+/* ── Simple item list (replaces inline styles) ──────────────────────────────── */
+.items-list-simple { list-style: none; padding: 0; }
+.simple-item {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.simple-item-body { display: flex; flex-direction: column; flex: 1; }
+.simple-item-row  { display: flex; align-items: center; }
+.simple-item-bullet { margin-right: 8px; color: #3498db; }
+.simple-item-text   { color: #ecf0f1; }
+.simple-item-note   { margin-left: 15px; font-size: 0.75rem; color: #ff6b6b; font-weight: bold; font-style: italic; }
+.simple-item-qty    { color: #95a5a6; font-size: 0.9rem; font-weight: bold; }
+
+/* ── Diff view layout (replaces inline styles) ──────────────────────────────── */
+.diff-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.diff-section-label { font-size: 0.8rem; color: #aaa; margin: 0; }
+.diff-additions-divider { border-top: 1px solid #555; margin: 10px 0; position: relative; }
+.diff-additions-label { position: absolute; top: -10px; left: 0; background: #333; padding-right: 5px; font-size: 0.8rem; color: #2ecc71; }
+.items-list-checklist--added { margin-top: 15px; }
+
+.select-all-row   { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.select-all-label { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--primary); cursor: pointer; }
+.select-all-checkbox { width: 14px; height: 14px; }
+
+/* ── Edit button & receipt additions (replaces inline styles) ───────────────── */
+.edit-btn-wrap { margin-left: auto; }
+.btn-edit-inline {
+    background: none;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.receipt-item-dot--addition { color: #fdcb6e; }
+.receipt-item-dot:not(.receipt-item-dot--addition) { color: #74b9ff; }
+.receipt-additions-amount { color: #fdcb6e; }

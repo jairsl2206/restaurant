@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
-import { authHeaders } from '../utils/api';
+import { apiGet, apiDelete, apiPut } from '../utils/api';
 import NewOrderModal from '../NewOrderModal';
 import { useToast } from './Toast';
 import './PastOrders.css';
-
-const API_URL = API_BASE_URL;
 
 function parseItemsString(str) {
     if (!str) return [];
@@ -41,8 +39,7 @@ function PastOrders() {
     const fetchOrdersByDate = async (date) => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/orders/by-date?date=${date}`, { headers: authHeaders() });
-            const data = await response.json();
+            const data = await apiGet(`${API_BASE_URL}/orders/by-date?date=${date}`);
             setOrders(data);
         } catch (err) {
             console.error('Error fetching orders:', err);
@@ -54,11 +51,7 @@ function PastOrders() {
     const handleDelete = async (orderId) => {
         setConfirmDeleteId(null);
         try {
-            const response = await fetch(`${API_URL}/orders/${orderId}`, {
-                method: 'DELETE',
-                headers: authHeaders()
-            });
-
+            const response = await apiDelete(`${API_BASE_URL}/orders/${orderId}`, { json: false });
             if (response.ok) {
                 showToast('Orden eliminada', 'success');
                 fetchOrdersByDate(selectedDate);
@@ -78,12 +71,7 @@ function PastOrders() {
 
     const handleUpdateOrder = async (orderData) => {
         try {
-            const response = await fetch(`${API_URL}/orders/${editOrder.id}`, {
-                method: 'PUT',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({ items: orderData.items }),
-            });
-
+            const response = await apiPut(`${API_BASE_URL}/orders/${editOrder.id}`, { items: orderData.items }, { json: false });
             if (response.ok) {
                 setShowEditModal(false);
                 setEditOrder(null);

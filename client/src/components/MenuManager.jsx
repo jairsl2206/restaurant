@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import './MenuManager.css';
 import API_BASE_URL from '../config';
-import { authHeaders } from '../utils/api';
+import { apiGet, apiPost, apiPut, apiDelete, apiFetch } from '../utils/api';
 import { useToast } from './Toast';
-
-const MENU_API_URL = `${API_BASE_URL}/menu`;
-const CATEGORIES_API_URL = `${API_BASE_URL}/categories`;
 
 function ConfirmDialog({ message, onConfirm, onCancel }) {
     return (
@@ -72,12 +69,12 @@ function MenuManager() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [menuRes, catsRes] = await Promise.all([
-                fetch(MENU_API_URL),
-                fetch(CATEGORIES_API_URL)
+            const [menuData, catsData] = await Promise.all([
+                apiGet(`${API_BASE_URL}/menu`, { auth: false }),
+                apiGet(`${API_BASE_URL}/categories`, { auth: false })
             ]);
-            setItems(await menuRes.json());
-            setCategories(await catsRes.json());
+            setItems(menuData);
+            setCategories(catsData);
         } catch (err) {
             console.error('Error fetching data:', err);
         } finally {
@@ -92,9 +89,6 @@ function MenuManager() {
             return;
         }
 
-        const method = editingItem ? 'PUT' : 'POST';
-        const url = editingItem ? `${MENU_API_URL}/${editingItem.id}` : MENU_API_URL;
-
         const payload = {
             ...formData,
             category_id: parseInt(formData.category_id),
@@ -103,11 +97,10 @@ function MenuManager() {
 
         setSaving(true);
         try {
-            const res = await fetch(url, {
-                method,
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify(payload)
-            });
+            const url = `${API_BASE_URL}/menu${editingItem ? `/${editingItem.id}` : ''}`;
+            const res = editingItem
+                ? await apiPut(url, payload, { json: false })
+                : await apiPost(url, payload, { json: false });
 
             if (res.ok) {
                 showToast(editingItem ? 'Artículo actualizado correctamente' : 'Artículo creado correctamente', 'success');
@@ -129,10 +122,7 @@ function MenuManager() {
         const { id } = confirmDelete;
         setConfirmDelete(null);
         try {
-            const res = await fetch(`${MENU_API_URL}/${id}`, {
-                method: 'DELETE',
-                headers: authHeaders()
-            });
+            const res = await apiDelete(`${API_BASE_URL}/menu/${id}`, { json: false });
             if (res.ok) {
                 showToast('Artículo eliminado', 'success');
                 fetchData();
@@ -215,13 +205,8 @@ function MenuManager() {
             const formDataUpload = new FormData();
             formDataUpload.append('file', processedBlob, 'image.jpg');
 
-            const res = await fetch(API_BASE_URL + '/upload', {
-                method: 'POST',
-                body: formDataUpload
-            });
-
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formDataUpload, auth: false });
+            if (data.url) {
                 const serverUrl = API_BASE_URL.replace('/api', '');
                 setFormData(prev => ({ ...prev, image_url: serverUrl + data.url }));
             } else {
