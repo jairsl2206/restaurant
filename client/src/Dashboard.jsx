@@ -1,33 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import OrderCard from './OrderCard';
-import { ORDER_STATUS, ORDER_TYPE } from './constants';
+import { ORDER_STATUS, ORDER_TYPE, STATUS_ICONS, ORDER_STATUS_LABELS, POLL_INTERVAL_MS } from './constants';
 import NewOrderModal from './NewOrderModal';
 import NotificationCenter from './components/NotificationCenter';
 import { playNotificationSound } from './utils/sound';
 import { useToast } from './components/Toast';
 import './Dashboard.css';
 import API_BASE_URL from './config';
-import { authHeaders } from './utils/api';
-
-const API_URL = API_BASE_URL;
-
-const statusIcons = {
-    [ORDER_STATUS.EN_COCINA]:          '🍳',
-    [ORDER_STATUS.LISTO_PARA_SERVIR]:  '🥡',
-    [ORDER_STATUS.SERVIDO]:            '🍽️',
-    [ORDER_STATUS.EN_REPARTO]:         '🚗',
-    [ORDER_STATUS.LISTO_PARA_RECOGER]: '📦',
-    [ORDER_STATUS.FINALIZADO]:         '✅'
-};
-
-const statusLabels = {
-    [ORDER_STATUS.EN_COCINA]:          'En cocina',
-    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'Listo para servir',
-    [ORDER_STATUS.SERVIDO]:            'Servido (En mesa)',
-    [ORDER_STATUS.EN_REPARTO]:         'En reparto',
-    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'Listo para recoger',
-    [ORDER_STATUS.FINALIZADO]:         'Finalizado'
-};
+import { apiGet, apiPost, apiPut } from './utils/api';
 
 function Dashboard({ user, onLogout, settings }) {
     const showToast = useToast();
@@ -66,8 +46,7 @@ function Dashboard({ user, onLogout, settings }) {
 
     const fetchActivePeriod = async () => {
         try {
-            const res = await fetch(`${API_URL}/sale-periods/active`, { headers: authHeaders() });
-            const data = await res.json();
+            const data = await apiGet(`${API_BASE_URL}/sale-periods/active`);
             setActivePeriod(data && data.id ? data : null);
         } catch {
             setActivePeriod(null);
@@ -78,15 +57,14 @@ function Dashboard({ user, onLogout, settings }) {
         fetchOrders();
         fetchActivePeriod();
         // Poll for updates every 5 seconds
-        const interval = setInterval(() => { fetchOrders(); fetchActivePeriod(); }, 5000);
+        const interval = setInterval(() => { fetchOrders(); fetchActivePeriod(); }, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
     }, [filter]);
 
     const fetchOrders = async () => {
         try {
             const endpoint = filter === 'all' ? '/orders/all' : '/orders';
-            const response = await fetch(`${API_URL}${endpoint}`, { headers: authHeaders() });
-            const data = await response.json();
+            const data = await apiGet(`${API_BASE_URL}${endpoint}`);
 
             // Waiter: notify when orders are ready to serve/pickup
             if (user.role === 'waiter' && prevOrdersRef.current.length > 0) {
@@ -144,15 +122,8 @@ function Dashboard({ user, onLogout, settings }) {
 
     const handleStatusChange = async (orderId, newStatus) => {
         try {
-            const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
-                method: 'PUT',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({ status: newStatus }),
-            });
-
-            if (response.ok) {
-                fetchOrders();
-            }
+            const response = await apiPut(`${API_BASE_URL}/orders/${orderId}/status`, { status: newStatus }, { json: false });
+            if (response.ok) fetchOrders();
         } catch (err) {
             console.error('Error updating order:', err);
         }
@@ -160,12 +131,7 @@ function Dashboard({ user, onLogout, settings }) {
 
     const handleNewOrder = async (orderData) => {
         try {
-            const response = await fetch(`${API_URL}/orders`, {
-                method: 'POST',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify(orderData),
-            });
-
+            const response = await apiPost(`${API_BASE_URL}/orders`, orderData, { json: false });
             if (response.ok) {
                 setShowNewOrder(false);
                 fetchOrders();
@@ -174,7 +140,7 @@ function Dashboard({ user, onLogout, settings }) {
                 try {
                     const data = JSON.parse(text);
                     showToast(`Error: ${data.error || 'No se pudo crear la orden'}`, 'error');
-                } catch (e) {
+                } catch {
                     showToast(`Error al crear orden: ${text}`, 'error');
                 }
             }
@@ -191,12 +157,7 @@ function Dashboard({ user, onLogout, settings }) {
 
     const handleAddToOrder = async (parentOrder, orderData) => {
         try {
-            const response = await fetch(`${API_URL}/orders/${parentOrder.id}/additions`, {
-                method: 'POST',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({ items: orderData.items }),
-            });
-
+            const response = await apiPost(`${API_BASE_URL}/orders/${parentOrder.id}/additions`, { items: orderData.items }, { json: false });
             if (response.ok) {
                 setShowNewOrder(false);
                 setEditOrder(null);
@@ -213,13 +174,12 @@ function Dashboard({ user, onLogout, settings }) {
 
     const handleUpdateOrder = async (orderData) => {
         try {
-            const response = await fetch(`${API_URL}/orders/${editOrder.id}`, {
-                method: 'PUT',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({ items: orderData.items }), // Only items update supported currently
-            });
-
+            const response = await apiPut(`${API_BASE_URL}/orders/${editOrder.id}`, { items: orderData.items }, { json: false });
             if (response.ok) {
+                const result = await response.json();
+                const updatedOrder = result.order;
+                // Optimistically update state with diff so OrderCard activates diff view immediately
+                setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
                 setShowNewOrder(false);
                 setEditOrder(null);
                 fetchOrders();
@@ -283,8 +243,8 @@ function Dashboard({ user, onLogout, settings }) {
                             {settings?.restaurant_logo && (settings.restaurant_logo.match(/^http/) || settings.restaurant_logo.match(/^\/uploads/)) ? (
                                 <img
                                     src={settings.restaurant_logo.startsWith('/uploads')
-                                        ? API_URL.replace('/api', '') + settings.restaurant_logo
-                                        : settings.restaurant_logo.replace(/http:\/\/localhost:3001/g, API_URL.replace('/api', ''))}
+                                        ? API_BASE_URL.replace('/api', '') + settings.restaurant_logo
+                                        : settings.restaurant_logo.replace(/http:\/\/localhost:3001/g, API_BASE_URL.replace('/api', ''))}
                                     alt="Logo"
                                     className="header-logo-img"
                                     onError={(e) => {
@@ -377,7 +337,7 @@ function Dashboard({ user, onLogout, settings }) {
                             // Level 3: Order Detail
                             <div className="mobile-view-level-3 slide-in">
                                 <button className="btn-back" onClick={() => setSelectedOrder(null)}>
-                                    ← Volver {statusLabels[selectedOrder.status] || selectedOrder.status}
+                                    ← Volver {ORDER_STATUS_LABELS[selectedOrder.status] || selectedOrder.status}
                                 </button>
                                 <OrderCard
                                     order={selectedOrder}
@@ -406,18 +366,18 @@ function Dashboard({ user, onLogout, settings }) {
                                                 <div className="empty-state"><p>No hay órdenes listas</p></div>
                                             ) : readyGroups.map(({ status, orders: grpOrders }) => (
                                                 <div key={status}>
-                                                    <div className="ready-subgroup-header" style={{ margin: '8px 0 4px' }}>
-                                                        <span>{statusIcons[status]} {statusLabels[status]}</span>
+                                                    <div className="ready-subgroup-header">
+                                                        <span>{STATUS_ICONS[status]} {ORDER_STATUS_LABELS[status]}</span>
                                                         <span className="count-badge-sm">{grpOrders.length}</span>
                                                     </div>
                                                     {grpOrders.map(order => (
                                                         <div key={order.id} className="mobile-order-brief glass-card" onClick={() => setSelectedOrder(order)}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                                            <div className="mobile-order-brief-header">
                                                                 <strong>Orden #{order.id}</strong>
                                                                 <span>{(order.type === ORDER_TYPE.DELIVERY || order.is_delivery) ? `🚗 ${order.customer_name}` : `Mesa ${order.table_number}`}</span>
                                                             </div>
-                                                            <div style={{ fontSize: '0.9rem', color: '#aaa' }}>{order.items?.substring(0, 30)}...</div>
-                                                            <div style={{ textAlign: 'right', marginTop: '5px', color: 'var(--primary)' }}>Ver Detalle →</div>
+                                                            <div className="mobile-order-brief-items">{order.items?.substring(0, 30)}...</div>
+                                                            <div className="mobile-order-brief-cta">Ver Detalle →</div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -427,7 +387,7 @@ function Dashboard({ user, onLogout, settings }) {
                                 ) : (
                                     <>
                                         <div className="column-header">
-                                            <h2>{statusIcons[expandedStatus]} {statusLabels[expandedStatus] || expandedStatus}</h2>
+                                            <h2>{STATUS_ICONS[expandedStatus]} {ORDER_STATUS_LABELS[expandedStatus] || expandedStatus}</h2>
                                             <span className="count-badge">{groupedOrders[expandedStatus]?.length || 0}</span>
                                         </div>
                                         <div className="mobile-orders-list">
@@ -435,12 +395,12 @@ function Dashboard({ user, onLogout, settings }) {
                                                 <div className="empty-state"><p>No hay órdenes</p></div>
                                             ) : groupedOrders[expandedStatus].map(order => (
                                                 <div key={order.id} className="mobile-order-brief glass-card" onClick={() => setSelectedOrder(order)}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                                    <div className="mobile-order-brief-header">
                                                         <strong>Orden #{order.id}</strong>
                                                         <span>{(order.type === ORDER_TYPE.DELIVERY || order.is_delivery) ? `🚗 ${order.customer_name}` : `Mesa ${order.table_number}`}</span>
                                                     </div>
-                                                    <div style={{ fontSize: '0.9rem', color: '#aaa' }}>{order.items?.substring(0, 30)}...</div>
-                                                    <div style={{ textAlign: 'right', marginTop: '5px', color: 'var(--primary)' }}>Ver Detalle →</div>
+                                                    <div className="mobile-order-brief-items">{order.items?.substring(0, 30)}...</div>
+                                                    <div className="mobile-order-brief-cta">Ver Detalle →</div>
                                                 </div>
                                             ))}
                                         </div>
@@ -457,7 +417,7 @@ function Dashboard({ user, onLogout, settings }) {
                                         onClick={() => setExpandedStatus(status)}
                                     >
                                         <div className="status-name">
-                                            {statusIcons[status]} {statusLabels[status]}
+                                            {STATUS_ICONS[status]} {ORDER_STATUS_LABELS[status]}
                                             {statusOrders.length > 0 && <span className="priority-dot">●</span>}
                                         </div>
                                         <div className="status-count">{statusOrders.length} {statusOrders.length === 1 ? 'Orden' : 'Ordenes'} →</div>
@@ -482,7 +442,7 @@ function Dashboard({ user, onLogout, settings }) {
                                         className={`mobile-status-card glass-card status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}
                                         onClick={() => setExpandedStatus(status)}
                                     >
-                                        <div className="status-name">{statusIcons[status]} {statusLabels[status] || status}</div>
+                                        <div className="status-name">{STATUS_ICONS[status]} {ORDER_STATUS_LABELS[status] || status}</div>
                                         <div className="status-count">{statusOrders.length} {statusOrders.length === 1 ? 'Orden' : 'Ordenes'} →</div>
                                     </div>
                                 ))}
@@ -495,7 +455,7 @@ function Dashboard({ user, onLogout, settings }) {
                         {/* EN_COCINA column */}
                         <div className="status-column status-col-en-cocina">
                             <div className="column-header">
-                                <h2>{statusIcons[ORDER_STATUS.EN_COCINA]} {statusLabels[ORDER_STATUS.EN_COCINA]}</h2>
+                                <h2>{STATUS_ICONS[ORDER_STATUS.EN_COCINA]} {ORDER_STATUS_LABELS[ORDER_STATUS.EN_COCINA]}</h2>
                                 <span className="count-badge">{groupedOrders[ORDER_STATUS.EN_COCINA].length}</span>
                             </div>
                             <div className="column-content">
@@ -528,7 +488,7 @@ function Dashboard({ user, onLogout, settings }) {
                                     ) : readyGroups.map(({ status, orders: grpOrders }) => (
                                         <div key={status} className="ready-subgroup">
                                             <div className="ready-subgroup-header">
-                                                <span>{statusIcons[status]} {statusLabels[status]}</span>
+                                                <span>{STATUS_ICONS[status]} {ORDER_STATUS_LABELS[status]}</span>
                                                 <span className="count-badge-sm">{grpOrders.length}</span>
                                             </div>
                                             {grpOrders.map(order => (
@@ -546,13 +506,13 @@ function Dashboard({ user, onLogout, settings }) {
                             .map(([status, statusOrders]) => (
                                 <div key={status} className={`status-column status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}>
                                     <div className="column-header">
-                                        <h2>{statusIcons[status]} {statusLabels[status] || status}</h2>
+                                        <h2>{STATUS_ICONS[status]} {ORDER_STATUS_LABELS[status] || status}</h2>
                                         <span className="count-badge">{statusOrders.length}</span>
                                     </div>
                                     <div className="column-content">
                                         {statusOrders.length === 0 ? (
                                             <div className="empty-state">
-                                                <span className="empty-icon">{statusIcons[status] || '📋'}</span>
+                                                <span className="empty-icon">{STATUS_ICONS[status] || '📋'}</span>
                                                 <p>Sin órdenes aquí</p>
                                             </div>
                                         ) : statusOrders.map(order => (
@@ -590,5 +550,16 @@ function Dashboard({ user, onLogout, settings }) {
         </div >
     );
 }
+
+import PropTypes from 'prop-types';
+
+Dashboard.propTypes = {
+    user: PropTypes.shape({
+        username: PropTypes.string,
+        role:     PropTypes.string.isRequired
+    }).isRequired,
+    onLogout: PropTypes.func.isRequired,
+    settings: PropTypes.object
+};
 
 export default Dashboard;
