@@ -47,6 +47,9 @@ class Database {
                 )
             `);
 
+            // Migration: add email column to existing customers tables (idempotent)
+            this.db.run("ALTER TABLE customers ADD COLUMN email TEXT", () => { /* ignore if already exists */ });
+
             // ── ADDRESSES ───────────────────────────────────────────────────────
             this.db.run(`
                 CREATE TABLE IF NOT EXISTS addresses (
@@ -396,11 +399,12 @@ class Database {
      * Creates a customer and optionally saves their address.
      * Calls back with (err, customerId).
      */
-    createCustomer(name, phone, address, callback) {
+    createCustomer(name, phone, email, address, callback) {
         const self = this;
+        // phone may be '' (empty string) when the customer has no real phone number
         this.db.run(
-            'INSERT INTO customers (name, phone) VALUES (?, ?)',
-            [name, phone || 'N/A'],
+            'INSERT INTO customers (name, phone, email) VALUES (?, ?, ?)',
+            [name, phone || '', email || null],
             function (err) {
                 if (err) return callback(err);
                 const customerId = this.lastID;
@@ -434,6 +438,20 @@ class Database {
         `, [id], callback);
     }
 
+    // Find a customer with no real phone (phone = '' or NULL) by exact name match.
+    // Used to deduplicate placeholder-phone customers.
+    findCustomerByNameOnly(name, callback) {
+        this.db.get(
+            `SELECT c.*, a.line1 as address
+             FROM customers c
+             LEFT JOIN customer_addresses ca ON ca.customer_id = c.id AND ca.is_default = 1
+             LEFT JOIN addresses a ON a.id = ca.address_id
+             WHERE (c.phone = '' OR c.phone IS NULL) AND c.name = ? LIMIT 1`,
+            [name],
+            callback
+        );
+    }
+
     getCustomerByPhone(phone, callback) {
         this.db.get(`
             SELECT c.*, a.line1 as address
@@ -444,10 +462,10 @@ class Database {
         `, [phone], callback);
     }
 
-    updateCustomer(id, name, phone, address, callback) {
+    updateCustomer(id, name, phone, email, address, callback) {
         this.db.run(
-            'UPDATE customers SET name = ?, phone = ? WHERE id = ?',
-            [name, phone, id],
+            'UPDATE customers SET name = ?, phone = ?, email = ? WHERE id = ?',
+            [name, phone || '', email || null, id],
             (err) => {
                 if (err || !address) return callback(err);
                 // Upsert default address
@@ -1108,13 +1126,22 @@ class Database {
      */
     closeSalePeriod(periodId, userId, force, callback) {
         this.db.all(
-            `SELECT id FROM orders WHERE sale_period_id = ? AND status != ?`,
+            `SELECT o.id, o.table_number, o.type, o.status,
+                    c.name as customer_name
+             FROM orders o
+             LEFT JOIN customers c ON o.customer_id = c.id
+             WHERE o.sale_period_id = ? AND o.status != ?
+             ORDER BY o.created_at ASC`,
             [periodId, ORDER_STATUS.FINALIZADO],
             (err, activeOrders) => {
                 if (err) return callback(err);
 
                 if (activeOrders.length > 0 && !force) {
-                    return callback(null, { warning: true, activeOrdersCount: activeOrders.length });
+                    return callback(null, {
+                        warning: true,
+                        activeOrdersCount: activeOrders.length,
+                        activeOrders: activeOrders
+                    });
                 }
 
                 this.db.run(

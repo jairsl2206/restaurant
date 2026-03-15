@@ -179,25 +179,52 @@ router.post('/orders', verifyToken, requireActivePeriod, (req, res) => {
 
     // Customer handling
     if ((orderType === ORDER_TYPE.DELIVERY || orderType === ORDER_TYPE.PICKUP) && customerData) {
-        const phone = customerData.phone ? customerData.phone.trim() : '';
-        const isPlaceholder = !phone || ['0', '00', '000'].includes(phone);
+        const rawPhone = customerData.phone ? customerData.phone.trim() : '';
+        const name     = customerData.name  ? customerData.name.trim()  : '';
+        const email    = customerData.email ? customerData.email.trim()  : null;
+        const address  = customerData.address ? customerData.address.trim() : null;
 
-        if (isPlaceholder) {
-            db.createCustomer(customerData.name, 'N/A', customerData.address || '', (err, cid) => {
-                if (err) return res.status(500).json({ error: 'Failed to create customer' });
-                doCreate(cid);
-            });
-        } else {
-            db.getCustomerByPhone(phone, (err, existing) => {
-                if (err) return res.status(500).json({ error: 'Database error' });
+        // Returns true when the phone value carries no real information
+        const isPlaceholderPhone = (p) => !p || p === '0' || p === '00' || p === '000';
+        const hasRealPhone = !isPlaceholderPhone(rawPhone);
+        const phone = hasRealPhone ? rawPhone : '';
 
+        if (!hasRealPhone && !name) {
+            // No usable identity — attach order without a customer record
+            doCreate(null);
+        } else if (!hasRealPhone) {
+            // Has name but no real phone — deduplicate by name among phoneless customers
+            db.findCustomerByNameOnly(name, (err, existing) => {
+                if (err) {
+                    console.error('Error looking up customer by name:', err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
                 if (existing) {
-                    db.updateCustomer(existing.id, customerData.name, phone, customerData.address || '', (err) => {
-                        if (err) logger.error('Error updating customer:', err);
+                    db.updateCustomer(existing.id, name, '', email, address, (err) => {
+                        if (err) console.error('Error updating phoneless customer:', err);
                         doCreate(existing.id);
                     });
                 } else {
-                    db.createCustomer(customerData.name, phone, customerData.address || '', (err, cid) => {
+                    db.createCustomer(name, '', email, address, (err, cid) => {
+                        if (err) return res.status(500).json({ error: 'Failed to create customer' });
+                        doCreate(cid);
+                    });
+                }
+            });
+        } else {
+            // Real phone — look up by phone and upsert all fields
+            db.getCustomerByPhone(phone, (err, existing) => {
+                if (err) {
+                    console.error('Error looking up customer by phone:', err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
+                if (existing) {
+                    db.updateCustomer(existing.id, name, phone, email, address, (err) => {
+                        if (err) console.error('Error updating customer:', err);
+                        doCreate(existing.id);
+                    });
+                } else {
+                    db.createCustomer(name, phone, email, address, (err, cid) => {
                         if (err) return res.status(500).json({ error: 'Failed to create customer' });
                         doCreate(cid);
                     });
@@ -569,7 +596,8 @@ router.put('/sale-periods/:id/close', isAdmin, (req, res) => {
             return res.status(409).json({
                 warning: true,
                 activeOrdersCount: result.activeOrdersCount,
-                message: `Hay ${result.activeOrdersCount} orden(es) activa(s). Usa force:true para forzar el cierre.`
+                activeOrders: result.activeOrders,
+                message: `Hay ${result.activeOrdersCount} orden(es) activa(s). Avisa a los operadores que cierren sus órdenes pendientes antes de forzar el cierre.`
             });
         }
         res.json({ success: true });

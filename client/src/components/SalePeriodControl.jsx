@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
-import { authHeaders } from '../utils/api';
+import { apiGet, apiPost, apiPut } from '../utils/api';
+import { ORDER_TYPE, ORDER_TYPE_LABELS, ORDER_STATUS_LABELS } from '../constants';
 import './SalePeriodControl.css';
 
 function SalePeriodControl() {
@@ -13,11 +14,8 @@ function SalePeriodControl() {
 
     const fetchActivePeriod = async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/sale-periods/active`, { headers: authHeaders() });
-            if (res.ok) {
-                const data = await res.json();
-                setActivePeriod(data); // null = no active period
-            }
+            const data = await apiGet(`${API_BASE_URL}/sale-periods/active`);
+            setActivePeriod(data);
         } catch (err) {
             console.error('Error fetching active period:', err);
         }
@@ -25,11 +23,8 @@ function SalePeriodControl() {
 
     const fetchPeriods = async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/sale-periods`, { headers: authHeaders() });
-            if (res.ok) {
-                const data = await res.json();
-                setPeriods(data);
-            }
+            const data = await apiGet(`${API_BASE_URL}/sale-periods`);
+            setPeriods(data);
         } catch (err) {
             console.error('Error fetching periods:', err);
         } finally {
@@ -46,10 +41,7 @@ function SalePeriodControl() {
         setActionLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE_URL}/sale-periods`, {
-                method: 'POST',
-                headers: { ...authHeaders(), 'Content-Type': 'application/json' }
-            });
+            const res = await apiPost(`${API_BASE_URL}/sale-periods`, {}, { json: false });
             const data = await res.json();
             if (res.ok) {
                 setActivePeriod(data);
@@ -70,11 +62,7 @@ function SalePeriodControl() {
         setError(null);
         setWarning(null);
         try {
-            const res = await fetch(`${API_BASE_URL}/sale-periods/${activePeriod.id}/close`, {
-                method: 'PUT',
-                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ force })
-            });
+            const res = await apiPut(`${API_BASE_URL}/sale-periods/${activePeriod.id}/close`, { force }, { json: false });
             const data = await res.json();
             if (res.status === 409 && data.warning) {
                 setWarning(data);
@@ -176,8 +164,20 @@ function SalePeriodControl() {
                             <h4>Hay órdenes activas</h4>
                             <p>
                                 Existen <strong>{warning.activeOrdersCount}</strong> orden(es) que aún no han sido cobradas.
-                                ¿Deseas forzar el cierre de la jornada?
+                                Avisa a los operadores que cierren sus órdenes pendientes. ¿Deseas forzar el cierre de la jornada?
                             </p>
+                            {warning.activeOrders && warning.activeOrders.length > 0 && (
+                                <ul className="active-orders-list">
+                                    {warning.activeOrders.map(order => (
+                                        <li key={order.id} className="active-order-item">
+                                            {order.type === ORDER_TYPE.DINE_IN
+                                                ? `Mesa ${order.table_number} — ${ORDER_STATUS_LABELS[order.status] || order.status}`
+                                                : `${ORDER_TYPE_LABELS[order.type] || order.type} — ${order.customer_name || 'Sin nombre'} — ${ORDER_STATUS_LABELS[order.status] || order.status}`
+                                            }
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                             <div className="warning-actions">
                                 <button
                                     className="btn btn-danger"
