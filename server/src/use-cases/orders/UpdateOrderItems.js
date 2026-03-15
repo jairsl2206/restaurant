@@ -33,7 +33,7 @@ class UpdateOrderItems {
             price: item.price
         }));
 
-        // Update order with new items (business logic in entity)
+        // Update order with new items — not allowed when status is FINALIZADO (PAID)
         const updatedOrder = order.updateItems(newItems);
 
         // Persist changes
