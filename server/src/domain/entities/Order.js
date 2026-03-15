@@ -42,7 +42,7 @@ class Order {
     // Business Rules
 
     canBeEdited() {
-        return this.status.isCreated();
+        return !this.status.isPaid();
     }
 
     canBeMovedToKitchen() {
@@ -94,7 +94,7 @@ class Order {
 
     updateItems(newItems) {
         if (!this.canBeEdited()) {
-            throw new ValidationError('Cannot edit order that is not in Created status');
+            throw new ValidationError('Cannot edit an order that is already finalized (PAID)');
         }
 
         // Save snapshot of original items if this is the first edit
