@@ -137,12 +137,6 @@ function SalesReport() {
                     )}
                 </div>
 
-                {mode === 'date' && (
-                    <div className="period-info">
-                        <p>ℹ️ Los reportes usan períodos de <strong>6am a 6am</strong> (las ventas después de medianoche se cuentan en el día de negocio)</p>
-                    </div>
-                )}
-
                 {mode === 'period' && periodReport?.period && (
                     <div className="period-info">
                         <p>
@@ -153,7 +147,7 @@ function SalesReport() {
                     </div>
                 )}
 
-                {(mode === 'date' ? (loading && !report) : (periodReportLoading)) ? (
+                {(mode === 'date' ? (loading && !report) : periodReportLoading) ? (
                     <div className="loading-spinner">Cargando reporte...</div>
                 ) : activeReport ? (
                     <div className="report-content">
@@ -185,7 +179,7 @@ function SalesReport() {
                         <div className="charts-grid">
                             {/* Daily Sales Chart */}
                             <div className="chart-section card">
-                                <h3>Ventas por Período (6am-6am)</h3>
+                                <h3>Ventas por Día</h3>
                                 <div className="chart-container">
                                     {activeReport.dailySales.length === 0 ? (
                                         <p className="no-data">No hay datos en este periodo</p>

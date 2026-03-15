@@ -164,7 +164,7 @@ function CategoryManager() {
                                     <tbody>
                                         {categories.map(category => (
                                             <tr key={category.id}>
-                                                <td>
+                                                <td className="td-primary" data-label="Categoría">
                                                     {editingCategory?.id === category.id ? (
                                                         <input
                                                             type="text"
@@ -191,12 +191,12 @@ function CategoryManager() {
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td>
+                                                <td data-label="Artículos">
                                                     <span style={{ color: 'var(--text-secondary)' }}>
                                                         {getItemCount(category.id)} artículo(s)
                                                     </span>
                                                 </td>
-                                                <td>
+                                                <td className="td-actions">
                                                     {editingCategory?.id === category.id ? (
                                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                             <button

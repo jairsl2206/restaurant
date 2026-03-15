@@ -467,6 +467,21 @@
     }
 }
 
+@media (max-width: 400px) {
+    .header-logo-img {
+        width: 48px;
+        height: 48px;
+    }
+
+    .mobile-status-card {
+        padding: 14px 16px;
+    }
+
+    .dashboard-header {
+        padding: 0.5rem;
+    }
+}
+
 .priority-dot {
     color: var(--danger);
     font-size: 0.8rem;

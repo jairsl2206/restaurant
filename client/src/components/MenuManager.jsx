@@ -51,7 +51,7 @@ function MenuManager() {
     const toggleCategory = (categoryId) => {
         setCollapsedCategories(prev => ({
             ...prev,
-            [categoryId]: !prev[categoryId]
+            [categoryId]: prev[categoryId] !== true
         }));
     };
 
@@ -259,32 +259,32 @@ function MenuManager() {
             <tbody>
                 {tableItems.map(item => (
                     <tr key={item.id} className={!item.available ? 'item-unavailable' : ''}>
-                        <td>
+                        <td data-label="Imagen">
                             {item.image_url ? (
                                 <img src={item.image_url} alt={item.name} className="item-thumbnail" />
                             ) : (
                                 <span className="no-img">📷</span>
                             )}
                         </td>
-                        <td>
+                        <td className="td-primary" data-label="Nombre">
                             <strong>{item.name}</strong>
                             <p className="text-muted text-sm">{item.description}</p>
                         </td>
                         {showCategory && (
-                            <td><span className="badge">{getCategoryName(item.category_id)}</span></td>
+                            <td data-label="Categoría"><span className="badge">{getCategoryName(item.category_id)}</span></td>
                         )}
-                        <td className="text-secondary">
+                        <td className="text-secondary" data-label="Precio">
                             ${(item.original_price || item.price).toFixed(2)}
                         </td>
-                        <td style={{ fontWeight: 600, color: item.has_promotion ? 'var(--primary)' : 'inherit' }}>
+                        <td data-label="Promo" style={{ fontWeight: 600, color: item.has_promotion ? 'var(--primary)' : 'inherit' }}>
                             ${(item.final_price || item.price).toFixed(2)}
                             {item.has_promotion && <span title="Promoción Activa" style={{ marginLeft: 5 }}>🏷️</span>}
                         </td>
-                        <td>
+                        <td data-label="Disponible">
                             <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
                             {item.available ? 'Disponible' : 'Agotado'}
                         </td>
-                        <td>
+                        <td className="td-actions">
                             <button className="action-btn edit-btn" onClick={() => openModal(item)} aria-label={`Editar ${item.name}`}>✏️</button>
                             <button className="action-btn delete-btn" onClick={() => setConfirmDelete({ id: item.id, name: item.name })} aria-label={`Eliminar ${item.name}`}>🗑️</button>
                         </td>
@@ -340,12 +340,12 @@ function MenuManager() {
                                                 className="category-group-title clickable"
                                                 onClick={() => toggleCategory(categoryId)}
                                             >
-                                                {collapsedCategories[categoryId] ? '▶' : '▼'} {catName}
+                                                {collapsedCategories[categoryId] === true ? '▼' : '▶'} {catName}
                                                 <span className="item-count-badge">
-                                                    {catItems.length}
+                                                    {catItems.length} ítem{catItems.length !== 1 ? 's' : ''}
                                                 </span>
                                             </h4>
-                                            {!collapsedCategories[categoryId] && renderTable(catItems)}
+                                            {collapsedCategories[categoryId] === true && renderTable(catItems)}
                                         </div>
                                     );
                                 })}

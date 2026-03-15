@@ -260,4 +260,21 @@
     .column-content {
         max-height: 350px;
     }
+
+    .active-production-container {
+        padding: 8px;
+    }
+
+    .production-header {
+        margin-bottom: 16px;
+    }
+
+    .column-header {
+        padding: 12px 15px;
+    }
+
+    .column-content {
+        padding: 10px;
+        max-height: none; /* Let it expand naturally on mobile */
+    }
 }
