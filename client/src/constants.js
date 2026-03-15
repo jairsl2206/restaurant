@@ -48,12 +48,14 @@ export const USER_ROLE_LABELS = {
 
 export const PROMOTION_TYPE = {
     PERCENTAGE:   'PERCENTAGE',
-    FIXED_AMOUNT: 'FIXED_AMOUNT'
+    FIXED_AMOUNT: 'FIXED_AMOUNT',
+    BUNDLE:       'BUNDLE'
 };
 
 export const PROMOTION_TYPE_LABELS = {
     PERCENTAGE:   'Porcentaje (%)',
-    FIXED_AMOUNT: 'Monto Fijo ($)'
+    FIXED_AMOUNT: 'Monto Fijo ($)',
+    BUNDLE:       'Bundle (Nx(N-1))'
 };
 
 export const PAYMENT_METHOD = {
@@ -74,3 +76,32 @@ export const SALE_PERIOD_STATUS = {
     OPEN:   'open',
     CLOSED: 'closed'
 };
+
+// ── Status display maps (single source of truth) ──────────────────────────────
+
+export const STATUS_ICONS = {
+    [ORDER_STATUS.EN_COCINA]:          '🍳',
+    [ORDER_STATUS.LISTO_PARA_SERVIR]:  '🥡',
+    [ORDER_STATUS.SERVIDO]:            '🍽️',
+    [ORDER_STATUS.EN_REPARTO]:         '🚗',
+    [ORDER_STATUS.LISTO_PARA_RECOGER]: '📦',
+    [ORDER_STATUS.FINALIZADO]:         '✅'
+};
+
+export const STATUS_CSS_CLASSES = {
+    [ORDER_STATUS.EN_COCINA]:          'status-cocina',
+    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'status-listo',
+    [ORDER_STATUS.SERVIDO]:            'status-servido',
+    [ORDER_STATUS.EN_REPARTO]:         'status-reparto',
+    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'status-recoger',
+    [ORDER_STATUS.FINALIZADO]:         'status-pagado'
+};
+
+// ── Numeric constants (no magic numbers in components) ────────────────────────
+
+export const POLL_INTERVAL_MS          = 5000;
+export const POLL_INTERVAL_WHATSAPP_MS = 3000;
+export const POLL_INTERVAL_MENU_MS     = 10000;
+export const TIME_BADGE_WARN_MIN       = 10;
+export const TIME_BADGE_URGENT_MIN     = 20;
+export const DEFAULT_MAX_TABLES        = 20;
