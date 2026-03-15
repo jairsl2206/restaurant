@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import './CategoryPromotionManager.css';
 import API_BASE_URL from '../config';
 import { authHeaders } from '../utils/api';
+import { useToast } from './Toast';
 
 const CATEGORY_PROMOS_URL = API_BASE_URL + '/category-promotions';
 const ITEM_PROMOS_URL = API_BASE_URL + '/item-promotions';
@@ -9,6 +10,7 @@ const MENU_API_URL = API_BASE_URL + '/menu';
 const CATEGORIES_API_URL = API_BASE_URL + '/categories';
 
 function CategoryPromotionManager() {
+    const showToast = useToast();
     const [activePromoTab, setActivePromoTab] = useState('category'); // 'category' or 'item'
     const [categoryPromotions, setCategoryPromotions] = useState([]);
     const [itemPromotions, setItemPromotions] = useState([]);
@@ -84,10 +86,11 @@ function CategoryPromotionManager() {
             });
 
             if (res.ok) {
+                showToast('Promoción guardada correctamente', 'success');
                 fetchData();
                 closeModal();
             } else {
-                alert('Error al guardar promoción');
+                showToast('Error al guardar promoción', 'error');
             }
         } catch (err) {
             console.error('Error saving promotion:', err);
@@ -95,8 +98,6 @@ function CategoryPromotionManager() {
     };
 
     const handleDeletePromo = async (id, isCategory) => {
-        if (!confirm('¿Seguro que deseas eliminar esta promoción?')) return;
-
         const url = isCategory ? `${CATEGORY_PROMOS_URL}/${id}` : `${ITEM_PROMOS_URL}/${id}`;
 
         try {
@@ -104,7 +105,12 @@ function CategoryPromotionManager() {
                 method: 'DELETE',
                 headers: authHeaders()
             });
-            if (res.ok) fetchData();
+            if (res.ok) {
+                showToast('Promoción eliminada', 'success');
+                fetchData();
+            } else {
+                showToast('Error al eliminar promoción', 'error');
+            }
         } catch (err) {
             console.error('Error deleting promotion:', err);
         }

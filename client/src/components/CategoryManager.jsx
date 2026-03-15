@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import { authHeaders } from '../utils/api';
+import { useToast } from './Toast';
 
 const CATEGORIES_URL = API_BASE_URL + '/categories';
 const MENU_URL = API_BASE_URL + '/menu';
 
 function CategoryManager() {
+    const showToast = useToast();
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
     const [categories, setCategories] = useState([]);
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -52,7 +55,7 @@ function CategoryManager() {
                 setNewCategoryInput('');
                 fetchData();
             } else {
-                alert('Error al crear categoría');
+                showToast('Error al crear categoría', 'error');
             }
         } catch (err) {
             console.error('Error creating category:', err);
@@ -71,9 +74,10 @@ function CategoryManager() {
 
             if (res.ok) {
                 setEditingCategory(null);
+                showToast('Categoría actualizada', 'success');
                 fetchData();
             } else {
-                alert('Error al actualizar categoría');
+                showToast('Error al actualizar categoría', 'error');
             }
         } catch (err) {
             console.error('Error updating category:', err);
@@ -81,8 +85,7 @@ function CategoryManager() {
     };
 
     const handleDeleteCategory = async (categoryId) => {
-        if (!confirm('¿Seguro que deseas eliminar esta categoría? (Los artículos ahora quedarán sin categoría)')) return;
-
+        setConfirmDeleteId(null);
         try {
             const res = await fetch(`${CATEGORIES_URL}/${categoryId}`, {
                 method: 'DELETE',
@@ -90,9 +93,10 @@ function CategoryManager() {
             });
 
             if (res.ok) {
+                showToast('Categoría eliminada', 'success');
                 fetchData();
             } else {
-                alert('Error al eliminar categoría');
+                showToast('Error al eliminar categoría', 'error');
             }
         } catch (err) {
             console.error('Error deleting category:', err);
@@ -105,6 +109,7 @@ function CategoryManager() {
     };
 
     return (
+        <>
         <div className="category-manager fade-in">
             <div className="manager-content">
                 <div className="manager-header">
@@ -220,7 +225,8 @@ function CategoryManager() {
                                                             </button>
                                                             <button
                                                                 className="action-btn delete-btn"
-                                                                onClick={() => handleDeleteCategory(category.id)}
+                                                                onClick={() => setConfirmDeleteId(category.id)}
+                                                                aria-label={`Eliminar categoría ${category.name}`}
                                                                 title="Eliminar categoría"
                                                             >
                                                                 🗑️
@@ -238,6 +244,34 @@ function CategoryManager() {
                 )}
             </div>
         </div>
+
+            {confirmDeleteId && (
+                <div className="modal-overlay" onClick={() => setConfirmDeleteId(null)}>
+                    <div className="modal-content glass-card slide-in" style={{ maxWidth: '380px' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 style={{ fontSize: '1.1rem' }}>⚠️ Eliminar categoría</h3>
+                            <button type="button" className="close-btn" onClick={() => setConfirmDeleteId(null)} aria-label="Cancelar">×</button>
+                        </div>
+                        <div className="modal-body">
+                            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
+                                ¿Seguro que deseas eliminar esta categoría?
+                            </p>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                                Los artículos quedarán sin categoría. Esta acción no se puede deshacer.
+                            </p>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" onClick={() => setConfirmDeleteId(null)}>Cancelar</button>
+                            <button type="button" className="btn btn-danger"
+                                style={{ background: 'rgba(239,68,68,0.2)', borderColor: '#ef4444', color: '#ef4444' }}
+                                onClick={() => handleDeleteCategory(confirmDeleteId)}>
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
 

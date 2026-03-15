@@ -174,13 +174,15 @@ class Database {
                     table_number    INTEGER,
                     type            TEXT NOT NULL DEFAULT 'DINE_IN'
                                     CHECK (type IN ('DINE_IN','DELIVERY','PICKUP')),
-                    status          TEXT NOT NULL DEFAULT 'CREADA'
-                                    CHECK (status IN ('CREADA','PREPARANDO','LISTA','ENTREGADA','CANCELADA')),
+                    status          TEXT NOT NULL DEFAULT 'EN_COCINA'
+                                    CHECK (status IN ('EN_COCINA','LISTO_PARA_SERVIR','SERVIDO','EN_REPARTO','LISTO_PARA_RECOGER','FINALIZADO')),
                     subtotal        REAL NOT NULL DEFAULT 0,
                     discount_total  REAL NOT NULL DEFAULT 0,
                     tax_total       REAL NOT NULL DEFAULT 0,
                     total           REAL NOT NULL DEFAULT 0,
                     notes           TEXT,
+                    sale_period_id  INTEGER REFERENCES sale_periods(id),
+                    parent_order_id INTEGER REFERENCES orders(id),
                     created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
                     updated_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
                 )
@@ -200,12 +202,6 @@ class Database {
                     created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
                 )
             `);
-
-            this.db.all("PRAGMA table_info(order_items)", (err, columns) => {
-                if (!err && columns && !columns.some(c => c.name === 'note')) {
-                    this.db.run("ALTER TABLE order_items ADD COLUMN note TEXT");
-                }
-            });
 
             // ── PAYMENTS ────────────────────────────────────────────────────────
             this.db.run(`
@@ -292,11 +288,23 @@ class Database {
                 CREATE TABLE IF NOT EXISTS order_status_history (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
                     order_id   INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-                    old_status TEXT CHECK (old_status IN ('CREADA','PREPARANDO','LISTA','ENTREGADA','CANCELADA')),
-                    new_status TEXT NOT NULL CHECK (new_status IN ('CREADA','PREPARANDO','LISTA','ENTREGADA','CANCELADA')),
+                    old_status TEXT CHECK (old_status IN ('EN_COCINA','LISTO_PARA_SERVIR','SERVIDO','EN_REPARTO','LISTO_PARA_RECOGER','FINALIZADO')),
+                    new_status TEXT NOT NULL CHECK (new_status IN ('EN_COCINA','LISTO_PARA_SERVIR','SERVIDO','EN_REPARTO','LISTO_PARA_RECOGER','FINALIZADO')),
                     changed_by INTEGER REFERENCES users(id),
                     changed_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
                     note       TEXT
+                )
+            `);
+
+            // ── SALE PERIODS (Jornadas) ──────────────────────────────────────────
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS sale_periods (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    business_date TEXT NOT NULL,
+                    opened_by     INTEGER REFERENCES users(id),
+                    closed_by     INTEGER REFERENCES users(id),
+                    opened_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                    closed_at     TEXT
                 )
             `);
 
@@ -476,16 +484,20 @@ class Database {
     createOrder(tableNumber, items, type = ORDER_TYPE.DINE_IN, customerId = null, callback) {
         const itemType = type || ORDER_TYPE.DINE_IN;
         const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const total    = subtotal; // taxes / discounts applied separately in future
-        const now      = "datetime('now','localtime')";
+        const total    = subtotal;
 
         const DEFAULT_BRANCH_ID = 1;
         const self = this;
 
-        this.db.run(
-            `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
-            [DEFAULT_BRANCH_ID, customerId, tableNumber || null, itemType, ORDER_STATUS.CREADA, subtotal, total],
+        // Auto-assign the current active sale period (nullable — no period = null)
+        this.getActiveSalePeriod((err, activePeriod) => {
+            if (err) logger.error('Error fetching active period for order:', err);
+            const salePeriodId = activePeriod ? activePeriod.id : null;
+
+        self.db.run(
+            `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, sale_period_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
+            [DEFAULT_BRANCH_ID, customerId, tableNumber || null, itemType, ORDER_STATUS.EN_COCINA, subtotal, total, salePeriodId],
             function (err) {
                 if (err) return callback(err);
 
@@ -516,6 +528,57 @@ class Database {
                 });
             }
         );
+        }); // end getActiveSalePeriod
+    }
+
+    /**
+     * Creates a sub-order (addition) linked to a parent order.
+     * The sub-order inherits branch, customer, table, type, and sale_period from the parent.
+     */
+    createSubOrder(parentOrderId, items, callback) {
+        this.getOrderById(parentOrderId, (err, parent) => {
+            if (err || !parent) return callback(err || new Error('Parent order not found'));
+
+            const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const total    = subtotal;
+            const self     = this;
+
+            this.db.run(
+                `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, sale_period_id, parent_order_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
+                [parent.branch_id || 1, parent.customer_id, parent.table_number, parent.type,
+                 ORDER_STATUS.EN_COCINA, subtotal, total, parent.sale_period_id || null, parentOrderId],
+                function (err) {
+                    if (err) return callback(err);
+                    const subOrderId = this.lastID;
+
+                    const stmt = self.db.prepare(
+                        'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
+                    );
+                    items.forEach(item => {
+                        let menuItemId = item.id || item.menu_item_id;
+                        if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) menuItemId = null;
+                        stmt.run(subOrderId, menuItemId, item.quantity, item.price, item.price * item.quantity, item.note || null);
+                    });
+                    stmt.finalize((err) => {
+                        if (err) return callback(err);
+                        callback(null, subOrderId);
+                    });
+                }
+            );
+        });
+    }
+
+    /**
+     * Finalizes all pending sub-orders of a given parent order.
+     */
+    finalizeSubOrders(parentOrderId, callback) {
+        this.db.run(
+            `UPDATE orders SET status = ?, updated_at = datetime('now','localtime')
+             WHERE parent_order_id = ? AND status != ?`,
+            [ORDER_STATUS.FINALIZADO, parentOrderId, ORDER_STATUS.FINALIZADO],
+            callback
+        );
     }
 
     /**
@@ -529,11 +592,23 @@ class Database {
                 c.phone   AS customer_phone,
                 a.line1   AS customer_address,
                 GROUP_CONCAT(
-                    COALESCE(mi.name, 'item') || 
+                    COALESCE(mi.name, 'item') ||
                     CASE WHEN oi.note IS NOT NULL AND oi.note != '' THEN ' (' || oi.note || ')' ELSE '' END ||
                     ' x' || oi.quantity ||
                     ' [' || oi.unit_price || ']'
-                ) AS items
+                ) AS items,
+                (SELECT COUNT(*) FROM orders sub WHERE sub.parent_order_id = o.id AND sub.status != 'FINALIZADO') AS pending_additions_count,
+                (SELECT COALESCE(SUM(sub.total), 0) FROM orders sub WHERE sub.parent_order_id = o.id) AS additions_total,
+                (SELECT GROUP_CONCAT(
+                    COALESCE(mi2.name, 'item') ||
+                    CASE WHEN oi2.note IS NOT NULL AND oi2.note != '' THEN ' (' || oi2.note || ')' ELSE '' END ||
+                    ' x' || oi2.quantity ||
+                    ' [' || oi2.unit_price || ']'
+                 ) FROM orders sub2
+                   LEFT JOIN order_items oi2 ON oi2.order_id = sub2.id
+                   LEFT JOIN menu_items  mi2 ON mi2.id = oi2.menu_item_id
+                   WHERE sub2.parent_order_id = o.id
+                ) AS additions_items
             FROM orders o
             LEFT JOIN customers c         ON c.id = o.customer_id
             LEFT JOIN customer_addresses ca ON ca.customer_id = c.id AND ca.is_default = 1
@@ -554,8 +629,9 @@ class Database {
         this.db.all(
             `${this._orderSelect()}
              WHERE o.status != ?
-             GROUP BY o.id ORDER BY o.created_at DESC`,
-            [ORDER_STATUS.ENTREGADA],
+               AND (o.parent_order_id IS NULL OR o.status = ?)
+             GROUP BY o.id ORDER BY o.created_at ASC`,
+            [ORDER_STATUS.FINALIZADO, ORDER_STATUS.EN_COCINA],
             callback
         );
     }
@@ -934,7 +1010,7 @@ class Database {
                    AVG(total) AS average_ticket
             FROM orders
             WHERE status = ? AND created_at BETWEEN ? AND ?
-        `, [ORDER_STATUS.ENTREGADA, start, end], (err, summaryRow) => {
+        `, [ORDER_STATUS.FINALIZADO, start, end], (err, summaryRow) => {
             if (err) return callback(err);
             report.summary = summaryRow || { total_orders: 0, total_revenue: 0, average_ticket: 0 };
 
@@ -943,7 +1019,7 @@ class Database {
                 FROM orders
                 WHERE status = ? AND created_at BETWEEN ? AND ?
                 ORDER BY created_at ASC
-            `, [ORDER_STATUS.ENTREGADA, start, end], (err, orderRows) => {
+            `, [ORDER_STATUS.FINALIZADO, start, end], (err, orderRows) => {
                 if (err) return callback(err);
 
                 const periodMap = {};
@@ -973,7 +1049,7 @@ class Database {
                     WHERE o.status = ? AND o.created_at BETWEEN ? AND ?
                     GROUP BY mc.name, mi.name
                     ORDER BY mc.name ASC, quantity_sold DESC
-                `, [ORDER_STATUS.ENTREGADA, start, end], (err, itemRows) => {
+                `, [ORDER_STATUS.FINALIZADO, start, end], (err, itemRows) => {
                     if (err) return callback(err);
 
                     const catMap = {};
@@ -989,6 +1065,136 @@ class Database {
                         const totalRevenue = cat.items.reduce((s, i) => s + i.item_revenue, 0);
                         return { ...cat, totalRevenue };
                     }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+                    callback(null, report);
+                });
+            });
+        });
+    }
+
+    // ── SALE PERIODS ─────────────────────────────────────────────────────────────
+
+    getActiveSalePeriod(callback) {
+        this.db.get(`
+            SELECT sp.*,
+                   u1.username AS opened_by_username,
+                   u2.username AS closed_by_username
+            FROM sale_periods sp
+            LEFT JOIN users u1 ON u1.id = sp.opened_by
+            LEFT JOIN users u2 ON u2.id = sp.closed_by
+            WHERE sp.closed_at IS NULL
+            ORDER BY sp.opened_at DESC LIMIT 1
+        `, callback);
+    }
+
+    openSalePeriod(userId, callback) {
+        this.getActiveSalePeriod((err, active) => {
+            if (err) return callback(err);
+            if (active) return callback(new Error('Ya existe una jornada abierta'));
+
+            this.db.run(
+                `INSERT INTO sale_periods (business_date, opened_by, opened_at)
+                 VALUES (date('now','localtime'), ?, datetime('now','localtime'))`,
+                [userId],
+                function (err) { callback(err, this ? this.lastID : null); }
+            );
+        });
+    }
+
+    /**
+     * Closes the period. If there are active (non-FINALIZADO) orders and force=false,
+     * returns { warning: true, activeOrdersCount } without closing.
+     * If force=true, closes regardless.
+     */
+    closeSalePeriod(periodId, userId, force, callback) {
+        this.db.all(
+            `SELECT id FROM orders WHERE sale_period_id = ? AND status != ?`,
+            [periodId, ORDER_STATUS.FINALIZADO],
+            (err, activeOrders) => {
+                if (err) return callback(err);
+
+                if (activeOrders.length > 0 && !force) {
+                    return callback(null, { warning: true, activeOrdersCount: activeOrders.length });
+                }
+
+                this.db.run(
+                    `UPDATE sale_periods
+                     SET closed_by = ?, closed_at = datetime('now','localtime')
+                     WHERE id = ? AND closed_at IS NULL`,
+                    [userId, periodId],
+                    (err) => callback(err, err ? null : { success: true })
+                );
+            }
+        );
+    }
+
+    getSalePeriods(callback) {
+        this.db.all(`
+            SELECT sp.*,
+                   u1.username AS opened_by_username,
+                   u2.username AS closed_by_username,
+                   COUNT(o.id) AS order_count,
+                   SUM(CASE WHEN o.status = 'FINALIZADO' THEN o.total ELSE 0 END) AS total_revenue
+            FROM sale_periods sp
+            LEFT JOIN users u1 ON u1.id = sp.opened_by
+            LEFT JOIN users u2 ON u2.id = sp.closed_by
+            LEFT JOIN orders o ON o.sale_period_id = sp.id
+            GROUP BY sp.id
+            ORDER BY sp.opened_at DESC
+        `, callback);
+    }
+
+    getSalePeriodReport(periodId, callback) {
+        const report = { summary: {}, dailySales: [], topItems: [], period: null };
+
+        this.db.get(`
+            SELECT sp.*, u.username AS opened_by_username
+            FROM sale_periods sp LEFT JOIN users u ON u.id = sp.opened_by
+            WHERE sp.id = ?
+        `, [periodId], (err, period) => {
+            if (err) return callback(err);
+            if (!period) return callback(new Error('Period not found'));
+            report.period = period;
+
+            this.db.get(`
+                SELECT COUNT(*) AS total_orders,
+                       SUM(total) AS total_revenue,
+                       AVG(total) AS average_ticket
+                FROM orders
+                WHERE status = ? AND sale_period_id = ?
+            `, [ORDER_STATUS.FINALIZADO, periodId], (err, summaryRow) => {
+                if (err) return callback(err);
+                report.summary = summaryRow || { total_orders: 0, total_revenue: 0, average_ticket: 0 };
+
+                this.db.all(`
+                    SELECT
+                        COALESCE(mc.name, 'Sin Categoría') AS category,
+                        COALESCE(mi.name, 'Producto') AS item_name,
+                        SUM(oi.quantity) AS quantity_sold,
+                        SUM(oi.total_price) AS item_revenue
+                    FROM order_items oi
+                    JOIN orders o ON o.id = oi.order_id
+                    LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+                    LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+                    WHERE o.status = ? AND o.sale_period_id = ?
+                    GROUP BY mc.name, mi.name
+                    ORDER BY mc.name ASC, quantity_sold DESC
+                `, [ORDER_STATUS.FINALIZADO, periodId], (err, itemRows) => {
+                    if (err) return callback(err);
+
+                    const catMap = {};
+                    itemRows.forEach(item => {
+                        if (!catMap[item.category]) catMap[item.category] = { category: item.category, items: [] };
+                        catMap[item.category].items.push({
+                            item_name:     item.item_name,
+                            quantity_sold: item.quantity_sold,
+                            item_revenue:  item.item_revenue
+                        });
+                    });
+                    report.topItems = Object.values(catMap).map(cat => ({
+                        ...cat,
+                        totalRevenue: cat.items.reduce((s, i) => s + i.item_revenue, 0)
+                    })).sort((a, b) => b.totalRevenue - a.totalRevenue);
 
                     callback(null, report);
                 });

@@ -4,12 +4,12 @@ const { ValidationError } = require('../../../src/shared/errors/errorTypes');
 describe('OrderStatus Value Object', () => {
     describe('constructor', () => {
         test('should create OrderStatus with valid status', () => {
-            const status = new OrderStatus('CREADA');
-            expect(status.value).toBe('CREADA');
+            const status = new OrderStatus('EN_COCINA');
+            expect(status.value).toBe('EN_COCINA');
         });
 
         test('should create OrderStatus for all valid statuses', () => {
-            const statuses = ['CREADA', 'PREPARANDO', 'LISTA', 'ENTREGADA', 'CANCELADA'];
+            const statuses = ['EN_COCINA', 'LISTO_PARA_SERVIR', 'SERVIDO', 'EN_REPARTO', 'LISTO_PARA_RECOGER', 'FINALIZADO'];
             statuses.forEach(statusValue => {
                 const status = new OrderStatus(statusValue);
                 expect(status.value).toBe(statusValue);
@@ -18,13 +18,14 @@ describe('OrderStatus Value Object', () => {
 
         test('should throw ValidationError for invalid status', () => {
             expect(() => new OrderStatus('INVALID')).toThrow(ValidationError);
-            expect(() => new OrderStatus('PENDING')).toThrow(ValidationError);
+            expect(() => new OrderStatus('CREADA')).toThrow(ValidationError);
+            expect(() => new OrderStatus('PREPARANDO')).toThrow(ValidationError);
         });
 
         test('should throw ValidationError with helpful message', () => {
             expect(() => new OrderStatus('INVALID')).toThrow('Invalid order status');
-            expect(() => new OrderStatus('INVALID')).toThrow('CREADA');
-            expect(() => new OrderStatus('INVALID')).toThrow('PREPARANDO');
+            expect(() => new OrderStatus('INVALID')).toThrow('EN_COCINA');
+            expect(() => new OrderStatus('INVALID')).toThrow('FINALIZADO');
         });
 
         test('should throw ValidationError for null/undefined', () => {
@@ -37,157 +38,159 @@ describe('OrderStatus Value Object', () => {
         });
 
         test('should freeze the object', () => {
-            const status = new OrderStatus('CREADA');
+            const status = new OrderStatus('EN_COCINA');
             expect(Object.isFrozen(status)).toBe(true);
         });
     });
 
     describe('status constants', () => {
         test('should have all status constants defined', () => {
-            expect(OrderStatus.CREADA).toBe('CREADA');
-            expect(OrderStatus.PREPARANDO).toBe('PREPARANDO');
-            expect(OrderStatus.LISTA).toBe('LISTA');
-            expect(OrderStatus.ENTREGADA).toBe('ENTREGADA');
-            expect(OrderStatus.CANCELADA).toBe('CANCELADA');
+            expect(OrderStatus.EN_COCINA).toBe('EN_COCINA');
+            expect(OrderStatus.LISTO_PARA_SERVIR).toBe('LISTO_PARA_SERVIR');
+            expect(OrderStatus.SERVIDO).toBe('SERVIDO');
+            expect(OrderStatus.EN_REPARTO).toBe('EN_REPARTO');
+            expect(OrderStatus.LISTO_PARA_RECOGER).toBe('LISTO_PARA_RECOGER');
+            expect(OrderStatus.FINALIZADO).toBe('FINALIZADO');
         });
 
-        test('should have ALL_STATUSES array with all statuses', () => {
-            expect(OrderStatus.ALL_STATUSES).toHaveLength(5);
-            expect(OrderStatus.ALL_STATUSES).toContain('CREADA');
-            expect(OrderStatus.ALL_STATUSES).toContain('PREPARANDO');
-            expect(OrderStatus.ALL_STATUSES).toContain('LISTA');
-            expect(OrderStatus.ALL_STATUSES).toContain('ENTREGADA');
-            expect(OrderStatus.ALL_STATUSES).toContain('CANCELADA');
+        test('should have ALL_STATUSES array with all 6 statuses', () => {
+            expect(OrderStatus.ALL_STATUSES).toHaveLength(6);
+            expect(OrderStatus.ALL_STATUSES).toContain('EN_COCINA');
+            expect(OrderStatus.ALL_STATUSES).toContain('LISTO_PARA_SERVIR');
+            expect(OrderStatus.ALL_STATUSES).toContain('SERVIDO');
+            expect(OrderStatus.ALL_STATUSES).toContain('EN_REPARTO');
+            expect(OrderStatus.ALL_STATUSES).toContain('LISTO_PARA_RECOGER');
+            expect(OrderStatus.ALL_STATUSES).toContain('FINALIZADO');
         });
     });
 
     describe('status check methods', () => {
-        test('isCreada should return true only for CREADA', () => {
-            expect(new OrderStatus('CREADA').isCreada()).toBe(true);
-            expect(new OrderStatus('PREPARANDO').isCreada()).toBe(false);
-            expect(new OrderStatus('LISTA').isCreada()).toBe(false);
+        test('isEnCocina should return true only for EN_COCINA', () => {
+            expect(new OrderStatus('EN_COCINA').isEnCocina()).toBe(true);
+            expect(new OrderStatus('LISTO_PARA_SERVIR').isEnCocina()).toBe(false);
+            expect(new OrderStatus('FINALIZADO').isEnCocina()).toBe(false);
         });
 
-        test('isPreparando should return true only for PREPARANDO', () => {
-            expect(new OrderStatus('PREPARANDO').isPreparando()).toBe(true);
-            expect(new OrderStatus('CREADA').isPreparando()).toBe(false);
-            expect(new OrderStatus('LISTA').isPreparando()).toBe(false);
+        test('isListoParaServir should return true only for LISTO_PARA_SERVIR', () => {
+            expect(new OrderStatus('LISTO_PARA_SERVIR').isListoParaServir()).toBe(true);
+            expect(new OrderStatus('EN_COCINA').isListoParaServir()).toBe(false);
+            expect(new OrderStatus('SERVIDO').isListoParaServir()).toBe(false);
         });
 
-        test('isLista should return true only for LISTA', () => {
-            expect(new OrderStatus('LISTA').isLista()).toBe(true);
-            expect(new OrderStatus('PREPARANDO').isLista()).toBe(false);
-            expect(new OrderStatus('ENTREGADA').isLista()).toBe(false);
+        test('isServido should return true only for SERVIDO', () => {
+            expect(new OrderStatus('SERVIDO').isServido()).toBe(true);
+            expect(new OrderStatus('LISTO_PARA_SERVIR').isServido()).toBe(false);
+            expect(new OrderStatus('FINALIZADO').isServido()).toBe(false);
         });
 
-        test('isEntregada should return true only for ENTREGADA', () => {
-            expect(new OrderStatus('ENTREGADA').isEntregada()).toBe(true);
-            expect(new OrderStatus('LISTA').isEntregada()).toBe(false);
-            expect(new OrderStatus('CANCELADA').isEntregada()).toBe(false);
+        test('isEnReparto should return true only for EN_REPARTO', () => {
+            expect(new OrderStatus('EN_REPARTO').isEnReparto()).toBe(true);
+            expect(new OrderStatus('EN_COCINA').isEnReparto()).toBe(false);
+            expect(new OrderStatus('FINALIZADO').isEnReparto()).toBe(false);
         });
 
-        test('isCancelada should return true only for CANCELADA', () => {
-            expect(new OrderStatus('CANCELADA').isCancelada()).toBe(true);
-            expect(new OrderStatus('ENTREGADA').isCancelada()).toBe(false);
-            expect(new OrderStatus('CREADA').isCancelada()).toBe(false);
+        test('isListoParaRecoger should return true only for LISTO_PARA_RECOGER', () => {
+            expect(new OrderStatus('LISTO_PARA_RECOGER').isListoParaRecoger()).toBe(true);
+            expect(new OrderStatus('EN_COCINA').isListoParaRecoger()).toBe(false);
+            expect(new OrderStatus('FINALIZADO').isListoParaRecoger()).toBe(false);
+        });
+
+        test('isFinalizado should return true only for FINALIZADO', () => {
+            expect(new OrderStatus('FINALIZADO').isFinalizado()).toBe(true);
+            expect(new OrderStatus('EN_COCINA').isFinalizado()).toBe(false);
+            expect(new OrderStatus('SERVIDO').isFinalizado()).toBe(false);
         });
     });
 
     describe('isActive', () => {
-        test('should return true for CREADA', () => {
-            expect(new OrderStatus('CREADA').isActive()).toBe(true);
+        test('should return true for EN_COCINA', () => {
+            expect(new OrderStatus('EN_COCINA').isActive()).toBe(true);
         });
 
-        test('should return true for PREPARANDO', () => {
-            expect(new OrderStatus('PREPARANDO').isActive()).toBe(true);
+        test('should return true for LISTO_PARA_SERVIR', () => {
+            expect(new OrderStatus('LISTO_PARA_SERVIR').isActive()).toBe(true);
         });
 
-        test('should return true for LISTA', () => {
-            expect(new OrderStatus('LISTA').isActive()).toBe(true);
+        test('should return true for SERVIDO', () => {
+            expect(new OrderStatus('SERVIDO').isActive()).toBe(true);
         });
 
-        test('should return false for ENTREGADA', () => {
-            expect(new OrderStatus('ENTREGADA').isActive()).toBe(false);
+        test('should return true for EN_REPARTO', () => {
+            expect(new OrderStatus('EN_REPARTO').isActive()).toBe(true);
         });
 
-        test('should return false for CANCELADA', () => {
-            expect(new OrderStatus('CANCELADA').isActive()).toBe(false);
+        test('should return true for LISTO_PARA_RECOGER', () => {
+            expect(new OrderStatus('LISTO_PARA_RECOGER').isActive()).toBe(true);
+        });
+
+        test('should return false for FINALIZADO', () => {
+            expect(new OrderStatus('FINALIZADO').isActive()).toBe(false);
         });
     });
 
     describe('canTransitionTo', () => {
-        describe('from CREADA', () => {
-            test('should allow transition to PREPARANDO', () => {
-                const status = new OrderStatus('CREADA');
-                expect(status.canTransitionTo('PREPARANDO')).toBe(true);
+        describe('from EN_COCINA', () => {
+            test('should allow transition to LISTO_PARA_SERVIR', () => {
+                expect(new OrderStatus('EN_COCINA').canTransitionTo('LISTO_PARA_SERVIR')).toBe(true);
             });
 
-            test('should allow transition to CANCELADA', () => {
-                const status = new OrderStatus('CREADA');
-                expect(status.canTransitionTo('CANCELADA')).toBe(true);
+            test('should allow transition to EN_REPARTO', () => {
+                expect(new OrderStatus('EN_COCINA').canTransitionTo('EN_REPARTO')).toBe(true);
             });
 
-            test('should not allow transition to CREADA', () => {
-                const status = new OrderStatus('CREADA');
-                expect(status.canTransitionTo('CREADA')).toBe(false);
+            test('should allow transition to LISTO_PARA_RECOGER', () => {
+                expect(new OrderStatus('EN_COCINA').canTransitionTo('LISTO_PARA_RECOGER')).toBe(true);
             });
 
-            test('should not allow transition to LISTA or ENTREGADA', () => {
-                const status = new OrderStatus('CREADA');
-                expect(status.canTransitionTo('LISTA')).toBe(false);
-                expect(status.canTransitionTo('ENTREGADA')).toBe(false);
+            test('should not allow transition to SERVIDO or FINALIZADO directly', () => {
+                expect(new OrderStatus('EN_COCINA').canTransitionTo('SERVIDO')).toBe(false);
+                expect(new OrderStatus('EN_COCINA').canTransitionTo('FINALIZADO')).toBe(false);
+                expect(new OrderStatus('EN_COCINA').canTransitionTo('EN_COCINA')).toBe(false);
             });
         });
 
-        describe('from PREPARANDO', () => {
-            test('should allow transition to LISTA', () => {
-                const status = new OrderStatus('PREPARANDO');
-                expect(status.canTransitionTo('LISTA')).toBe(true);
+        describe('from LISTO_PARA_SERVIR', () => {
+            test('should allow transition to SERVIDO', () => {
+                expect(new OrderStatus('LISTO_PARA_SERVIR').canTransitionTo('SERVIDO')).toBe(true);
             });
 
-            test('should allow transition to CANCELADA', () => {
-                const status = new OrderStatus('PREPARANDO');
-                expect(status.canTransitionTo('CANCELADA')).toBe(true);
+            test('should allow transition to FINALIZADO', () => {
+                expect(new OrderStatus('LISTO_PARA_SERVIR').canTransitionTo('FINALIZADO')).toBe(true);
             });
 
-            test('should not allow transition to PREPARANDO or CREADA', () => {
-                const status = new OrderStatus('PREPARANDO');
-                expect(status.canTransitionTo('PREPARANDO')).toBe(false);
-                expect(status.canTransitionTo('CREADA')).toBe(false);
+            test('should not allow transition back to EN_COCINA', () => {
+                expect(new OrderStatus('LISTO_PARA_SERVIR').canTransitionTo('EN_COCINA')).toBe(false);
+                expect(new OrderStatus('LISTO_PARA_SERVIR').canTransitionTo('EN_REPARTO')).toBe(false);
             });
         });
 
-        describe('from LISTA', () => {
-            test('should allow transition to ENTREGADA', () => {
-                const status = new OrderStatus('LISTA');
-                expect(status.canTransitionTo('ENTREGADA')).toBe(true);
-            });
-
-            test('should allow transition to CANCELADA', () => {
-                const status = new OrderStatus('LISTA');
-                expect(status.canTransitionTo('CANCELADA')).toBe(true);
-            });
-
-            test('should not allow transition to other statuses', () => {
-                const status = new OrderStatus('LISTA');
-                expect(status.canTransitionTo('LISTA')).toBe(false);
-                expect(status.canTransitionTo('PREPARANDO')).toBe(false);
-                expect(status.canTransitionTo('CREADA')).toBe(false);
+        describe('from SERVIDO', () => {
+            test('should allow transition to FINALIZADO only', () => {
+                expect(new OrderStatus('SERVIDO').canTransitionTo('FINALIZADO')).toBe(true);
+                expect(new OrderStatus('SERVIDO').canTransitionTo('EN_COCINA')).toBe(false);
+                expect(new OrderStatus('SERVIDO').canTransitionTo('LISTO_PARA_SERVIR')).toBe(false);
             });
         });
 
-        describe('from ENTREGADA', () => {
+        describe('from EN_REPARTO', () => {
+            test('should allow transition to FINALIZADO only', () => {
+                expect(new OrderStatus('EN_REPARTO').canTransitionTo('FINALIZADO')).toBe(true);
+                expect(new OrderStatus('EN_REPARTO').canTransitionTo('EN_COCINA')).toBe(false);
+                expect(new OrderStatus('EN_REPARTO').canTransitionTo('LISTO_PARA_RECOGER')).toBe(false);
+            });
+        });
+
+        describe('from LISTO_PARA_RECOGER', () => {
+            test('should allow transition to FINALIZADO only', () => {
+                expect(new OrderStatus('LISTO_PARA_RECOGER').canTransitionTo('FINALIZADO')).toBe(true);
+                expect(new OrderStatus('LISTO_PARA_RECOGER').canTransitionTo('EN_COCINA')).toBe(false);
+                expect(new OrderStatus('LISTO_PARA_RECOGER').canTransitionTo('SERVIDO')).toBe(false);
+            });
+        });
+
+        describe('from FINALIZADO', () => {
             test('should not allow any transitions', () => {
-                const status = new OrderStatus('ENTREGADA');
-                OrderStatus.ALL_STATUSES.forEach(s => {
-                    expect(status.canTransitionTo(s)).toBe(false);
-                });
-            });
-        });
-
-        describe('from CANCELADA', () => {
-            test('should not allow any transitions', () => {
-                const status = new OrderStatus('CANCELADA');
+                const status = new OrderStatus('FINALIZADO');
                 OrderStatus.ALL_STATUSES.forEach(s => {
                     expect(status.canTransitionTo(s)).toBe(false);
                 });
@@ -197,7 +200,7 @@ describe('OrderStatus Value Object', () => {
 
     describe('TRANSITIONS constant', () => {
         test('should define transitions for all statuses', () => {
-            expect(Object.keys(OrderStatus.TRANSITIONS)).toHaveLength(5);
+            expect(Object.keys(OrderStatus.TRANSITIONS)).toHaveLength(6);
             OrderStatus.ALL_STATUSES.forEach(status => {
                 expect(OrderStatus.TRANSITIONS).toHaveProperty(status);
                 expect(Array.isArray(OrderStatus.TRANSITIONS[status])).toBe(true);
@@ -207,28 +210,28 @@ describe('OrderStatus Value Object', () => {
 
     describe('equals', () => {
         test('should return true for same status', () => {
-            const status1 = new OrderStatus('CREADA');
-            const status2 = new OrderStatus('CREADA');
+            const status1 = new OrderStatus('EN_COCINA');
+            const status2 = new OrderStatus('EN_COCINA');
             expect(status1.equals(status2)).toBe(true);
         });
 
         test('should return false for different statuses', () => {
-            const status1 = new OrderStatus('CREADA');
-            const status2 = new OrderStatus('PREPARANDO');
+            const status1 = new OrderStatus('EN_COCINA');
+            const status2 = new OrderStatus('FINALIZADO');
             expect(status1.equals(status2)).toBe(false);
         });
 
         test('should return false for non-OrderStatus object', () => {
-            const status = new OrderStatus('CREADA');
-            expect(status.equals('CREADA')).toBe(false);
-            expect(status.equals({ value: 'CREADA' })).toBe(false);
+            const status = new OrderStatus('EN_COCINA');
+            expect(status.equals('EN_COCINA')).toBe(false);
+            expect(status.equals({ value: 'EN_COCINA' })).toBe(false);
         });
     });
 
     describe('toString', () => {
         test('should return the status value', () => {
-            const status = new OrderStatus('PREPARANDO');
-            expect(status.toString()).toBe('PREPARANDO');
+            const status = new OrderStatus('LISTO_PARA_SERVIR');
+            expect(status.toString()).toBe('LISTO_PARA_SERVIR');
         });
     });
 });

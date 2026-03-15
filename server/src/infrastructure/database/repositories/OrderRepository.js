@@ -154,8 +154,8 @@ class OrderRepository extends IOrderRepository {
     async findActive() {
         return new Promise((resolve, reject) => {
             this.db.all(
-                `SELECT id FROM orders WHERE status NOT IN (?, ?) ORDER BY created_at DESC`,
-                [OrderStatus.ENTREGADA, OrderStatus.CANCELADA],
+                `SELECT id FROM orders WHERE status NOT IN (?, ?) ORDER BY created_at ASC`,
+                [OrderStatus.FINALIZADO, OrderStatus.LISTO_PARA_RECOGER],
                 async (err, rows) => {
                     if (err) return reject(new DatabaseError(`Failed to fetch active orders: ${err.message}`));
                     try {
@@ -170,7 +170,7 @@ class OrderRepository extends IOrderRepository {
     async findByStatus(status) {
         return new Promise((resolve, reject) => {
             this.db.all(
-                'SELECT id FROM orders WHERE status = ? ORDER BY updated_at ASC',
+                'SELECT id FROM orders WHERE status = ? ORDER BY created_at ASC',
                 [status],
                 async (err, rows) => {
                     if (err) return reject(new DatabaseError(`Failed to fetch orders by status: ${err.message}`));

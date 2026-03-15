@@ -2,17 +2,50 @@ import { useState, useEffect } from 'react';
 import './MenuManager.css';
 import API_BASE_URL from '../config';
 import { authHeaders } from '../utils/api';
+import { useToast } from './Toast';
 
 const MENU_API_URL = `${API_BASE_URL}/menu`;
 const CATEGORIES_API_URL = `${API_BASE_URL}/categories`;
 
+function ConfirmDialog({ message, onConfirm, onCancel }) {
+    return (
+        <div className="modal-overlay" onClick={onCancel}>
+            <div className="modal-content glass-card slide-in" style={{ maxWidth: '380px' }} onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h3 style={{ fontSize: '1.1rem' }}>⚠️ Confirmar eliminación</h3>
+                    <button type="button" className="close-btn" onClick={onCancel} aria-label="Cancelar">×</button>
+                </div>
+                <div className="modal-body">
+                    <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{message}</p>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                        Esta acción no se puede deshacer.
+                    </p>
+                </div>
+                <div className="modal-footer">
+                    <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
+                    <button type="button" className="btn btn-danger" onClick={onConfirm}
+                        style={{ background: 'rgba(239,68,68,0.2)', borderColor: '#ef4444', color: '#ef4444' }}>
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function MenuManager() {
+    const showToast = useToast();
     const [items, setItems] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
-    const [groupByCategory, setGroupByCategory] = useState(true);
+    const [confirmDelete, setConfirmDelete] = useState(null); // { id, name }
+    const [groupByCategory, setGroupByCategory] = useState(() => {
+        const saved = localStorage.getItem('menuGroupByCategory');
+        return saved === null ? true : saved === 'true';
+    });
     const [collapsedCategories, setCollapsedCategories] = useState({});
 
     const toggleCategory = (categoryId) => {
@@ -55,7 +88,7 @@ function MenuManager() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.category_id) {
-            alert('Por favor selecciona una categoría.');
+            showToast('Por favor selecciona una categoría.', 'warning');
             return;
         }
 
@@ -68,6 +101,7 @@ function MenuManager() {
             price: parseFloat(formData.price)
         };
 
+        setSaving(true);
         try {
             const res = await fetch(url, {
                 method,
@@ -76,27 +110,38 @@ function MenuManager() {
             });
 
             if (res.ok) {
+                showToast(editingItem ? 'Artículo actualizado correctamente' : 'Artículo creado correctamente', 'success');
                 fetchData();
                 closeModal();
             } else {
-                alert('Error al guardar');
+                showToast('Error al guardar el artículo', 'error');
             }
         } catch (err) {
             console.error('Error saving item:', err);
+            showToast('Error de conexión al guardar', 'error');
+        } finally {
+            setSaving(false);
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!confirm('¿Seguro que deseas eliminar este artículo?')) return;
-
+    const handleDeleteConfirmed = async () => {
+        if (!confirmDelete) return;
+        const { id } = confirmDelete;
+        setConfirmDelete(null);
         try {
             const res = await fetch(`${MENU_API_URL}/${id}`, {
                 method: 'DELETE',
                 headers: authHeaders()
             });
-            if (res.ok) fetchData();
+            if (res.ok) {
+                showToast('Artículo eliminado', 'success');
+                fetchData();
+            } else {
+                showToast('Error al eliminar el artículo', 'error');
+            }
         } catch (err) {
             console.error('Error deleting item:', err);
+            showToast('Error de conexión al eliminar', 'error');
         }
     };
 
@@ -180,11 +225,11 @@ function MenuManager() {
                 const serverUrl = API_BASE_URL.replace('/api', '');
                 setFormData(prev => ({ ...prev, image_url: serverUrl + data.url }));
             } else {
-                alert('Error al subir imagen');
+                showToast('Error al subir imagen', 'error');
             }
         } catch (err) {
             console.error('Error processing image:', err);
-            alert('Error al procesar la imagen');
+            showToast('Error al procesar la imagen', 'error');
         } finally {
             setLoading(false);
         }
@@ -198,6 +243,57 @@ function MenuManager() {
     // Get unique category IDs from menu items so we iterate over them
     const usedCategoryIds = [...new Set(items.map(i => i.category_id))];
 
+    const renderTable = (tableItems, showCategory = false) => (
+        <table className="data-table">
+            <thead>
+                <tr>
+                    <th>Imagen</th>
+                    <th>Nombre</th>
+                    {showCategory && <th>Categoría</th>}
+                    <th>Precio Base</th>
+                    <th>Precio Final</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {tableItems.map(item => (
+                    <tr key={item.id} className={!item.available ? 'item-unavailable' : ''}>
+                        <td>
+                            {item.image_url ? (
+                                <img src={item.image_url} alt={item.name} className="item-thumbnail" />
+                            ) : (
+                                <span className="no-img">📷</span>
+                            )}
+                        </td>
+                        <td>
+                            <strong>{item.name}</strong>
+                            <p className="text-muted text-sm">{item.description}</p>
+                        </td>
+                        {showCategory && (
+                            <td><span className="badge">{getCategoryName(item.category_id)}</span></td>
+                        )}
+                        <td className="text-secondary">
+                            ${(item.original_price || item.price).toFixed(2)}
+                        </td>
+                        <td style={{ fontWeight: 600, color: item.has_promotion ? 'var(--primary)' : 'inherit' }}>
+                            ${(item.final_price || item.price).toFixed(2)}
+                            {item.has_promotion && <span title="Promoción Activa" style={{ marginLeft: 5 }}>🏷️</span>}
+                        </td>
+                        <td>
+                            <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
+                            {item.available ? 'Disponible' : 'Agotado'}
+                        </td>
+                        <td>
+                            <button className="action-btn edit-btn" onClick={() => openModal(item)} aria-label={`Editar ${item.name}`}>✏️</button>
+                            <button className="action-btn delete-btn" onClick={() => setConfirmDelete({ id: item.id, name: item.name })} aria-label={`Eliminar ${item.name}`}>🗑️</button>
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    );
+
     return (
         <div className="menu-manager">
             <div className="manager-content">
@@ -208,7 +304,10 @@ function MenuManager() {
                             <input
                                 type="checkbox"
                                 checked={groupByCategory}
-                                onChange={e => setGroupByCategory(e.target.checked)}
+                                onChange={e => {
+                                    setGroupByCategory(e.target.checked);
+                                    localStorage.setItem('menuGroupByCategory', e.target.checked);
+                                }}
                             />
                             Agrupar por Categoría
                         </label>
@@ -218,7 +317,16 @@ function MenuManager() {
                     </div>
                 </div>
 
-                {loading ? <p>Cargando...</p> : (
+                {loading ? <p>Cargando...</p> : items.length === 0 ? (
+                    <div className="menu-empty-state">
+                        <span>🍔</span>
+                        <h3>El menú está vacío</h3>
+                        <p>Agrega tu primer platillo para que aparezca en el sistema.</p>
+                        <button className="btn btn-primary" onClick={() => openModal()}>
+                            + Agregar Platillo
+                        </button>
+                    </div>
+                ) : (
                     <div className="data-table-wrapper">
                         {groupByCategory ? (
                             <div className="grouped-list">
@@ -237,106 +345,23 @@ function MenuManager() {
                                                     {catItems.length}
                                                 </span>
                                             </h4>
-                                            {!collapsedCategories[categoryId] && (
-                                                <table className="data-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Imagen</th>
-                                                            <th>Nombre</th>
-                                                            <th>Precio Base</th>
-                                                            <th>Precio Final</th>
-                                                            <th>Estado</th>
-                                                            <th>Acciones</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {catItems.map(item => (
-                                                            <tr key={item.id} className={!item.available ? 'item-unavailable' : ''}>
-                                                                <td>
-                                                                    {item.image_url ? (
-                                                                        <img src={item.image_url} alt={item.name} className="item-thumbnail" />
-                                                                    ) : (
-                                                                        <span className="no-img">📷</span>
-                                                                    )}
-                                                                </td>
-                                                                <td>
-                                                                    <strong>{item.name}</strong>
-                                                                    <p className="text-muted text-sm">{item.description}</p>
-                                                                </td>
-                                                                <td className="text-secondary">
-                                                                    ${(item.original_price || item.price).toFixed(2)}
-                                                                </td>
-                                                                <td style={{ fontWeight: 600, color: item.has_promotion ? 'var(--primary)' : 'inherit' }}>
-                                                                    ${(item.final_price || item.price).toFixed(2)}
-                                                                    {item.has_promotion && <span title="Promoción Activa" style={{ marginLeft: 5 }}>🏷️</span>}
-                                                                </td>
-                                                                <td>
-                                                                    <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
-                                                                    {item.available ? 'Disponible' : 'Agotado'}
-                                                                </td>
-                                                                <td>
-                                                                    <button className="action-btn edit-btn" onClick={() => openModal(item)}>✏️</button>
-                                                                    <button className="action-btn delete-btn" onClick={() => handleDelete(item.id)}>🗑️</button>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            )}
+                                            {!collapsedCategories[categoryId] && renderTable(catItems)}
                                         </div>
-                                    )
+                                    );
                                 })}
                             </div>
-                        ) : (
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Imagen</th>
-                                        <th>Nombre</th>
-                                        <th>Categoría</th>
-                                        <th>Precio Base</th>
-                                        <th>Precio Final</th>
-                                        <th>Estado</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {items.map(item => (
-                                        <tr key={item.id} className={!item.available ? 'item-unavailable' : ''}>
-                                            <td>
-                                                {item.image_url ? (
-                                                    <img src={item.image_url} alt={item.name} className="item-thumbnail" />
-                                                ) : (
-                                                    <span className="no-img">📷</span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <strong>{item.name}</strong>
-                                                <p className="text-muted text-sm">{item.description}</p>
-                                            </td>
-                                            <td><span className="badge">{getCategoryName(item.category_id)}</span></td>
-                                            <td className="text-secondary">
-                                                ${(item.original_price || item.price).toFixed(2)}
-                                            </td>
-                                            <td style={{ fontWeight: 600, color: item.has_promotion ? 'var(--primary)' : 'inherit' }}>
-                                                ${(item.final_price || item.price).toFixed(2)}
-                                            </td>
-                                            <td>
-                                                <span className={`status-dot ${item.available ? 'online' : 'offline'}`}></span>
-                                                {item.available ? 'Disponible' : 'Agotado'}
-                                            </td>
-                                            <td>
-                                                <button className="action-btn edit-btn" onClick={() => openModal(item)}>✏️</button>
-                                                <button className="action-btn delete-btn" onClick={() => handleDelete(item.id)}>🗑️</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
+                        ) : renderTable(items, true)}
                     </div>
                 )}
             </div>
+
+            {confirmDelete && (
+                <ConfirmDialog
+                    message={`¿Eliminar "${confirmDelete.name}"?`}
+                    onConfirm={handleDeleteConfirmed}
+                    onCancel={() => setConfirmDelete(null)}
+                />
+            )}
 
             {showModal && (
                 <div className="modal-overlay" onClick={closeModal}>
@@ -347,7 +372,7 @@ function MenuManager() {
                     >
                         <div className="modal-header">
                             <h3>{editingItem ? 'Editar Artículo' : 'Nuevo Artículo'}</h3>
-                            <button type="button" className="close-btn" onClick={closeModal}>×</button>
+                            <button type="button" className="close-btn" onClick={closeModal} aria-label="Cerrar modal">×</button>
                         </div>
                         <div className="modal-body">
                             <div className="menu-form-grid">
@@ -461,7 +486,14 @@ function MenuManager() {
                         </div>
                         <div className="modal-footer full-width">
                             <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
-                            <button type="submit" className="btn btn-primary btn-lg">{editingItem ? 'Guardar Cambios' : 'Crear Artículo'}</button>
+                            <button
+                                type="submit"
+                                className={`btn btn-primary btn-lg ${saving ? 'btn-loading' : ''}`}
+                                disabled={saving}
+                            >
+                                {saving && <span className="btn-spinner" aria-hidden="true" />}
+                                {saving ? 'Guardando...' : (editingItem ? 'Guardar Cambios' : 'Crear Artículo')}
+                            </button>
                         </div>
                     </form>
                 </div>

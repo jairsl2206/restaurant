@@ -44,3 +44,55 @@
     margin-top: 0;
     border-radius: 0 0 8px 8px;
 }
+
+/* ── Report mode toggle ── */
+.report-mode-toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.toggle-btn {
+    padding: 0.45rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, #94a3b8);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary, #e2e8f0);
+}
+
+.toggle-btn.active {
+    background: rgba(52, 152, 219, 0.2);
+    border-color: #3498db;
+    color: #3498db;
+    font-weight: 600;
+}
+
+.date-filters select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: var(--text-primary, #e2e8f0);
+    padding: 0.45rem 0.75rem;
+    font-size: 0.9rem;
+    min-width: 0;
+    width: 100%;
+}
+
+@media (max-width: 600px) {
+    .report-mode-toggle {
+        flex-wrap: wrap;
+    }
+
+    .toggle-btn {
+        flex: 1;
+        text-align: center;
+    }
+}

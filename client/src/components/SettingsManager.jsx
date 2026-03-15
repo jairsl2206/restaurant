@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import { authHeaders } from '../utils/api';
+import { useToast } from './Toast';
 
 const API_URL = API_BASE_URL + '/settings';
 
 function SettingsManager({ settings, onSettingsUpdate }) {
+    const showToast = useToast();
     const [formData, setFormData] = useState({
         restaurant_name: '',
         restaurant_logo: '',
@@ -73,7 +75,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                 headers: authHeaders()
             });
             if (res.ok) {
-                alert('Reinicio iniciado. Por favor espera el nuevo código QR.');
+                showToast('Reinicio iniciado. Por favor espera el nuevo código QR.', 'info');
             }
         } catch (err) {
             console.error('Error resetting WhatsApp', err);
@@ -93,14 +95,14 @@ function SettingsManager({ settings, onSettingsUpdate }) {
             });
 
             if (res.ok) {
-                alert('Configuración actualizada exitosamente');
+                showToast('Configuración actualizada exitosamente', 'success');
                 onSettingsUpdate();
             } else {
-                alert('Error al actualizar configuración');
+                showToast('Error al actualizar configuración', 'error');
             }
         } catch (err) {
             console.error('Error updating settings:', err);
-            alert('Error de conexión');
+            showToast('Error de conexión', 'error');
         }
     };
 
@@ -124,7 +126,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
             }
         } catch (err) {
             console.error('Upload failed:', err);
-            alert('Falló la subida de imagen');
+            showToast('Falló la subida de imagen', 'error');
         }
     };
 
@@ -136,7 +138,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                 </div>
 
                 <form onSubmit={handleSubmit} className="settings-form" style={{ maxWidth: '800px' }}>
-                    <div className="settings-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
+                    <div className="settings-grid">
                         {/* Columna Izquierda */}
                         <div>
                             <div className="form-group">
@@ -346,14 +348,14 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                                                     headers: authHeaders()
                                                 });
                                                 if (res.ok) {
-                                                    alert('Menú borrado exitosamente.');
+                                                    showToast('Menú borrado exitosamente.', 'success');
                                                     onSettingsUpdate();
                                                 } else {
-                                                    alert('Error al borrar menú.');
+                                                    showToast('Error al borrar menú.', 'error');
                                                 }
                                             } catch (err) {
                                                 console.error(err);
-                                                alert('Error de conexión.');
+                                                showToast('Error de conexión.', 'error');
                                             }
                                         }
                                     }
@@ -375,14 +377,14 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                                                     headers: authHeaders()
                                                 });
                                                 if (res.ok) {
-                                                    alert('Historial de pedidos borrado exitosamente.');
+                                                    showToast('Historial de pedidos borrado exitosamente.', 'success');
                                                     onSettingsUpdate();
                                                 } else {
-                                                    alert('Error al borrar pedidos.');
+                                                    showToast('Error al borrar pedidos.', 'error');
                                                 }
                                             } catch (err) {
                                                 console.error(err);
-                                                alert('Error de conexión.');
+                                                showToast('Error de conexión.', 'error');
                                             }
                                         }
                                     }

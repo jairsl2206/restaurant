@@ -12,7 +12,7 @@ describe('Order Entity', () => {
         waiterId: 50,
         tableNumber: 5,
         type: 'DINE_IN',
-        status: 'CREADA',
+        status: 'EN_COCINA',
         items: [
             { itemName: 'Burger', quantity: 2, unitPrice: 100 },
             { itemName: 'Drink', quantity: 1, unitPrice: 50 }
@@ -45,13 +45,13 @@ describe('Order Entity', () => {
             const data = createValidOrderData();
             const order = new Order(data);
             expect(order.status).toBeInstanceOf(OrderStatus);
-            expect(order.status.value).toBe('CREADA');
+            expect(order.status.value).toBe('EN_COCINA');
         });
 
         test('should accept OrderStatus object directly', () => {
-            const data = createValidOrderData({ status: new OrderStatus('PREPARANDO') });
+            const data = createValidOrderData({ status: new OrderStatus('LISTO_PARA_SERVIR') });
             const order = new Order(data);
-            expect(order.status.value).toBe('PREPARANDO');
+            expect(order.status.value).toBe('LISTO_PARA_SERVIR');
         });
 
         test('should convert items to OrderItem objects', () => {
@@ -75,7 +75,7 @@ describe('Order Entity', () => {
             const data = {
                 id: 1,
                 branchId: 1,
-                status: 'CREADA',
+                status: 'EN_COCINA',
                 items: [{ itemName: 'Item', quantity: 1, unitPrice: 100 }]
             };
             const order = new Order(data);
@@ -184,52 +184,37 @@ describe('Order Entity', () => {
     });
 
     describe('business rule methods', () => {
-        test('canBeEdited should return true only for CREADA', () => {
-            const orderCreada = new Order(createValidOrderData({ status: 'CREADA' }));
-            const orderPreparando = new Order(createValidOrderData({ status: 'PREPARANDO' }));
-            const orderLista = new Order(createValidOrderData({ status: 'LISTA' }));
-            const orderEntregada = new Order(createValidOrderData({ status: 'ENTREGADA' }));
-
-            expect(orderCreada.canBeEdited()).toBe(true);
-            expect(orderPreparando.canBeEdited()).toBe(false);
-            expect(orderLista.canBeEdited()).toBe(false);
-            expect(orderEntregada.canBeEdited()).toBe(false);
+        test('canBeEdited should return true for all active states', () => {
+            const activeStatuses = ['EN_COCINA', 'LISTO_PARA_SERVIR', 'SERVIDO', 'EN_REPARTO', 'LISTO_PARA_RECOGER'];
+            activeStatuses.forEach(status => {
+                const order = new Order(createValidOrderData({ status }));
+                expect(order.canBeEdited()).toBe(true);
+            });
         });
 
-        test('canBePrepared should return true only for CREADA', () => {
-            const orderCreada = new Order(createValidOrderData({ status: 'CREADA' }));
-            const orderPreparando = new Order(createValidOrderData({ status: 'PREPARANDO' }));
-
-            expect(orderCreada.canBePrepared()).toBe(true);
-            expect(orderPreparando.canBePrepared()).toBe(false);
+        test('canBeEdited should return false only for FINALIZADO', () => {
+            const orderFinalizado = new Order(createValidOrderData({ status: 'FINALIZADO' }));
+            expect(orderFinalizado.canBeEdited()).toBe(false);
         });
 
-        test('canBeMarkedReady should return true only for PREPARANDO', () => {
-            const orderPreparando = new Order(createValidOrderData({ status: 'PREPARANDO' }));
-            const orderCreada = new Order(createValidOrderData({ status: 'CREADA' }));
+        test('canBeServed should return true for LISTO_PARA_SERVIR', () => {
+            const orderListo = new Order(createValidOrderData({ status: 'LISTO_PARA_SERVIR' }));
+            const orderEnCocina = new Order(createValidOrderData({ status: 'EN_COCINA' }));
 
-            expect(orderPreparando.canBeMarkedReady()).toBe(true);
-            expect(orderCreada.canBeMarkedReady()).toBe(false);
+            expect(orderListo.canBeServed()).toBe(true);
+            expect(orderEnCocina.canBeServed()).toBe(false);
         });
 
-        test('canBeDelivered should return true only for LISTA', () => {
-            const orderLista = new Order(createValidOrderData({ status: 'LISTA' }));
-            const orderPreparando = new Order(createValidOrderData({ status: 'PREPARANDO' }));
+        test('canBeFinalizado should return true for ready-to-finalize statuses', () => {
+            const orderServido = new Order(createValidOrderData({ status: 'SERVIDO' }));
+            const orderEnReparto = new Order(createValidOrderData({ status: 'EN_REPARTO' }));
+            const orderRecoger = new Order(createValidOrderData({ status: 'LISTO_PARA_RECOGER' }));
+            const orderEnCocina = new Order(createValidOrderData({ status: 'EN_COCINA' }));
 
-            expect(orderLista.canBeDelivered()).toBe(true);
-            expect(orderPreparando.canBeDelivered()).toBe(false);
-        });
-
-        test('canBeCancelled should return true for active statuses', () => {
-            const orderCreada = new Order(createValidOrderData({ status: 'CREADA' }));
-            const orderPreparando = new Order(createValidOrderData({ status: 'PREPARANDO' }));
-            const orderLista = new Order(createValidOrderData({ status: 'LISTA' }));
-            const orderEntregada = new Order(createValidOrderData({ status: 'ENTREGADA' }));
-
-            expect(orderCreada.canBeCancelled()).toBe(true);
-            expect(orderPreparando.canBeCancelled()).toBe(true);
-            expect(orderLista.canBeCancelled()).toBe(true);
-            expect(orderEntregada.canBeCancelled()).toBe(false);
+            expect(orderServido.canBeFinalizado()).toBe(true);
+            expect(orderEnReparto.canBeFinalizado()).toBe(true);
+            expect(orderRecoger.canBeFinalizado()).toBe(true);
+            expect(orderEnCocina.canBeFinalizado()).toBe(false);
         });
     });
 
@@ -261,55 +246,55 @@ describe('Order Entity', () => {
 
     describe('updateStatus', () => {
         test('should return new Order with updated status', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
-            const updated = order.updateStatus('PREPARANDO');
-            expect(updated.status.value).toBe('PREPARANDO');
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
+            const updated = order.updateStatus('LISTO_PARA_SERVIR');
+            expect(updated.status.value).toBe('LISTO_PARA_SERVIR');
         });
 
         test('should preserve other properties', () => {
             const order = new Order(createValidOrderData());
-            const updated = order.updateStatus('PREPARANDO');
+            const updated = order.updateStatus('LISTO_PARA_SERVIR');
             expect(updated.id).toBe(order.id);
             expect(updated.branchId).toBe(order.branchId);
             expect(updated.items).toHaveLength(order.items.length);
         });
 
         test('should return new instance (immutable)', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
-            const updated = order.updateStatus('PREPARANDO');
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
+            const updated = order.updateStatus('LISTO_PARA_SERVIR');
             expect(updated).not.toBe(order);
-            expect(order.status.value).toBe('CREADA');
+            expect(order.status.value).toBe('EN_COCINA');
         });
 
         test('should update updatedAt timestamp', () => {
             const oldDate = new Date('2024-01-01');
             const order = new Order(createValidOrderData({ createdAt: oldDate, updatedAt: oldDate }));
-            const updated = order.updateStatus('PREPARANDO');
+            const updated = order.updateStatus('LISTO_PARA_SERVIR');
             expect(updated.updatedAt.getTime()).toBeGreaterThan(oldDate.getTime());
         });
 
         test('should throw ValidationError for invalid transition', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
-            expect(() => order.updateStatus('ENTREGADA')).toThrow(ValidationError);
-            expect(() => order.updateStatus('ENTREGADA')).toThrow('Cannot transition from CREADA to ENTREGADA');
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
+            expect(() => order.updateStatus('FINALIZADO')).toThrow(ValidationError);
+            expect(() => order.updateStatus('FINALIZADO')).toThrow('Cannot transition from EN_COCINA to FINALIZADO');
         });
 
         test('should accept string status', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
-            const updated = order.updateStatus('CANCELADA');
-            expect(updated.status.value).toBe('CANCELADA');
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
+            const updated = order.updateStatus('EN_REPARTO');
+            expect(updated.status.value).toBe('EN_REPARTO');
         });
 
         test('should accept OrderStatus object', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
-            const updated = order.updateStatus(new OrderStatus('PREPARANDO'));
-            expect(updated.status.value).toBe('PREPARANDO');
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
+            const updated = order.updateStatus(new OrderStatus('LISTO_PARA_SERVIR'));
+            expect(updated.status.value).toBe('LISTO_PARA_SERVIR');
         });
     });
 
     describe('updateItems', () => {
         test('should return new Order with updated items', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
             const newItems = [{ itemName: 'New Item', quantity: 1, unitPrice: 200 }];
             const updated = order.updateItems(newItems);
             expect(updated.items).toHaveLength(1);
@@ -317,28 +302,37 @@ describe('Order Entity', () => {
         });
 
         test('should preserve other properties', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
             const newItems = [{ itemName: 'New Item', quantity: 1, unitPrice: 200 }];
             const updated = order.updateItems(newItems);
             expect(updated.id).toBe(order.id);
             expect(updated.status.value).toBe(order.status.value);
         });
 
-        test('should throw ValidationError when order cannot be edited', () => {
-            const order = new Order(createValidOrderData({ status: 'PREPARANDO' }));
+        test('should allow editing in all active states', () => {
+            const activeStatuses = ['EN_COCINA', 'LISTO_PARA_SERVIR', 'SERVIDO', 'EN_REPARTO', 'LISTO_PARA_RECOGER'];
+            activeStatuses.forEach(status => {
+                const order = new Order(createValidOrderData({ status }));
+                const updated = order.updateItems([{ itemName: 'New Item', quantity: 1, unitPrice: 200 }]);
+                expect(updated.items[0].itemName).toBe('New Item');
+            });
+        });
+
+        test('should throw ValidationError when order is FINALIZADO', () => {
+            const order = new Order(createValidOrderData({ status: 'FINALIZADO' }));
             const newItems = [{ itemName: 'New Item', quantity: 1, unitPrice: 200 }];
             expect(() => order.updateItems(newItems)).toThrow(ValidationError);
-            expect(() => order.updateItems(newItems)).toThrow('Cannot edit an order that is not in CREADA status');
+            expect(() => order.updateItems(newItems)).toThrow('Cannot edit a finalized order');
         });
 
         test('should throw ValidationError for empty items', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
             expect(() => order.updateItems([])).toThrow(ValidationError);
         });
 
         test('should update updatedAt timestamp', () => {
             const oldDate = new Date('2024-01-01');
-            const order = new Order(createValidOrderData({ status: 'CREADA', updatedAt: oldDate }));
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA', updatedAt: oldDate }));
             const updated = order.updateItems([{ itemName: 'Item', quantity: 1, unitPrice: 100 }]);
             expect(updated.updatedAt.getTime()).toBeGreaterThan(oldDate.getTime());
         });
@@ -346,7 +340,7 @@ describe('Order Entity', () => {
 
     describe('addItem', () => {
         test('should add item to order', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
             const newItem = { itemName: 'Dessert', quantity: 1, unitPrice: 80 };
             const updated = order.addItem(newItem);
             expect(updated.items).toHaveLength(3);
@@ -354,14 +348,14 @@ describe('Order Entity', () => {
         });
 
         test('should accept OrderItem object', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
             const newItem = new OrderItem({ itemName: 'Dessert', quantity: 1, unitPrice: 80 });
             const updated = order.addItem(newItem);
             expect(updated.items[2]).toBeInstanceOf(OrderItem);
         });
 
         test('should return new instance (immutable)', () => {
-            const order = new Order(createValidOrderData({ status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ status: 'EN_COCINA' }));
             const updated = order.addItem({ itemName: 'Item', quantity: 1, unitPrice: 100 });
             expect(updated).not.toBe(order);
             expect(order.items).toHaveLength(2);
@@ -374,7 +368,7 @@ describe('Order Entity', () => {
                 { id: 1, itemName: 'Item 1', quantity: 1, unitPrice: 100 },
                 { id: 2, itemName: 'Item 2', quantity: 1, unitPrice: 200 }
             ];
-            const order = new Order(createValidOrderData({ items, status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ items, status: 'EN_COCINA' }));
             const updated = order.removeItem(1);
             expect(updated.items).toHaveLength(1);
             expect(updated.items[0].id).toBe(2);
@@ -382,7 +376,7 @@ describe('Order Entity', () => {
 
         test('should throw ValidationError when removing last item', () => {
             const items = [{ id: 1, itemName: 'Only Item', quantity: 1, unitPrice: 100 }];
-            const order = new Order(createValidOrderData({ items, status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ items, status: 'EN_COCINA' }));
             expect(() => order.removeItem(1)).toThrow(ValidationError);
             expect(() => order.removeItem(1)).toThrow('Order must have at least one item');
         });
@@ -392,7 +386,7 @@ describe('Order Entity', () => {
                 { id: 1, itemName: 'Item 1', quantity: 1, unitPrice: 100 },
                 { id: 2, itemName: 'Item 2', quantity: 1, unitPrice: 200 }
             ];
-            const order = new Order(createValidOrderData({ items, status: 'CREADA' }));
+            const order = new Order(createValidOrderData({ items, status: 'EN_COCINA' }));
             const updated = order.removeItem(1);
             expect(updated).not.toBe(order);
             expect(order.items).toHaveLength(2);
@@ -407,7 +401,7 @@ describe('Order Entity', () => {
             expect(json.id).toBe(1);
             expect(json.branchId).toBe(1);
             expect(json.customerId).toBe(100);
-            expect(json.status).toBe('CREADA');
+            expect(json.status).toBe('EN_COCINA');
             expect(json.type).toBe('DINE_IN');
             expect(json.discountTotal).toBe(10);
             expect(json.taxTotal).toBe(5);
@@ -419,7 +413,7 @@ describe('Order Entity', () => {
             const order = new Order(createValidOrderData());
             const json = order.toJSON();
             expect(typeof json.status).toBe('string');
-            expect(json.status).toBe('CREADA');
+            expect(json.status).toBe('EN_COCINA');
         });
 
         test('should serialize monetary values as numbers', () => {

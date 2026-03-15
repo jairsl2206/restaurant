@@ -1,192 +1,44 @@
 import './OrderCard.css';
 import { ORDER_STATUS, ORDER_TYPE } from './constants';
-
-// Single status flow: CREADA → PREPARANDO → LISTA → ENTREGADA
-const STATUS_FLOW = {
-    [ORDER_STATUS.CREADA]:     ORDER_STATUS.PREPARANDO,
-    [ORDER_STATUS.PREPARANDO]: ORDER_STATUS.LISTA,
-    [ORDER_STATUS.LISTA]:      ORDER_STATUS.ENTREGADA,
-    [ORDER_STATUS.ENTREGADA]:  null,
-    [ORDER_STATUS.CANCELADA]:  null
-};
-
-const STATUS_STEPS = [ORDER_STATUS.CREADA, ORDER_STATUS.PREPARANDO, ORDER_STATUS.LISTA, ORDER_STATUS.ENTREGADA];
+import { getNextStatus, getStatusSteps, cleanItemName, parseItemsIndividual, parseItemsGrouped, buildBillingItemsList } from './utils/orderCardUtils';
+import { useToast } from './components/Toast';
 
 const statusColors = {
-    [ORDER_STATUS.CREADA]:     'status-creada',
-    [ORDER_STATUS.PREPARANDO]: 'status-cocina',
-    [ORDER_STATUS.LISTA]:      'status-listo',
-    [ORDER_STATUS.ENTREGADA]:  'status-pagado',
-    [ORDER_STATUS.CANCELADA]:  'status-cancelled'
+    [ORDER_STATUS.EN_COCINA]:          'status-cocina',
+    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'status-listo',
+    [ORDER_STATUS.SERVIDO]:            'status-servido',
+    [ORDER_STATUS.EN_REPARTO]:         'status-reparto',
+    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'status-recoger',
+    [ORDER_STATUS.FINALIZADO]:         'status-pagado'
 };
 
 const statusLabels = {
-    [ORDER_STATUS.CREADA]:     'Creada',
-    [ORDER_STATUS.PREPARANDO]: 'Preparando',
-    [ORDER_STATUS.LISTA]:      'Lista',
-    [ORDER_STATUS.ENTREGADA]:  'Entregada',
-    [ORDER_STATUS.CANCELADA]:  'Cancelada'
+    [ORDER_STATUS.EN_COCINA]:          'En cocina',
+    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'Listo para servir',
+    [ORDER_STATUS.SERVIDO]:            'Servido (En mesa)',
+    [ORDER_STATUS.EN_REPARTO]:         'En reparto',
+    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'Listo para recoger',
+    [ORDER_STATUS.FINALIZADO]:         'Finalizado'
 };
 
 import { useState, useEffect } from 'react';
 
-// Helper to recursively clean a name from suffixes like " x2 [190.0]"
-const cleanItemName = (str) => {
-    let current = str.trim();
-    let changed = true;
-    while (changed) {
-        changed = false;
-        // Match " xQuantity [Price]" at the end
-        const fullSuffixMatch = current.match(/(.+) x\d+(\.\d+)?( \[(\d+\.?\d*)\])?$/);
-        if (fullSuffixMatch) {
-            current = fullSuffixMatch[1].trim();
-            changed = true;
-            continue;
-        }
-        // Match just " [Price]" at the end
-        const priceSuffixMatch = current.match(/(.+) \[(\d+\.?\d*)\]$/);
-        if (priceSuffixMatch) {
-            current = priceSuffixMatch[1].trim();
-            changed = true;
-            continue;
-        }
-        // Match just " xQuantity" at the end
-        const qtySuffixMatch = current.match(/(.+) x\d+$/);
-        if (qtySuffixMatch) {
-            current = qtySuffixMatch[1].trim();
-            changed = true;
-        }
-    }
-    return current;
-};
+function getWaitingMinutes(dateStr) {
+    if (!dateStr) return 0;
+    return Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+}
 
-// Items parsing logic - INDIVIDUAL (not grouped)
-const parseItemsIndividual = (itemsString) => {
-    if (!itemsString) return [];
-    const individualItems = [];
-    const str = String(itemsString);
-    const parts = str.split(/,\s*(?![^(]*\))/);
-    let globalIndex = 0;
-
-    parts.forEach(part => {
-        let content = part.trim();
-        let itemPrice = 0;
-
-        // 1. Extract Price if exists
-        const priceMatch = content.match(/(.+) \[(\d+\.?\d*)\]$/);
-        if (priceMatch) {
-            content = priceMatch[1].trim();
-            itemPrice = parseFloat(priceMatch[2]);
-        }
-
-        // 2. Extract Quantity if exists
-        const qtyMatch = content.match(/(.+) x(\d+)$/);
-        let nameWithNote = content;
-        let qty = 1;
-        if (qtyMatch) {
-            nameWithNote = qtyMatch[1].trim();
-            qty = parseInt(qtyMatch[2], 10);
-        }
-
-        // 3. Extract Note if exists
-        const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
-        let name = nameWithNote;
-        let note = '';
-        if (noteMatch) {
-            name = noteMatch[1].trim();
-            note = noteMatch[2].trim();
-        }
-
-        // 4. Robust cleaning
-        name = cleanItemName(name);
-
-        // Create individual entries for each item
-        for (let i = 0; i < qty; i++) {
-            individualItems.push({
-                id: `item_${globalIndex}`,
-                text: name,
-                note: note,
-                quantity: 1, // Each item is quantity 1
-                price: itemPrice,
-                checked: false
-            });
-            globalIndex++;
-        }
-    });
-    return individualItems;
-};
-
-// Items parsing logic - GROUPED (for informational views)
-const parseItemsGrouped = (itemsString) => {
-    if (!itemsString) return [];
-    const str = String(itemsString);
-    const parts = str.split(/,\s*(?![^(]*\))/);
-    let itemMap = new Map();
-
-    parts.forEach(part => {
-        let content = part.trim();
-
-        // 1. Extract Price
-        const priceSuffixMatch = content.match(/(.+) \[(\d+\.?\d*)\]$/);
-        if (priceSuffixMatch) {
-            content = priceSuffixMatch[1].trim();
-        }
-
-        // 2. Extract Quantity
-        const qtySuffixMatch = content.match(/(.+) x(\d+)$/);
-        let nameWithNote = content;
-        let qty = 1;
-
-        if (qtySuffixMatch) {
-            nameWithNote = qtySuffixMatch[1].trim();
-            qty = parseInt(qtySuffixMatch[2], 10);
-        }
-
-        // Key for grouping remains nameWithNote for now to keep notes grouped together
-        const key = nameWithNote.trim();
-
-        // Group by full string (including note)
-        if (itemMap.has(key)) {
-            itemMap.set(key, itemMap.get(key) + qty);
-        } else {
-            itemMap.set(key, qty);
-        }
-    });
-
-    // Convert to array
-    return Array.from(itemMap.entries()).map(([nameWithNote, quantity], index) => {
-        // Extract note and clean name for display
-        const noteMatch = nameWithNote.match(/(.+?)\s*?\((.+)\)$/);
-        let name = nameWithNote;
-        let note = '';
-        if (noteMatch) {
-            name = noteMatch[1].trim();
-            note = noteMatch[2].trim();
-        }
-
-        // Final robust cleaning
-        name = cleanItemName(name);
-
-        return {
-            id: `grouped_${index}`,
-            text: name,
-            note: note,
-            quantity: quantity
-        };
-    });
-};
-
-function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
-    const nextStatus = STATUS_FLOW[order.status] ?? null;
+function OrderCard({ order, onStatusChange, user, onEdit }) {
+    const showToast = useToast();
+    const nextStatus = getNextStatus(order);
     const canAdvance = nextStatus !== null;
-    const isCancelled = order.status === ORDER_STATUS.CANCELADA;
-    const isEntregada = order.status === ORDER_STATUS.ENTREGADA;
+    const isFinalizado = order.status === ORDER_STATUS.FINALIZADO;
 
     // Roles that can advance kitchen status (cook or admin)
     const isAllowedRole = user?.role === 'cook' || user?.role === 'admin' || user?.role === 'manager';
-    // PREPARANDO stage (kitchen) is locked for waiters
-    const isKitchenStage = order.status === ORDER_STATUS.PREPARANDO;
-    const isLocked = (isKitchenStage && !isAllowedRole) || isCancelled;
+    // EN_COCINA stage is locked for waiters (kitchen advances it)
+    const isKitchenStage = order.status === ORDER_STATUS.EN_COCINA;
+    const isLocked = isKitchenStage && !isAllowedRole;
 
     // Delivery / pickup detection — supports both new `type` and legacy `is_delivery`/`is_pickup`
     const isDelivery = order.type === ORDER_TYPE.DELIVERY || order.is_delivery == 1;
@@ -194,11 +46,16 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
 
     const [itemsList, setItemsList] = useState([]);
     const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+    const [advancing, setAdvancing] = useState(false);
 
     useEffect(() => {
-        setItemsList(parseItemsIndividual(order.items));
+        const nextSt = getNextStatus(order);
+        const items = nextSt === ORDER_STATUS.FINALIZADO
+            ? buildBillingItemsList(order)
+            : parseItemsIndividual(order.items);
+        setItemsList(items);
         setPaymentConfirmed(false);
-    }, [order.items, order.status]);
+    }, [order.items, order.additions_items, order.status]);
 
     const handleCheck = (index) => {
         setItemsList(prev => {
@@ -215,31 +72,31 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
         })));
     };
 
-    // Payment stage is LISTA (ready) → ENTREGADA
-    const isPaymentStage = nextStatus === ORDER_STATUS.ENTREGADA;
-    const showSimpleList = isEntregada || isCancelled;
+    // Payment/confirmation stage: when next step is FINALIZADO
+    const isPaymentStage = nextStatus === ORDER_STATUS.FINALIZADO;
+    const showSimpleList = isFinalizado;
 
     // No more diff view in the new schema (snapshots removed)
     const showDiff = false;
     let displayItems = itemsList.map(item => ({ ...item, status: 'kept' }));
     let addedItems = [];
 
-
-
     const allChecked = itemsList.length > 0 && itemsList.every(item => item.checked);
     const canSubmit = isPaymentStage ? paymentConfirmed : allChecked;
-    const validationRequired = canAdvance && !isCancelled;
+    const validationRequired = canAdvance;
 
-    const handleAdvance = () => {
+    const handleAdvance = async () => {
         if (!canAdvance) return;
         if (isPaymentStage && !paymentConfirmed) {
-            alert('Por favor confirma la entrega antes de avanzar.');
+            showToast('Por favor confirma antes de finalizar.', 'warning');
             return;
         } else if (!isPaymentStage && !allChecked) {
-            alert('Por favor verifica todos los artículos antes de avanzar.');
+            showToast('Por favor verifica todos los artículos antes de avanzar.', 'warning');
             return;
         }
-        onStatusChange(order.id, nextStatus);
+        setAdvancing(true);
+        await onStatusChange(order.id, nextStatus);
+        // Component may unmount after status change; no need to reset
     };
 
     const formatDate = (dateString) => {
@@ -249,27 +106,24 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
         });
     };
 
+    // Time badge: show if waiting ≥ 10 min and order is active
+    const waitMins = !isFinalizado ? getWaitingMinutes(order.updated_at) : 0;
+    const showTimeBadge = waitMins >= 10;
+    const timeBadgeClass = waitMins > 20 ? 'time-badge-urgent' : 'time-badge-warn';
+
     // Render helper for Individual Row
     const renderIndividualRow = (item, isDiff = false) => {
         const isRemoved = item.status === 'removed';
 
-        // For diff view, we need to find the item by ID in itemsList
-        // For normal view, the item IS from itemsList
         let realItem;
         let isChecked;
 
         if (isDiff) {
-            // In diff view, find the corresponding item in itemsList by matching the ID
-            // For original items that are kept, find by the original index
-            // For added items, find by the added index
             if (item.status === 'kept' || item.status === 'removed') {
-                // This is from the original order
                 const originalIndex = parseInt(item.id.split('_')[1]);
                 realItem = itemsList[originalIndex];
             } else if (item.status === 'added') {
-                // This is a new item
                 const addedIndex = parseInt(item.id.split('_')[1]);
-                // Find in itemsList - added items come after the kept ones
                 const keptCount = displayItems.filter(d => d.status === 'kept').length;
                 realItem = itemsList[keptCount + addedIndex];
             }
@@ -281,13 +135,11 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
 
         const handleToggle = () => {
             if (isDiff && realItem) {
-                // Find the index in itemsList
                 const index = itemsList.findIndex(i => i.id === realItem.id);
                 if (index !== -1) {
                     handleCheck(index);
                 }
             } else {
-                // Normal view - find by item.id
                 const index = itemsList.findIndex(i => i.id === item.id);
                 if (index !== -1) {
                     handleCheck(index);
@@ -337,11 +189,16 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
         );
     };
 
+    // Billing totals for payment stage
+    const originalTotal = order.total;
+    const additionsTotal = Number(order.additions_total) || 0;
+    const grandTotal = originalTotal + additionsTotal;
+
     return (
-        <div className={`order-card glass-card slide-in ${isCancelled ? 'card-cancelled' : ''}`}>
+        <div className={`order-card glass-card slide-in`}>
             <div className="order-header">
                 <div className="order-info">
-                    <h3 className="order-number" style={isCancelled ? { textDecoration: 'line-through', opacity: 0.7 } : {}}>#{order.id}</h3>
+                    <h3 className="order-number">#{order.id}</h3>
                     {isDelivery || isPickup ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <p className="order-table" style={{ margin: 0 }}>
@@ -360,7 +217,22 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         <p className="order-table">Mesa {order.table_number}</p>
                     )}
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {showTimeBadge && (
+                        <span className={`time-badge ${timeBadgeClass}`} title={`Esperando ${waitMins} min`}>
+                            🕐 {waitMins}m
+                        </span>
+                    )}
+                    {order.parent_order_id && (
+                        <div style={{ fontSize: '0.75rem', background: 'rgba(52, 152, 219, 0.2)', color: '#74b9ff', border: '1px solid rgba(52, 152, 219, 0.4)', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }}>
+                            + Adición a #{order.parent_order_id}
+                        </div>
+                    )}
+                    {!order.parent_order_id && order.pending_additions_count > 0 && (
+                        <div style={{ fontSize: '0.75rem', background: 'rgba(243, 156, 18, 0.2)', color: '#fdcb6e', border: '1px solid rgba(243, 156, 18, 0.4)', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }}>
+                            +{order.pending_additions_count} adición(es)
+                        </div>
+                    )}
                     <div className={`status-badge ${statusColors[order.status] || ''}`}>
                         {statusLabels[order.status] || order.status}
                     </div>
@@ -368,30 +240,25 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
             </div>
 
             <div className="status-progress">
-                {isCancelled ? (
-                    <div className="progress-step active" style={{ width: '100%' }}>
-                        <div className="step-dot" style={{ background: '#e74c3c' }} title="Cancelada"></div>
-                    </div>
-                ) : (
-                    (() => {
-                        const currentStepIndex = STATUS_STEPS.indexOf(order.status);
-                        return STATUS_STEPS.map((step, index) => {
-                            const isActive = index <= currentStepIndex;
-                            return (
-                                <div key={step} className={`progress-step ${isActive ? 'active' : ''}`}>
-                                    <div className="step-dot" title={statusLabels[step]}></div>
-                                    {index < STATUS_STEPS.length - 1 && <div className="step-line"></div>}
-                                </div>
-                            );
-                        });
-                    })()
-                )}
+                {(() => {
+                    const steps = getStatusSteps(order);
+                    const currentStepIndex = steps.indexOf(order.status);
+                    return steps.map((step, index) => {
+                        const isActive = index <= currentStepIndex;
+                        return (
+                            <div key={step} className={`progress-step ${isActive ? 'active' : ''}`}>
+                                <div className="step-dot" title={statusLabels[step]}></div>
+                                {index < steps.length - 1 && <div className="step-line"></div>}
+                            </div>
+                        );
+                    });
+                })()}
             </div>
 
-            <div className="order-body" style={isCancelled ? { opacity: 0.6, pointerEvents: 'none' } : {}}>
+            <div className="order-body">
                 <div className="order-items">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h4>{isPaymentStage ? 'Pago' : 'Artículos'}</h4>
+                        <h4>{isPaymentStage ? '💳 Cobro' : 'Artículos'}</h4>
 
                         {!isPaymentStage && validationRequired && !allChecked && !isLocked && (
                             <span style={{ fontSize: '0.8rem', color: '#ff6b6b' }}>
@@ -399,70 +266,72 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                             </span>
                         )}
 
-                        {!isCancelled && (
-                            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-                                {/* Cancel button — only for CREADA status, only for waiters */}
-                                {onCancel && order.status === ORDER_STATUS.CREADA && !isAllowedRole && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onCancel(order.id); }}
-                                        style={{
-                                            background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c',
-                                            color: '#e74c3c', borderRadius: '4px',
-                                            padding: '2px 8px', fontSize: '0.8rem', cursor: 'pointer'
-                                        }}
-                                        title="Cancelar Orden"
-                                    >
-                                        ✕ Cancelar
-                                    </button>
-                                )}
-
-                                {/* Edit button — only for CREADA status, only for waiters */}
-                                {onEdit && order.status === ORDER_STATUS.CREADA && !isAllowedRole && (
-                                    <button
-                                        onClick={() => onEdit(order)}
-                                        style={{
-                                            background: 'none', border: '1px solid var(--primary)',
-                                            color: 'var(--primary)', borderRadius: '4px',
-                                            padding: '2px 8px', fontSize: '0.8rem', cursor: 'pointer'
-                                        }}
-                                    >
-                                        ✏️ Editar
-                                    </button>
-                                )}
+                        {/* Edit button — available in any active status (before FINALIZADO), only for waiters */}
+                        {onEdit && order.status !== ORDER_STATUS.FINALIZADO && !isAllowedRole && (
+                            <div style={{ marginLeft: 'auto' }}>
+                                <button
+                                    onClick={() => onEdit(order)}
+                                    aria-label={`Editar orden #${order.id}`}
+                                    style={{
+                                        background: 'none', border: '1px solid var(--primary)',
+                                        color: 'var(--primary)', borderRadius: '4px',
+                                        padding: '2px 8px', fontSize: '0.8rem', cursor: 'pointer'
+                                    }}
+                                >
+                                    ✏️ Editar
+                                </button>
                             </div>
                         )}
                     </div>
 
                     {isPaymentStage ? (
-                        <div className="payment-stage-container">
-                            <ul className="items-list-simple" style={{ listStyle: 'none', padding: 0, marginBottom: '15px' }}>
+                        <div className="payment-receipt">
+                            {/* Item list */}
+                            <ul className="receipt-items-list">
                                 {itemsList.map((item, i) => (
-                                    <li key={i} className="simple-item" style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                                                <span style={{ marginRight: '8px', color: '#3498db' }}>•</span>
-                                                <span className="item-text" style={{ color: '#ecf0f1' }}>{item.text}</span>
-                                            </div>
+                                    <li key={i} className={`receipt-item ${item.isAddition ? 'receipt-item-addition' : ''}`}>
+                                        <div className="receipt-item-info">
+                                            <span className="receipt-item-dot" style={{ color: item.isAddition ? '#fdcb6e' : '#74b9ff' }}>•</span>
+                                            <span className="receipt-item-name">{item.text}</span>
+                                            {item.isAddition && <span className="receipt-addition-badge">+adición</span>}
                                             {item.note && (
-                                                <span style={{ marginLeft: '15px', fontSize: '0.75rem', color: '#ff6b6b', fontWeight: 'bold' }}>
-                                                    ↳ {item.note}
-                                                </span>
+                                                <span className="receipt-item-note">↳ {item.note}</span>
                                             )}
                                         </div>
-                                        <span style={{ color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 'bold' }}>${(item.price || 0).toFixed(2)}</span>
+                                        <span className="receipt-item-price">${(item.price || 0).toFixed(2)}</span>
                                     </li>
                                 ))}
                             </ul>
 
-                            <div className="payment-check-container" style={{ padding: '10px', background: 'rgba(46, 204, 113, 0.1)', borderRadius: '8px', border: '1px solid rgba(46, 204, 113, 0.3)' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', width: '100%' }}>
+                            {/* Totals */}
+                            <div className="receipt-totals">
+                                <div className="receipt-row">
+                                    <span>Orden original</span>
+                                    <span>${originalTotal.toFixed(2)}</span>
+                                </div>
+                                {additionsTotal > 0 && (
+                                    <div className="receipt-row receipt-additions">
+                                        <span>Adiciones (+{itemsList.filter(i => i.isAddition).length} ítem{itemsList.filter(i => i.isAddition).length !== 1 ? 's' : ''})</span>
+                                        <span style={{ color: '#fdcb6e' }}>+${additionsTotal.toFixed(2)}</span>
+                                    </div>
+                                )}
+                                <div className="receipt-divider" />
+                                <div className="receipt-grand-total">
+                                    <span>TOTAL A COBRAR</span>
+                                    <span className="receipt-grand-amount">${grandTotal.toFixed(2)}</span>
+                                </div>
+                            </div>
+
+                            {/* Payment confirmation */}
+                            <div className="payment-check-container">
+                                <label className="payment-confirm-label">
                                     <input
                                         type="checkbox"
                                         checked={paymentConfirmed}
                                         onChange={(e) => setPaymentConfirmed(e.target.checked)}
-                                        style={{ width: '20px', height: '20px', accentColor: '#2ecc71' }}
+                                        className="payment-confirm-checkbox"
                                     />
-                                    <span style={{ fontWeight: 'bold', color: '#e0e0e0' }}>✅ Confirmar Entrega al Cliente</span>
+                                    <span>✅ Confirmar pago y finalizar orden</span>
                                 </label>
                             </div>
                         </div>
@@ -495,7 +364,7 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         <div className="diff-view">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                 {displayItems.length > 0 && <p style={{ fontSize: '0.8rem', color: '#aaa', margin: 0 }}>Orden Original:</p>}
-                                {!isLocked && !isCancelled && !isPaymentStage && (
+                                {!isLocked && !isPaymentStage && (
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', color: 'var(--primary)', cursor: 'pointer' }}>
                                         <input
                                             type="checkbox"
@@ -524,7 +393,7 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                         </div>
                     ) : (
                         <div>
-                            {!isLocked && !isCancelled && !isPaymentStage && itemsList.length > 0 && (
+                            {!isLocked && !isPaymentStage && itemsList.length > 0 && (
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', color: 'var(--primary)', cursor: 'pointer' }}>
                                         <input
@@ -544,25 +413,27 @@ function OrderCard({ order, onStatusChange, user, onEdit, onCancel }) {
                     )}
                 </div>
 
-                <div className="order-meta">
-                    <div className="meta-item"><span className="meta-label">Total</span><span className="meta-value">${order.total.toFixed(2)}</span></div>
-                    <div className="meta-item"><span className="meta-label">Hora</span><span className="meta-value">{formatDate(order.created_at)}</span></div>
-                </div>
+                {!isPaymentStage && (
+                    <div className="order-meta">
+                        <div className="meta-item"><span className="meta-label">Total</span><span className="meta-value">${order.total.toFixed(2)}</span></div>
+                        <div className="meta-item"><span className="meta-label">Hora</span><span className="meta-value">{formatDate(order.created_at)}</span></div>
+                    </div>
+                )}
             </div>
 
-            {canAdvance && !isCancelled && (
+            {canAdvance && (
                 <div className="order-footer">
-                    {isLocked ? (
-                        null
-                    ) : (
+                    {isLocked ? null : (
                         <button
-                            className="btn btn-primary btn-block advance-btn"
+                            className={`btn btn-primary btn-block advance-btn ${advancing ? 'btn-loading' : ''}`}
                             onClick={handleAdvance}
-                            disabled={!canSubmit}
-                            style={{ opacity: (canSubmit) ? 1 : 0.6, cursor: (canSubmit) ? 'pointer' : 'not-allowed' }}
+                            disabled={!canSubmit || advancing}
+                            style={{ opacity: (canSubmit && !advancing) ? 1 : 0.6, cursor: (canSubmit && !advancing) ? 'pointer' : 'not-allowed' }}
+                            aria-label={isPaymentStage ? 'Finalizar orden' : `Avanzar a ${statusLabels[nextStatus] || nextStatus}`}
                         >
-                <span>{isPaymentStage ? 'Confirmar Entrega' : `Avanzar a ${statusLabels[nextStatus] || nextStatus}`}</span>
-                            <span className="arrow-icon">→</span>
+                            {advancing && <span className="btn-spinner" aria-hidden="true" />}
+                            <span>{advancing ? 'Procesando...' : (isPaymentStage ? 'Finalizar Orden' : `Avanzar a ${statusLabels[nextStatus] || nextStatus}`)}</span>
+                            {!advancing && <span className="arrow-icon" aria-hidden="true">→</span>}
                         </button>
                     )}
                 </div>

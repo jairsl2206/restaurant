@@ -225,3 +225,185 @@
     font-size: 0.95rem;
     font-weight: 500;
 }
+
+/* ============================================
+   TIME BADGE
+   ============================================ */
+.time-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.time-badge-warn {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fcd34d;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.time-badge-urgent {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    animation: pulse-badge 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.6; }
+}
+
+/* ============================================
+   PAYMENT RECEIPT LAYOUT
+   ============================================ */
+.payment-receipt {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.receipt-items-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.receipt-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    gap: 8px;
+}
+
+.receipt-item-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 2px;
+}
+
+.receipt-item-dot {
+    /* inline via style */
+}
+
+.receipt-item-name {
+    font-size: 0.88rem;
+    color: #ecf0f1;
+}
+
+.receipt-addition-badge {
+    font-size: 0.68rem;
+    color: #fdcb6e;
+    font-weight: bold;
+    margin-left: 4px;
+}
+
+.receipt-item-note {
+    font-size: 0.75rem;
+    color: #ff6b6b;
+    font-style: italic;
+}
+
+.receipt-item-price {
+    color: var(--primary);
+    font-size: 0.88rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.receipt-totals {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    padding: 0.625rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.receipt-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.receipt-additions {
+    color: var(--text-muted);
+}
+
+.receipt-divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+.receipt-grand-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.receipt-grand-amount {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #2ecc71;
+    line-height: 1;
+}
+
+.payment-check-container {
+    padding: 0.75rem;
+    background: rgba(46, 204, 113, 0.08);
+    border-radius: 10px;
+    border: 1px solid rgba(46, 204, 113, 0.25);
+}
+
+.payment-confirm-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+}
+
+.payment-confirm-checkbox {
+    width: 24px !important;
+    height: 24px !important;
+    accent-color: #2ecc71;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* ============================================
+   LOADING SPINNER FOR BUTTONS
+   ============================================ */
+.btn-loading {
+    cursor: wait !important;
+}
+
+.btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: btn-spin 0.6s linear infinite;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+@keyframes btn-spin {
+    to { transform: rotate(360deg); }
+}

@@ -64,7 +64,7 @@ describe('CreateOrder Use Case', () => {
             expect(savedOrder.type).toBe('DINE_IN');
         });
 
-        test('should set status to CREADA', async () => {
+        test('should set status to EN_COCINA', async () => {
             const input = {
                 items: [{ name: 'Item', quantity: 1, price: 100 }]
             };
@@ -73,7 +73,7 @@ describe('CreateOrder Use Case', () => {
             await createOrder.execute(input);
 
             const savedOrder = mockOrderRepository.save.mock.calls[0][0];
-            expect(savedOrder.status.value).toBe(OrderStatus.CREADA);
+            expect(savedOrder.status.value).toBe(OrderStatus.EN_COCINA);
         });
 
         test('should create OrderItem objects from input', async () => {

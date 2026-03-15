@@ -4,6 +4,7 @@ import { ORDER_STATUS, ORDER_TYPE } from './constants';
 import NewOrderModal from './NewOrderModal';
 import NotificationCenter from './components/NotificationCenter';
 import { playNotificationSound } from './utils/sound';
+import { useToast } from './components/Toast';
 import './Dashboard.css';
 import API_BASE_URL from './config';
 import { authHeaders } from './utils/api';
@@ -11,28 +12,32 @@ import { authHeaders } from './utils/api';
 const API_URL = API_BASE_URL;
 
 const statusIcons = {
-    [ORDER_STATUS.CREADA]:     '📋',
-    [ORDER_STATUS.PREPARANDO]: '🍳',
-    [ORDER_STATUS.LISTA]:      '🥡',
-    [ORDER_STATUS.ENTREGADA]:  '✅',
-    [ORDER_STATUS.CANCELADA]:  '❌'
+    [ORDER_STATUS.EN_COCINA]:          '🍳',
+    [ORDER_STATUS.LISTO_PARA_SERVIR]:  '🥡',
+    [ORDER_STATUS.SERVIDO]:            '🍽️',
+    [ORDER_STATUS.EN_REPARTO]:         '🚗',
+    [ORDER_STATUS.LISTO_PARA_RECOGER]: '📦',
+    [ORDER_STATUS.FINALIZADO]:         '✅'
 };
 
 const statusLabels = {
-    [ORDER_STATUS.CREADA]:     'Creadas',
-    [ORDER_STATUS.PREPARANDO]: 'En Cocina',
-    [ORDER_STATUS.LISTA]:      'Listas',
-    [ORDER_STATUS.ENTREGADA]:  'Entregadas',
-    [ORDER_STATUS.CANCELADA]:  'Canceladas'
+    [ORDER_STATUS.EN_COCINA]:          'En cocina',
+    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'Listo para servir',
+    [ORDER_STATUS.SERVIDO]:            'Servido (En mesa)',
+    [ORDER_STATUS.EN_REPARTO]:         'En reparto',
+    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'Listo para recoger',
+    [ORDER_STATUS.FINALIZADO]:         'Finalizado'
 };
 
 function Dashboard({ user, onLogout, settings }) {
+    const showToast = useToast();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showNewOrder, setShowNewOrder] = useState(false);
     const [editOrder, setEditOrder] = useState(null); // Order being edited
     const [filter, setFilter] = useState('active'); // 'active' or 'all'
     const [notifications, setNotifications] = useState([]);
+    const [activePeriod, setActivePeriod] = useState(undefined); // undefined = loading, null = no period
 
     const prevOrdersRef = useRef([]);
 
@@ -59,10 +64,21 @@ function Dashboard({ user, onLogout, settings }) {
         playNotificationSound();
     };
 
+    const fetchActivePeriod = async () => {
+        try {
+            const res = await fetch(`${API_URL}/sale-periods/active`, { headers: authHeaders() });
+            const data = await res.json();
+            setActivePeriod(data && data.id ? data : null);
+        } catch {
+            setActivePeriod(null);
+        }
+    };
+
     useEffect(() => {
         fetchOrders();
+        fetchActivePeriod();
         // Poll for updates every 5 seconds
-        const interval = setInterval(fetchOrders, 5000);
+        const interval = setInterval(() => { fetchOrders(); fetchActivePeriod(); }, 5000);
         return () => clearInterval(interval);
     }, [filter]);
 
@@ -72,32 +88,28 @@ function Dashboard({ user, onLogout, settings }) {
             const response = await fetch(`${API_URL}${endpoint}`, { headers: authHeaders() });
             const data = await response.json();
 
-            // Waiter: LISTA = ready to serve/deliver/hand off
+            // Waiter: notify when orders are ready to serve/pickup
             if (user.role === 'waiter' && prevOrdersRef.current.length > 0) {
-                const readyOrders = data.filter(o => o.status === ORDER_STATUS.LISTA);
-                const justReady   = readyOrders.filter(newOrder => {
+                const readyStatuses = [ORDER_STATUS.LISTO_PARA_SERVIR, ORDER_STATUS.LISTO_PARA_RECOGER];
+                const justReady = data.filter(newOrder => {
+                    if (!readyStatuses.includes(newOrder.status)) return false;
                     const old = prevOrdersRef.current.find(o => o.id === newOrder.id);
-                    return !old || old.status !== ORDER_STATUS.LISTA;
+                    return !old || !readyStatuses.includes(old.status);
                 });
 
                 justReady.forEach(order => {
-                    const isDelivery = order.type === ORDER_TYPE.DELIVERY || order.is_delivery;
-                    const isPickup   = order.type === ORDER_TYPE.PICKUP   || order.is_pickup;
-                    const action     = isDelivery ? 'entregar' : isPickup ? 'recoger' : 'servir';
-                    const loc        = isDelivery ? `Delivery - ${order.customer_name}` :
-                                      isPickup   ? `Pickup - ${order.customer_name}` :
-                                                   `Mesa ${order.table_number}`;
-
+                    const isPickup = order.type === ORDER_TYPE.PICKUP || order.is_pickup;
+                    const loc      = isPickup ? `Pickup - ${order.customer_name}` : `Mesa ${order.table_number}`;
+                    const action   = isPickup ? 'recoger' : 'servir';
                     addNotification(`¡Orden #${order.id} (${loc}) lista para ${action}!`, 'success', order.id);
                 });
             }
 
-            // Cook: new PREPARANDO orders
-            if (user.role === 'cook') {
-                const kitchenOrders = data.filter(o => o.status === ORDER_STATUS.PREPARANDO);
-                const justArrived   = kitchenOrders.find(newOrder => {
-                    const old = prevOrdersRef.current.find(o => o.id === newOrder.id);
-                    return !old || old.status !== ORDER_STATUS.PREPARANDO;
+            // Cook: notify on new orders arriving in kitchen
+            if (user.role === 'cook' && prevOrdersRef.current.length > 0) {
+                const justArrived = data.find(newOrder => {
+                    if (newOrder.status !== ORDER_STATUS.EN_COCINA) return false;
+                    return !prevOrdersRef.current.find(o => o.id === newOrder.id);
                 });
 
                 if (justArrived) {
@@ -107,30 +119,16 @@ function Dashboard({ user, onLogout, settings }) {
                 }
             }
 
-            // Cook: CANCELADA orders
-            if (user.role === 'cook' && prevOrdersRef.current.length > 0) {
-                const cancelled  = data.filter(o => o.status === ORDER_STATUS.CANCELADA);
-                const justCancelled = cancelled.find(newOrder => {
-                    const old = prevOrdersRef.current.find(o => o.id === newOrder.id);
-                    return !old || old.status !== ORDER_STATUS.CANCELADA;
-                });
-                if (justCancelled) {
-                    const isDelivery = justCancelled.type === ORDER_TYPE.DELIVERY || justCancelled.is_delivery;
-                    const loc = isDelivery ? `Delivery - ${justCancelled.customer_name}` : `Mesa ${justCancelled.table_number}`;
-                    addNotification(`⚠️ ATENCIÓN: La Orden #${justCancelled.id} (${loc}) fue CANCELADA.`, 'error', justCancelled.id);
-                }
-            }
-
             setNotifications(prev => prev.filter(n => {
                 if (!n.orderId) return true;
                 const currentOrder = data.find(o => o.id === n.orderId);
                 if (!currentOrder) return true;
 
                 if (user.role === 'cook' && n.type === 'info') {
-                    return currentOrder.status === ORDER_STATUS.PREPARANDO;
+                    return currentOrder.status === ORDER_STATUS.EN_COCINA;
                 }
                 if (user.role === 'waiter' && n.type === 'success') {
-                    return currentOrder.status === ORDER_STATUS.LISTA;
+                    return [ORDER_STATUS.LISTO_PARA_SERVIR, ORDER_STATUS.LISTO_PARA_RECOGER].includes(currentOrder.status);
                 }
                 return true;
             }));
@@ -175,20 +173,42 @@ function Dashboard({ user, onLogout, settings }) {
                 const text = await response.text();
                 try {
                     const data = JSON.parse(text);
-                    alert(`Error: ${data.error || 'Failed to create order'}`);
+                    showToast(`Error: ${data.error || 'No se pudo crear la orden'}`, 'error');
                 } catch (e) {
-                    alert(`Error creating order: ${text}`);
+                    showToast(`Error al crear orden: ${text}`, 'error');
                 }
             }
         } catch (err) {
             console.error('Error creating order:', err);
-            alert('Error network/server creating order');
+            showToast('Error de conexión al crear la orden', 'error');
         }
     };
 
     const handleEditOrder = (order) => {
         setEditOrder(order);
         setShowNewOrder(true);
+    };
+
+    const handleAddToOrder = async (parentOrder, orderData) => {
+        try {
+            const response = await fetch(`${API_URL}/orders/${parentOrder.id}/additions`, {
+                method: 'POST',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ items: orderData.items }),
+            });
+
+            if (response.ok) {
+                setShowNewOrder(false);
+                setEditOrder(null);
+                fetchOrders();
+            } else {
+                const data = await response.json().catch(() => ({}));
+                showToast(`Error: ${data.error || 'No se pudieron agregar artículos'}`, 'error');
+            }
+        } catch (err) {
+            console.error('Error adding to order:', err);
+            showToast('Error de conexión', 'error');
+        }
     };
 
     const handleUpdateOrder = async (orderData) => {
@@ -215,43 +235,41 @@ function Dashboard({ user, onLogout, settings }) {
 
     // Old useEffect for notification logic removed, moved to fetchOrders
 
-    const handleCancelOrder = async (orderId) => {
-        if (!window.confirm('¿Estás seguro de que deseas CANCELAR esta orden? Esta acción no se puede deshacer.')) {
-            return;
-        }
-        await handleStatusChange(orderId, ORDER_STATUS.CANCELADA);
-    };
+    // The 3 "ready to deliver" statuses live in a single combined column
+    const READY_STATUSES = [
+        ORDER_STATUS.LISTO_PARA_SERVIR,
+        ORDER_STATUS.EN_REPARTO,
+        ORDER_STATUS.LISTO_PARA_RECOGER,
+    ];
+
+    const sortByUpdated = (arr) => [...arr].sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+
+    // Sub-groups for the combined column, each sorted FIFO by updated_at.
+    // The sub-group whose oldest order has been waiting longest floats to the top.
+    const readyGroups = isCook ? [] : READY_STATUSES
+        .map(status => ({
+            status,
+            orders: sortByUpdated(orders.filter(o => o.status === status))
+        }))
+        .filter(g => g.orders.length > 0)
+        .sort((a, b) => new Date(a.orders[0].updated_at) - new Date(b.orders[0].updated_at));
+
+    const readyCount = readyGroups.reduce((sum, g) => sum + g.orders.length, 0);
 
     const getColumns = () => {
         if (isCook) {
-            // Cook sees PREPARANDO queue (FIFO) + CREADA so they know what's coming
-            const creadas    = orders.filter(o => o.status === ORDER_STATUS.CREADA);
-            const preparando = orders.filter(o => o.status === ORDER_STATUS.PREPARANDO);
-            creadas.sort((a, b)    => new Date(a.created_at) - new Date(b.created_at));
-            preparando.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
             return {
-                [ORDER_STATUS.CREADA]:     creadas,
-                [ORDER_STATUS.PREPARANDO]: preparando
+                [ORDER_STATUS.EN_COCINA]: sortByUpdated(orders.filter(o => o.status === ORDER_STATUS.EN_COCINA))
             };
         }
-
-        // Waiter/admin sees all 4 active columns
-        const creadas    = orders.filter(o => o.status === ORDER_STATUS.CREADA);
-        const preparando = orders.filter(o => o.status === ORDER_STATUS.PREPARANDO);
-        const listas     = orders.filter(o => o.status === ORDER_STATUS.LISTA);
-        const entregadas = orders.filter(o => o.status === ORDER_STATUS.ENTREGADA);
-
-        creadas.sort((a, b)    => new Date(a.updated_at) - new Date(b.updated_at));
-        preparando.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-        listas.sort((a, b)     => new Date(a.updated_at) - new Date(b.updated_at));
-        entregadas.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-
-        return {
-            [ORDER_STATUS.CREADA]:     creadas,
-            [ORDER_STATUS.PREPARANDO]: preparando,
-            [ORDER_STATUS.LISTA]:      listas,
-            [ORDER_STATUS.ENTREGADA]:  entregadas
+        const columns = {
+            [ORDER_STATUS.EN_COCINA]: sortByUpdated(orders.filter(o => o.status === ORDER_STATUS.EN_COCINA)),
+            [ORDER_STATUS.SERVIDO]:   sortByUpdated(orders.filter(o => o.status === ORDER_STATUS.SERVIDO)),
         };
+        if (filter === 'all') {
+            columns[ORDER_STATUS.FINALIZADO] = sortByUpdated(orders.filter(o => o.status === ORDER_STATUS.FINALIZADO));
+        }
+        return columns;
     };
 
     const groupedOrders = getColumns();
@@ -314,7 +332,16 @@ function Dashboard({ user, onLogout, settings }) {
                         {!isCook && (
                             <button
                                 className="btn btn-primary btn-glow"
-                                onClick={() => setShowNewOrder(true)}
+                                onClick={() => {
+                                    if (!activePeriod) {
+                                        showToast('No hay una jornada abierta. Pide a un administrador que abra la jornada del día.', 'warning');
+                                        return;
+                                    }
+                                    setShowNewOrder(true);
+                                }}
+                                disabled={activePeriod === undefined}
+                                style={!activePeriod && activePeriod !== undefined ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
+                                title={!activePeriod && activePeriod !== undefined ? 'Sin jornada activa' : ''}
                             >
                                 + Nueva Orden
                             </button>
@@ -327,6 +354,15 @@ function Dashboard({ user, onLogout, settings }) {
                     )}
                 </div>
             </header>
+
+            {activePeriod === null && (
+                <div className="no-period-banner">
+                    🔒 No hay jornada abierta — no se pueden crear órdenes.
+                    {(user.role === 'admin' || user.role === 'manager') && (
+                        <span> Abre la jornada desde el panel de administración.</span>
+                    )}
+                </div>
+            )}
 
             <main className="dashboard-main container">
                 {loading ? (
@@ -359,90 +395,173 @@ function Dashboard({ user, onLogout, settings }) {
                                 <button className="btn-back" onClick={() => setExpandedStatus(null)}>
                                     ← Volver a Estados
                                 </button>
-                                <div className="column-header">
-                                    <h2>{statusIcons[expandedStatus]} {statusLabels[expandedStatus] || expandedStatus}</h2>
-                                    <span className="count-badge">{groupedOrders[expandedStatus]?.length || 0}</span>
-                                </div>
-                                <div className="mobile-orders-list">
-                                    {groupedOrders[expandedStatus]?.length === 0 ? (
-                                        <div className="empty-state"><p>No hay órdenes</p></div>
-                                    ) : (
-                                        groupedOrders[expandedStatus]?.map(order => (
-                                            <div
-                                                key={order.id}
-                                                className="mobile-order-brief glass-card"
-                                                onClick={() => setSelectedOrder(order)}
-                                            >
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                                    <strong>Orden #{order.id}</strong>
-                                                    <span>{(order.type === ORDER_TYPE.DELIVERY || order.is_delivery) ? `🚗 ${order.customer_name}` : `Mesa ${order.table_number}`}</span>
+                                {expandedStatus === 'PARA_ENTREGAR' ? (
+                                    <>
+                                        <div className="column-header">
+                                            <h2>🚀 Para Entregar</h2>
+                                            <span className="count-badge">{readyCount}</span>
+                                        </div>
+                                        <div className="mobile-orders-list">
+                                            {readyCount === 0 ? (
+                                                <div className="empty-state"><p>No hay órdenes listas</p></div>
+                                            ) : readyGroups.map(({ status, orders: grpOrders }) => (
+                                                <div key={status}>
+                                                    <div className="ready-subgroup-header" style={{ margin: '8px 0 4px' }}>
+                                                        <span>{statusIcons[status]} {statusLabels[status]}</span>
+                                                        <span className="count-badge-sm">{grpOrders.length}</span>
+                                                    </div>
+                                                    {grpOrders.map(order => (
+                                                        <div key={order.id} className="mobile-order-brief glass-card" onClick={() => setSelectedOrder(order)}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                                                <strong>Orden #{order.id}</strong>
+                                                                <span>{(order.type === ORDER_TYPE.DELIVERY || order.is_delivery) ? `🚗 ${order.customer_name}` : `Mesa ${order.table_number}`}</span>
+                                                            </div>
+                                                            <div style={{ fontSize: '0.9rem', color: '#aaa' }}>{order.items?.substring(0, 30)}...</div>
+                                                            <div style={{ textAlign: 'right', marginTop: '5px', color: 'var(--primary)' }}>Ver Detalle →</div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                <div style={{ fontSize: '0.9rem', color: '#aaa' }}>
-                                                    {order.items.substring(0, 30)}...
+                                            ))}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="column-header">
+                                            <h2>{statusIcons[expandedStatus]} {statusLabels[expandedStatus] || expandedStatus}</h2>
+                                            <span className="count-badge">{groupedOrders[expandedStatus]?.length || 0}</span>
+                                        </div>
+                                        <div className="mobile-orders-list">
+                                            {(groupedOrders[expandedStatus]?.length || 0) === 0 ? (
+                                                <div className="empty-state"><p>No hay órdenes</p></div>
+                                            ) : groupedOrders[expandedStatus].map(order => (
+                                                <div key={order.id} className="mobile-order-brief glass-card" onClick={() => setSelectedOrder(order)}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                                        <strong>Orden #{order.id}</strong>
+                                                        <span>{(order.type === ORDER_TYPE.DELIVERY || order.is_delivery) ? `🚗 ${order.customer_name}` : `Mesa ${order.table_number}`}</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.9rem', color: '#aaa' }}>{order.items?.substring(0, 30)}...</div>
+                                                    <div style={{ textAlign: 'right', marginTop: '5px', color: 'var(--primary)' }}>Ver Detalle →</div>
                                                 </div>
-                                                <div style={{ textAlign: 'right', marginTop: '5px', color: 'var(--primary)' }}>
-                                                    Ver Detalle →
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             // Level 1: Status List
                             <div className="mobile-view-level-1">
-                                {Object.entries(groupedOrders).map(([status, statusOrders]) => {
-                                    // Highlight priorities
-                                    const isPriority = status === ORDER_STATUS.PREPARANDO || status === ORDER_STATUS.LISTA;
-                                    const count = statusOrders.length;
-
-                                    return (
-                                        <div
-                                            key={status}
-                                            className={`mobile-status-card glass-card ${isPriority ? 'status-priority' : ''} status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}
-                                            onClick={() => setExpandedStatus(status)}
-                                        >
-                                            <div className="status-name">
-                                                {statusIcons[status]} {statusLabels[status] || status}
-                                                {isPriority && count > 0 && <span className="priority-dot">●</span>}
-                                            </div>
-                                            <div className="status-count">
-                                                {count} {count === 1 ? 'Orden' : 'Ordenes'} →
-                                            </div>
+                                {/* EN_COCINA */}
+                                {Object.entries(groupedOrders).filter(([s]) => s === ORDER_STATUS.EN_COCINA).map(([status, statusOrders]) => (
+                                    <div key={status}
+                                        className={`mobile-status-card glass-card status-priority status-col-en-cocina`}
+                                        onClick={() => setExpandedStatus(status)}
+                                    >
+                                        <div className="status-name">
+                                            {statusIcons[status]} {statusLabels[status]}
+                                            {statusOrders.length > 0 && <span className="priority-dot">●</span>}
                                         </div>
-                                    );
-                                })}
+                                        <div className="status-count">{statusOrders.length} {statusOrders.length === 1 ? 'Orden' : 'Ordenes'} →</div>
+                                    </div>
+                                ))}
+
+                                {/* Para Entregar — combined */}
+                                <div
+                                    className={`mobile-status-card glass-card ${readyCount > 0 ? 'status-priority' : ''} status-col-para-entregar`}
+                                    onClick={() => setExpandedStatus('PARA_ENTREGAR')}
+                                >
+                                    <div className="status-name">
+                                        🚀 Para Entregar
+                                        {readyCount > 0 && <span className="priority-dot">●</span>}
+                                    </div>
+                                    <div className="status-count">{readyCount} {readyCount === 1 ? 'Orden' : 'Ordenes'} →</div>
+                                </div>
+
+                                {/* SERVIDO / FINALIZADO */}
+                                {Object.entries(groupedOrders).filter(([s]) => s !== ORDER_STATUS.EN_COCINA).map(([status, statusOrders]) => (
+                                    <div key={status}
+                                        className={`mobile-status-card glass-card status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}
+                                        onClick={() => setExpandedStatus(status)}
+                                    >
+                                        <div className="status-name">{statusIcons[status]} {statusLabels[status] || status}</div>
+                                        <div className="status-count">{statusOrders.length} {statusOrders.length === 1 ? 'Orden' : 'Ordenes'} →</div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
                 ) : (
-                    // Desktop Kanban View (Existing)
+                    // Desktop Kanban View
                     <div className="orders-board">
-                        {Object.entries(groupedOrders).map(([status, statusOrders]) => (
-                            <div key={status} className={`status-column status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}>
+                        {/* EN_COCINA column */}
+                        <div className="status-column status-col-en-cocina">
+                            <div className="column-header">
+                                <h2>{statusIcons[ORDER_STATUS.EN_COCINA]} {statusLabels[ORDER_STATUS.EN_COCINA]}</h2>
+                                <span className="count-badge">{groupedOrders[ORDER_STATUS.EN_COCINA].length}</span>
+                            </div>
+                            <div className="column-content">
+                                {groupedOrders[ORDER_STATUS.EN_COCINA].length === 0 ? (
+                                    <div className="empty-state">
+                                        <span className="empty-icon">🍳</span>
+                                        <p>Sin órdenes en cocina</p>
+                                        <p className="empty-hint">Las nuevas órdenes aparecerán aquí automáticamente</p>
+                                    </div>
+                                ) : groupedOrders[ORDER_STATUS.EN_COCINA].map(order => (
+                                    <OrderCard key={order.id} order={order} user={user} onStatusChange={handleStatusChange} onEdit={handleEditOrder} />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Para Entregar — combined column (LISTO_PARA_SERVIR + EN_REPARTO + LISTO_PARA_RECOGER) */}
+                        {!isCook && (
+                            <div className="status-column status-col-para-entregar">
                                 <div className="column-header">
-                                    <h2>{statusIcons[status]} {statusLabels[status] || status}</h2>
-                                    <span className="count-badge">{statusOrders.length}</span>
+                                    <h2>🚀 Para Entregar</h2>
+                                    <span className="count-badge">{readyCount}</span>
                                 </div>
                                 <div className="column-content">
-                                    {statusOrders.length === 0 ? (
+                                    {readyCount === 0 ? (
                                         <div className="empty-state">
-                                            <p>No hay órdenes en este estado</p>
+                                            <span className="empty-icon">🚀</span>
+                                            <p>Sin órdenes listas</p>
+                                            <p className="empty-hint">Aparecerán cuando cocina las marque como listas</p>
                                         </div>
-                                    ) : (
-                                        statusOrders.map(order => (
-                                            <OrderCard
-                                                key={order.id}
-                                                order={order}
-                                                user={user}
-                                                onStatusChange={handleStatusChange}
-                                                onEdit={handleEditOrder}
-                                            />
-                                        ))
-                                    )}
+                                    ) : readyGroups.map(({ status, orders: grpOrders }) => (
+                                        <div key={status} className="ready-subgroup">
+                                            <div className="ready-subgroup-header">
+                                                <span>{statusIcons[status]} {statusLabels[status]}</span>
+                                                <span className="count-badge-sm">{grpOrders.length}</span>
+                                            </div>
+                                            {grpOrders.map(order => (
+                                                <OrderCard key={order.id} order={order} user={user} onStatusChange={handleStatusChange} onEdit={handleEditOrder} />
+                                            ))}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                        ))}
+                        )}
+
+                        {/* SERVIDO and FINALIZADO columns */}
+                        {Object.entries(groupedOrders)
+                            .filter(([status]) => status !== ORDER_STATUS.EN_COCINA)
+                            .map(([status, statusOrders]) => (
+                                <div key={status} className={`status-column status-col-${status.toLowerCase().replace(/[\s_]+/g, '-')}`}>
+                                    <div className="column-header">
+                                        <h2>{statusIcons[status]} {statusLabels[status] || status}</h2>
+                                        <span className="count-badge">{statusOrders.length}</span>
+                                    </div>
+                                    <div className="column-content">
+                                        {statusOrders.length === 0 ? (
+                                            <div className="empty-state">
+                                                <span className="empty-icon">{statusIcons[status] || '📋'}</span>
+                                                <p>Sin órdenes aquí</p>
+                                            </div>
+                                        ) : statusOrders.map(order => (
+                                            <OrderCard key={order.id} order={order} user={user} onStatusChange={handleStatusChange} onEdit={handleEditOrder} />
+                                        ))}
+                                    </div>
+                                </div>
+                            ))
+                        }
                     </div>
                 )}
             </main>
@@ -456,9 +575,15 @@ function Dashboard({ user, onLogout, settings }) {
                             setShowNewOrder(false);
                             setEditOrder(null);
                         }}
-                        onSubmit={editOrder ? handleUpdateOrder : handleNewOrder}
+                        onSubmit={
+                            !editOrder
+                                ? handleNewOrder
+                                : editOrder.status === 'EN_COCINA'
+                                    ? handleUpdateOrder
+                                    : (orderData) => handleAddToOrder(editOrder, orderData)
+                        }
                         initialOrder={editOrder}
-                        onCancel={handleCancelOrder}
+                        isAdditionMode={!!(editOrder && editOrder.status !== 'EN_COCINA')}
                     />
                 )
             }

@@ -7,19 +7,21 @@ import './ActiveProductionOrders.css';
 const API_URL = API_BASE_URL;
 
 const statusIcons = {
-    [ORDER_STATUS.CREADA]:     '📋',
-    [ORDER_STATUS.PREPARANDO]: '🍳',
-    [ORDER_STATUS.LISTA]:      '🥡',
-    [ORDER_STATUS.ENTREGADA]:  '✅',
-    [ORDER_STATUS.CANCELADA]:  '❌'
+    [ORDER_STATUS.EN_COCINA]:          '🍳',
+    [ORDER_STATUS.LISTO_PARA_SERVIR]:  '🥡',
+    [ORDER_STATUS.SERVIDO]:            '🍽️',
+    [ORDER_STATUS.EN_REPARTO]:         '🚗',
+    [ORDER_STATUS.LISTO_PARA_RECOGER]: '📦',
+    [ORDER_STATUS.FINALIZADO]:         '✅'
 };
 
 const statusLabels = {
-    [ORDER_STATUS.CREADA]:     'Creada',
-    [ORDER_STATUS.PREPARANDO]: 'En Cocina',
-    [ORDER_STATUS.LISTA]:      'Lista',
-    [ORDER_STATUS.ENTREGADA]:  'Entregada',
-    [ORDER_STATUS.CANCELADA]:  'Cancelada'
+    [ORDER_STATUS.EN_COCINA]:          'En cocina',
+    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'Listo para servir',
+    [ORDER_STATUS.SERVIDO]:            'Servido (En mesa)',
+    [ORDER_STATUS.EN_REPARTO]:         'En reparto',
+    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'Listo para recoger',
+    [ORDER_STATUS.FINALIZADO]:         'Finalizado'
 };
 
 function ActiveProductionOrders() {
@@ -45,20 +47,19 @@ function ActiveProductionOrders() {
     };
 
     const getGroupedOrders = () => {
-        // Show 3 columns for the kitchen board: CREADA, PREPARANDO, LISTA
-        const creadas    = orders.filter(o => o.status === ORDER_STATUS.CREADA);
-        const preparando = orders.filter(o => o.status === ORDER_STATUS.PREPARANDO);
-        const listas     = orders.filter(o => o.status === ORDER_STATUS.LISTA);
-
-        creadas.sort((a, b)    => new Date(a.updated_at) - new Date(b.updated_at));
-        preparando.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
-        listas.sort((a, b)     => new Date(a.updated_at) - new Date(b.updated_at));
-
-        return {
-            [ORDER_STATUS.CREADA]:     creadas,
-            [ORDER_STATUS.PREPARANDO]: preparando,
-            [ORDER_STATUS.LISTA]:      listas
-        };
+        const sortByUpdated = (arr) => [...arr].sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+        const activeStatuses = [
+            ORDER_STATUS.EN_COCINA,
+            ORDER_STATUS.LISTO_PARA_SERVIR,
+            ORDER_STATUS.SERVIDO,
+            ORDER_STATUS.EN_REPARTO,
+            ORDER_STATUS.LISTO_PARA_RECOGER
+        ];
+        const columns = {};
+        activeStatuses.forEach(status => {
+            columns[status] = sortByUpdated(orders.filter(o => o.status === status));
+        });
+        return columns;
     };
 
     const groupedOrders = getGroupedOrders();

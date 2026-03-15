@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import { authHeaders } from '../utils/api';
 import NewOrderModal from '../NewOrderModal';
+import { useToast } from './Toast';
 import './PastOrders.css';
 
 const API_URL = API_BASE_URL;
 
 function PastOrders() {
+    const showToast = useToast();
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
     const [selectedDate, setSelectedDate] = useState(getTodayDate());
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -38,10 +41,7 @@ function PastOrders() {
     };
 
     const handleDelete = async (orderId) => {
-        if (!window.confirm('¿Estás seguro de que deseas eliminar esta orden? Esta acción no se puede deshacer.')) {
-            return;
-        }
-
+        setConfirmDeleteId(null);
         try {
             const response = await fetch(`${API_URL}/orders/${orderId}`, {
                 method: 'DELETE',
@@ -49,13 +49,14 @@ function PastOrders() {
             });
 
             if (response.ok) {
+                showToast('Orden eliminada', 'success');
                 fetchOrdersByDate(selectedDate);
             } else {
-                alert('Error al eliminar la orden');
+                showToast('Error al eliminar la orden', 'error');
             }
         } catch (err) {
             console.error('Error deleting order:', err);
-            alert('Error al eliminar la orden');
+            showToast('Error al eliminar la orden', 'error');
         }
     };
 
@@ -174,7 +175,8 @@ function PastOrders() {
                                         </button>
                                         <button
                                             className="btn-delete"
-                                            onClick={() => handleDelete(order.id)}
+                                            onClick={() => setConfirmDeleteId(order.id)}
+                                            aria-label={`Eliminar orden #${order.id}`}
                                             title="Eliminar orden"
                                         >
                                             🗑️
@@ -196,6 +198,29 @@ function PastOrders() {
                     onSubmit={handleUpdateOrder}
                     initialOrder={editOrder}
                 />
+            )}
+
+            {confirmDeleteId && (
+                <div className="modal-overlay" onClick={() => setConfirmDeleteId(null)}>
+                    <div className="modal-content glass-card slide-in" style={{ maxWidth: '380px' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 style={{ fontSize: '1.1rem' }}>⚠️ Eliminar orden</h3>
+                            <button type="button" className="close-btn" onClick={() => setConfirmDeleteId(null)} aria-label="Cancelar">×</button>
+                        </div>
+                        <div className="modal-body">
+                            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>¿Estás seguro de que deseas eliminar esta orden?</p>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Esta acción no se puede deshacer.</p>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" onClick={() => setConfirmDeleteId(null)}>Cancelar</button>
+                            <button type="button" className="btn btn-danger"
+                                style={{ background: 'rgba(239,68,68,0.2)', borderColor: '#ef4444', color: '#ef4444' }}
+                                onClick={() => handleDelete(confirmDeleteId)}>
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -65,11 +65,14 @@ class Order {
 
     // ── Business Rules ──────────────────────────────────────────────────────────
 
-    canBeEdited()    { return this.status.isCreada(); }
-    canBePrepared()  { return this.status.isCreada(); }
-    canBeMarkedReady() { return this.status.isPreparando(); }
-    canBeDelivered() { return this.status.isLista(); }
-    canBeCancelled() { return this.status.isActive(); }
+    /** Items can be edited as long as the order has not been finalized (paid) */
+    canBeEdited()      { return this.status.isActive(); }
+    /** Order is ready to be served (dine-in) or picked up */
+    canBeServed()      { return this.status.isListoParaServir(); }
+    /** Order is ready to be finalized (paid) */
+    canBeFinalizado()  {
+        return this.status.isServido() || this.status.isEnReparto() || this.status.isListoParaRecoger() || this.status.isListoParaServir();
+    }
 
     isDineIn()   { return this.type === 'DINE_IN';  }
     isDelivery() { return this.type === 'DELIVERY'; }
@@ -89,7 +92,7 @@ class Order {
 
     updateItems(newItems) {
         if (!this.canBeEdited()) {
-            throw new ValidationError('Cannot edit an order that is not in CREADA status');
+            throw new ValidationError('Cannot edit a finalized order');
         }
         return new Order({ ...this._data(), items: newItems, updatedAt: new Date() });
     }
