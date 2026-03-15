@@ -15,7 +15,7 @@ describe('UpdateOrderItems Use Case', () => {
         updateOrderItems = new UpdateOrderItems(mockOrderRepository);
     });
 
-    const createMockOrder = (status = 'CREADA') => new Order({
+    const createMockOrder = (status = 'EN_COCINA') => new Order({
         id: 1,
         branchId: 1,
         status,
@@ -27,7 +27,7 @@ describe('UpdateOrderItems Use Case', () => {
 
     describe('execute with valid input', () => {
         test('should update items when order is in CREADA status', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             const newItems = [
                 { menuItemId: 10, name: 'New Item', quantity: 1, price: 150 }
             ];
@@ -44,7 +44,7 @@ describe('UpdateOrderItems Use Case', () => {
         });
 
         test('should create OrderItem objects from input', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             const newItems = [
                 { menuItemId: 10, name: 'Pizza', quantity: 2, price: 150 },
                 { menuItemId: 20, name: 'Drink', quantity: 1, price: 50 }
@@ -64,7 +64,7 @@ describe('UpdateOrderItems Use Case', () => {
         });
 
         test('should set orderId on new items', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             const newItems = [{ name: 'Item', quantity: 1, price: 100 }];
 
             mockOrderRepository.findById.mockResolvedValue(order);
@@ -77,45 +77,38 @@ describe('UpdateOrderItems Use Case', () => {
         });
     });
 
+    describe('execute in all active states (editable before payment)', () => {
+        const activeStatuses = ['LISTO_PARA_SERVIR', 'SERVIDO', 'EN_REPARTO', 'LISTO_PARA_RECOGER'];
+
+        activeStatuses.forEach(status => {
+            test(`should allow editing when order is ${status}`, async () => {
+                const order = createMockOrder(status);
+                const newItems = [{ name: 'New Item', quantity: 1, price: 150 }];
+
+                mockOrderRepository.findById.mockResolvedValue(order);
+                mockOrderRepository.update.mockImplementation(o => Promise.resolve(o));
+
+                const result = await updateOrderItems.execute({ orderId: 1, items: newItems });
+
+                expect(mockOrderRepository.update).toHaveBeenCalled();
+                expect(result.items[0].itemName).toBe('New Item');
+            });
+        });
+    });
+
     describe('execute when order cannot be edited', () => {
-        test('should throw ValidationError when order is PREPARANDO', async () => {
-            const order = createMockOrder('PREPARANDO');
+        test('should throw ValidationError when order is FINALIZADO (cobrada)', async () => {
+            const order = createMockOrder('FINALIZADO');
             mockOrderRepository.findById.mockResolvedValue(order);
 
             await expect(updateOrderItems.execute({
                 orderId: 1,
                 items: [{ name: 'Item', quantity: 1, price: 100 }]
             })).rejects.toThrow(ValidationError);
-        });
-
-        test('should throw ValidationError when order is LISTA', async () => {
-            const order = createMockOrder('LISTA');
-            mockOrderRepository.findById.mockResolvedValue(order);
-
             await expect(updateOrderItems.execute({
                 orderId: 1,
                 items: [{ name: 'Item', quantity: 1, price: 100 }]
-            })).rejects.toThrow(ValidationError);
-        });
-
-        test('should throw ValidationError when order is ENTREGADA', async () => {
-            const order = createMockOrder('ENTREGADA');
-            mockOrderRepository.findById.mockResolvedValue(order);
-
-            await expect(updateOrderItems.execute({
-                orderId: 1,
-                items: [{ name: 'Item', quantity: 1, price: 100 }]
-            })).rejects.toThrow(ValidationError);
-        });
-
-        test('should throw ValidationError when order is CANCELADA', async () => {
-            const order = createMockOrder('CANCELADA');
-            mockOrderRepository.findById.mockResolvedValue(order);
-
-            await expect(updateOrderItems.execute({
-                orderId: 1,
-                items: [{ name: 'Item', quantity: 1, price: 100 }]
-            })).rejects.toThrow(ValidationError);
+            })).rejects.toThrow('Cannot edit a finalized order');
         });
     });
 
@@ -275,7 +268,7 @@ describe('UpdateOrderItems Use Case', () => {
 
     describe('edge cases', () => {
         test('should allow zero price items', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockImplementation(o => Promise.resolve(o));
 
@@ -288,7 +281,7 @@ describe('UpdateOrderItems Use Case', () => {
         });
 
         test('should handle menuItemId as null when not provided', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockImplementation(o => Promise.resolve(o));
 
@@ -313,7 +306,7 @@ describe('UpdateOrderItems Use Case', () => {
         });
 
         test('should propagate update errors', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockRejectedValue(new Error('Update failed'));
 

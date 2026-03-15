@@ -18,7 +18,7 @@ describe('GetOrderById Use Case', () => {
             const mockOrder = new Order({
                 id: 1,
                 branchId: 1,
-                status: 'CREADA',
+                status: 'EN_COCINA',
                 items: [{ itemName: 'Item', quantity: 1, unitPrice: 100 }]
             });
             mockOrderRepository.findById.mockResolvedValue(mockOrder);
@@ -33,7 +33,7 @@ describe('GetOrderById Use Case', () => {
             const mockOrder = new Order({
                 id: 99,
                 branchId: 1,
-                status: 'CREADA',
+                status: 'EN_COCINA',
                 items: [{ itemName: 'Item', quantity: 1, unitPrice: 100 }]
             });
             mockOrderRepository.findById.mockResolvedValue(mockOrder);

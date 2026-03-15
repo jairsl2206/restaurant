@@ -41,7 +41,7 @@ class CreateOrder {
             waiterId:    input.waiterId    || null,
             tableNumber: input.tableNumber || null,
             type:        input.type        || 'DINE_IN',
-            status:      OrderStatus.CREADA,
+            status:      OrderStatus.EN_COCINA,
             items:       orderItems,
             notes:       input.notes || null
         });

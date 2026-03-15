@@ -3,19 +3,21 @@
  */
 
 export const ORDER_STATUS = {
-    CREADA:     'CREADA',
-    PREPARANDO: 'PREPARANDO',
-    LISTA:      'LISTA',
-    ENTREGADA:  'ENTREGADA',
-    CANCELADA:  'CANCELADA'
+    EN_COCINA:          'EN_COCINA',
+    LISTO_PARA_SERVIR:  'LISTO_PARA_SERVIR',
+    SERVIDO:            'SERVIDO',
+    EN_REPARTO:         'EN_REPARTO',
+    LISTO_PARA_RECOGER: 'LISTO_PARA_RECOGER',
+    FINALIZADO:         'FINALIZADO'
 };
 
 export const ORDER_STATUS_LABELS = {
-    CREADA:     'Orden Creada',
-    PREPARANDO: 'Preparando',
-    LISTA:      'Lista',
-    ENTREGADA:  'Entregada',
-    CANCELADA:  'Cancelada'
+    EN_COCINA:          'En cocina',
+    LISTO_PARA_SERVIR:  'Listo para servir',
+    SERVIDO:            'Servido (En mesa)',
+    EN_REPARTO:         'En reparto',
+    LISTO_PARA_RECOGER: 'Listo para recoger',
+    FINALIZADO:         'Finalizado'
 };
 
 export const ORDER_TYPE = {
@@ -66,4 +68,9 @@ export const PAYMENT_METHOD_LABELS = {
     CARD:     'Tarjeta',
     TRANSFER: 'Transferencia',
     OTHER:    'Otro'
+};
+
+export const SALE_PERIOD_STATUS = {
+    OPEN:   'open',
+    CLOSED: 'closed'
 };

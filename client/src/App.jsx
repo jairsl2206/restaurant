@@ -4,6 +4,7 @@ import Login from './Login';
 import AdminDashboard from './components/AdminDashboard';
 import Dashboard from './Dashboard';
 import CustomerMenu from './components/CustomerMenu';
+import { ToastProvider } from './components/Toast';
 import './App.css';
 import API_BASE_URL from './config';
 
@@ -113,15 +114,17 @@ function App() {
   };
 
   return (
-    <Routes>
-      <Route path="/menu" element={
-        <CustomerMenu
-          restaurantName={settings.restaurant_name}
-          restaurantLogo={settings.restaurant_logo}
-        />
-      } />
-      <Route path="/*" element={<MainApp />} />
-    </Routes>
+    <ToastProvider>
+      <Routes>
+        <Route path="/menu" element={
+          <CustomerMenu
+            restaurantName={settings.restaurant_name}
+            restaurantLogo={settings.restaurant_logo}
+          />
+        } />
+        <Route path="/*" element={<MainApp />} />
+      </Routes>
+    </ToastProvider>
   );
 }
 

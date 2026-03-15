@@ -2,30 +2,34 @@ const { ValidationError } = require('../../shared/errors/errorTypes');
 
 /**
  * OrderStatus Value Object
- * Maps to the order_status ENUM: CREADA | PREPARANDO | LISTA | ENTREGADA | CANCELADA
+ * Maps to the order_status ENUM:
+ *   EN_COCINA | LISTO_PARA_SERVIR | SERVIDO | EN_REPARTO | LISTO_PARA_RECOGER | FINALIZADO
  */
 class OrderStatus {
-    static CREADA     = 'CREADA';
-    static PREPARANDO = 'PREPARANDO';
-    static LISTA      = 'LISTA';
-    static ENTREGADA  = 'ENTREGADA';
-    static CANCELADA  = 'CANCELADA';
+    static EN_COCINA          = 'EN_COCINA';
+    static LISTO_PARA_SERVIR  = 'LISTO_PARA_SERVIR';
+    static SERVIDO            = 'SERVIDO';
+    static EN_REPARTO         = 'EN_REPARTO';
+    static LISTO_PARA_RECOGER = 'LISTO_PARA_RECOGER';
+    static FINALIZADO         = 'FINALIZADO';
 
     static ALL_STATUSES = [
-        OrderStatus.CREADA,
-        OrderStatus.PREPARANDO,
-        OrderStatus.LISTA,
-        OrderStatus.ENTREGADA,
-        OrderStatus.CANCELADA
+        OrderStatus.EN_COCINA,
+        OrderStatus.LISTO_PARA_SERVIR,
+        OrderStatus.SERVIDO,
+        OrderStatus.EN_REPARTO,
+        OrderStatus.LISTO_PARA_RECOGER,
+        OrderStatus.FINALIZADO
     ];
 
-    // Allowed transitions — kitchen flow
+    // Allowed transitions
     static TRANSITIONS = {
-        [OrderStatus.CREADA]:     [OrderStatus.PREPARANDO, OrderStatus.CANCELADA],
-        [OrderStatus.PREPARANDO]: [OrderStatus.LISTA,      OrderStatus.CANCELADA],
-        [OrderStatus.LISTA]:      [OrderStatus.ENTREGADA,  OrderStatus.CANCELADA],
-        [OrderStatus.ENTREGADA]:  [],
-        [OrderStatus.CANCELADA]:  []
+        [OrderStatus.EN_COCINA]:          [OrderStatus.LISTO_PARA_SERVIR, OrderStatus.EN_REPARTO, OrderStatus.LISTO_PARA_RECOGER],
+        [OrderStatus.LISTO_PARA_SERVIR]:  [OrderStatus.SERVIDO, OrderStatus.FINALIZADO],
+        [OrderStatus.SERVIDO]:            [OrderStatus.FINALIZADO],
+        [OrderStatus.EN_REPARTO]:         [OrderStatus.FINALIZADO],
+        [OrderStatus.LISTO_PARA_RECOGER]: [OrderStatus.FINALIZADO],
+        [OrderStatus.FINALIZADO]:         []
     };
 
     constructor(value) {
@@ -38,15 +42,16 @@ class OrderStatus {
 
     get value() { return this._value; }
 
-    isCreada()     { return this._value === OrderStatus.CREADA;     }
-    isPreparando() { return this._value === OrderStatus.PREPARANDO; }
-    isLista()      { return this._value === OrderStatus.LISTA;      }
-    isEntregada()  { return this._value === OrderStatus.ENTREGADA;  }
-    isCancelada()  { return this._value === OrderStatus.CANCELADA;  }
+    isEnCocina()         { return this._value === OrderStatus.EN_COCINA;          }
+    isListoParaServir()  { return this._value === OrderStatus.LISTO_PARA_SERVIR;  }
+    isServido()          { return this._value === OrderStatus.SERVIDO;            }
+    isEnReparto()        { return this._value === OrderStatus.EN_REPARTO;         }
+    isListoParaRecoger() { return this._value === OrderStatus.LISTO_PARA_RECOGER; }
+    isFinalizado()       { return this._value === OrderStatus.FINALIZADO;         }
 
-    /** Is the order still "open" (not delivered or cancelled)? */
+    /** Is the order still open (not finalizado)? */
     isActive() {
-        return this._value !== OrderStatus.ENTREGADA && this._value !== OrderStatus.CANCELADA;
+        return this._value !== OrderStatus.FINALIZADO;
     }
 
     canTransitionTo(newStatus) {

@@ -1,3 +1,14 @@
+.no-period-banner {
+    background: rgba(231, 76, 60, 0.15);
+    border-bottom: 2px solid rgba(231, 76, 60, 0.5);
+    color: #ff6b6b;
+    text-align: center;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
 .dashboard-header {
     background: var(--bg-card);
     backdrop-filter: blur(20px);
@@ -199,6 +210,78 @@
 
 .status-col-cola-de-cocina {
     border-top-color: #f39c12;
+}
+
+/* Para Entregar combined column */
+.status-col-para-entregar {
+    border-top-color: #e74c3c;
+}
+
+.ready-subgroup {
+    margin-bottom: 12px;
+}
+
+.ready-subgroup:last-child {
+    margin-bottom: 0;
+}
+
+.ready-subgroup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: var(--radius-sm, 6px);
+    border-left: 3px solid rgba(255, 255, 255, 0.15);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.count-badge-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Empty states */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    gap: 0.4rem;
+}
+
+.empty-icon {
+    font-size: 2rem;
+    opacity: 0.5;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.empty-state p {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.empty-hint {
+    font-size: 0.78rem !important;
+    opacity: 0.7;
 }
 
 /* ... mobile ... */

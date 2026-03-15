@@ -15,7 +15,7 @@ describe('UpdateOrderStatus Use Case', () => {
         updateOrderStatus = new UpdateOrderStatus(mockOrderRepository);
     });
 
-    const createMockOrder = (status = 'CREADA') => new Order({
+    const createMockOrder = (status = 'EN_COCINA') => new Order({
         id: 1,
         branchId: 1,
         status,
@@ -23,95 +23,103 @@ describe('UpdateOrderStatus Use Case', () => {
     });
 
     describe('execute with valid transition', () => {
-        test('should update status from CREADA to PREPARANDO', async () => {
-            const order = createMockOrder('CREADA');
-            const updatedOrder = { ...order, status: new OrderStatus('PREPARANDO') };
+        test('should update status from EN_COCINA to LISTO_PARA_SERVIR', async () => {
+            const order = createMockOrder('EN_COCINA');
+            const updatedOrder = { ...order, status: new OrderStatus('LISTO_PARA_SERVIR') };
 
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockResolvedValue(updatedOrder);
 
-            const result = await updateOrderStatus.execute({ orderId: 1, status: 'PREPARANDO' });
+            const result = await updateOrderStatus.execute({ orderId: 1, status: 'LISTO_PARA_SERVIR' });
 
             expect(mockOrderRepository.findById).toHaveBeenCalledWith(1);
             expect(mockOrderRepository.update).toHaveBeenCalled();
             expect(result).toBe(updatedOrder);
         });
 
-        test('should update status from PREPARANDO to LISTA', async () => {
-            const order = createMockOrder('PREPARANDO');
-            const updatedOrder = { ...order, status: new OrderStatus('LISTA') };
+        test('should update status from EN_COCINA to EN_REPARTO (delivery)', async () => {
+            const order = createMockOrder('EN_COCINA');
+            const updatedOrder = { ...order, status: new OrderStatus('EN_REPARTO') };
 
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockResolvedValue(updatedOrder);
 
-            const result = await updateOrderStatus.execute({ orderId: 1, status: 'LISTA' });
+            await updateOrderStatus.execute({ orderId: 1, status: 'EN_REPARTO' });
 
             expect(mockOrderRepository.update).toHaveBeenCalled();
         });
 
-        test('should update status from LISTA to ENTREGADA', async () => {
-            const order = createMockOrder('LISTA');
-            const updatedOrder = { ...order, status: new OrderStatus('ENTREGADA') };
+        test('should update status from EN_COCINA to LISTO_PARA_RECOGER (pickup)', async () => {
+            const order = createMockOrder('EN_COCINA');
+            const updatedOrder = { ...order, status: new OrderStatus('LISTO_PARA_RECOGER') };
 
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockResolvedValue(updatedOrder);
 
-            const result = await updateOrderStatus.execute({ orderId: 1, status: 'ENTREGADA' });
+            await updateOrderStatus.execute({ orderId: 1, status: 'LISTO_PARA_RECOGER' });
 
-            expect(result.status.value).toBe('ENTREGADA');
+            expect(mockOrderRepository.update).toHaveBeenCalled();
         });
 
-        test('should update status to CANCELADA from any active state', async () => {
-            const order = createMockOrder('CREADA');
-            const updatedOrder = { ...order, status: new OrderStatus('CANCELADA') };
+        test('should update status from LISTO_PARA_SERVIR to SERVIDO', async () => {
+            const order = createMockOrder('LISTO_PARA_SERVIR');
+            const updatedOrder = { ...order, status: new OrderStatus('SERVIDO') };
 
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockResolvedValue(updatedOrder);
 
-            const result = await updateOrderStatus.execute({ orderId: 1, status: 'CANCELADA' });
+            await updateOrderStatus.execute({ orderId: 1, status: 'SERVIDO' });
 
-            expect(result.status.value).toBe('CANCELADA');
+            expect(mockOrderRepository.update).toHaveBeenCalled();
+        });
+
+        test('should update status from SERVIDO to FINALIZADO', async () => {
+            const order = createMockOrder('SERVIDO');
+            const updatedOrder = { ...order, status: new OrderStatus('FINALIZADO') };
+
+            mockOrderRepository.findById.mockResolvedValue(order);
+            mockOrderRepository.update.mockResolvedValue(updatedOrder);
+
+            const result = await updateOrderStatus.execute({ orderId: 1, status: 'FINALIZADO' });
+
+            expect(result.status.value).toBe('FINALIZADO');
+        });
+
+        test('should update status from EN_REPARTO to FINALIZADO', async () => {
+            const order = createMockOrder('EN_REPARTO');
+            const updatedOrder = { ...order, status: new OrderStatus('FINALIZADO') };
+
+            mockOrderRepository.findById.mockResolvedValue(order);
+            mockOrderRepository.update.mockResolvedValue(updatedOrder);
+
+            const result = await updateOrderStatus.execute({ orderId: 1, status: 'FINALIZADO' });
+
+            expect(result.status.value).toBe('FINALIZADO');
         });
     });
 
     describe('execute with invalid transition', () => {
-        test('should throw ValidationError for invalid transition CREADA to ENTREGADA', async () => {
-            const order = createMockOrder('CREADA');
+        test('should throw ValidationError for invalid transition EN_COCINA to FINALIZADO', async () => {
+            const order = createMockOrder('EN_COCINA');
             mockOrderRepository.findById.mockResolvedValue(order);
 
-            await expect(updateOrderStatus.execute({ orderId: 1, status: 'ENTREGADA' }))
+            await expect(updateOrderStatus.execute({ orderId: 1, status: 'FINALIZADO' }))
                 .rejects.toThrow(ValidationError);
         });
 
-        test('should throw ValidationError for invalid transition CREADA to LISTA', async () => {
-            const order = createMockOrder('CREADA');
+        test('should throw ValidationError for invalid transition EN_COCINA to SERVIDO', async () => {
+            const order = createMockOrder('EN_COCINA');
             mockOrderRepository.findById.mockResolvedValue(order);
 
-            await expect(updateOrderStatus.execute({ orderId: 1, status: 'LISTA' }))
+            await expect(updateOrderStatus.execute({ orderId: 1, status: 'SERVIDO' }))
                 .rejects.toThrow(ValidationError);
         });
 
-        test('should throw ValidationError for invalid transition PREPARANDO to ENTREGADA', async () => {
-            const order = createMockOrder('PREPARANDO');
+        test('should throw ValidationError for invalid transition FINALIZADO to any state', async () => {
+            const order = createMockOrder('FINALIZADO');
             mockOrderRepository.findById.mockResolvedValue(order);
 
-            await expect(updateOrderStatus.execute({ orderId: 1, status: 'ENTREGADA' }))
-                .rejects.toThrow(ValidationError);
-        });
-
-        test('should throw ValidationError for invalid transition ENTREGADA to any state', async () => {
-            const order = createMockOrder('ENTREGADA');
-            mockOrderRepository.findById.mockResolvedValue(order);
-
-            await expect(updateOrderStatus.execute({ orderId: 1, status: 'CREADA' }))
-                .rejects.toThrow(ValidationError);
-        });
-
-        test('should throw ValidationError for invalid transition CANCELADA to any state', async () => {
-            const order = createMockOrder('CANCELADA');
-            mockOrderRepository.findById.mockResolvedValue(order);
-
-            await expect(updateOrderStatus.execute({ orderId: 1, status: 'CREADA' }))
+            await expect(updateOrderStatus.execute({ orderId: 1, status: 'EN_COCINA' }))
                 .rejects.toThrow(ValidationError);
         });
     });
@@ -120,9 +128,9 @@ describe('UpdateOrderStatus Use Case', () => {
         test('should throw NotFoundError when order does not exist', async () => {
             mockOrderRepository.findById.mockResolvedValue(null);
 
-            await expect(updateOrderStatus.execute({ orderId: 999, status: 'PREPARANDO' }))
+            await expect(updateOrderStatus.execute({ orderId: 999, status: 'LISTO_PARA_SERVIR' }))
                 .rejects.toThrow(NotFoundError);
-            await expect(updateOrderStatus.execute({ orderId: 999, status: 'PREPARANDO' }))
+            await expect(updateOrderStatus.execute({ orderId: 999, status: 'LISTO_PARA_SERVIR' }))
                 .rejects.toThrow('Order with ID 999 not found');
         });
     });
@@ -141,9 +149,9 @@ describe('UpdateOrderStatus Use Case', () => {
         });
 
         test('should throw ValidationError when orderId is missing', async () => {
-            await expect(updateOrderStatus.execute({ status: 'PREPARANDO' }))
+            await expect(updateOrderStatus.execute({ status: 'LISTO_PARA_SERVIR' }))
                 .rejects.toThrow(ValidationError);
-            await expect(updateOrderStatus.execute({ status: 'PREPARANDO' }))
+            await expect(updateOrderStatus.execute({ status: 'LISTO_PARA_SERVIR' }))
                 .rejects.toThrow('Order ID is required');
         });
 
@@ -162,7 +170,7 @@ describe('UpdateOrderStatus Use Case', () => {
 
     describe('invalid status values', () => {
         test('should throw ValidationError for invalid status string', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             mockOrderRepository.findById.mockResolvedValue(order);
 
             await expect(updateOrderStatus.execute({ orderId: 1, status: 'INVALID' }))
@@ -184,27 +192,27 @@ describe('UpdateOrderStatus Use Case', () => {
         test('should propagate findById errors', async () => {
             mockOrderRepository.findById.mockRejectedValue(new Error('Database error'));
 
-            await expect(updateOrderStatus.execute({ orderId: 1, status: 'PREPARANDO' }))
+            await expect(updateOrderStatus.execute({ orderId: 1, status: 'LISTO_PARA_SERVIR' }))
                 .rejects.toThrow('Database error');
         });
 
         test('should propagate update errors', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockRejectedValue(new Error('Update failed'));
 
-            await expect(updateOrderStatus.execute({ orderId: 1, status: 'PREPARANDO' }))
+            await expect(updateOrderStatus.execute({ orderId: 1, status: 'LISTO_PARA_SERVIR' }))
                 .rejects.toThrow('Update failed');
         });
     });
 
     describe('status object handling', () => {
         test('should accept OrderStatus object', async () => {
-            const order = createMockOrder('CREADA');
+            const order = createMockOrder('EN_COCINA');
             mockOrderRepository.findById.mockResolvedValue(order);
             mockOrderRepository.update.mockImplementation(o => Promise.resolve(o));
 
-            await updateOrderStatus.execute({ orderId: 1, status: new OrderStatus('PREPARANDO') });
+            await updateOrderStatus.execute({ orderId: 1, status: new OrderStatus('LISTO_PARA_SERVIR') });
 
             expect(mockOrderRepository.update).toHaveBeenCalled();
         });

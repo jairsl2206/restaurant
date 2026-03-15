@@ -41,7 +41,7 @@ describe('OrderRepository', () => {
             waiterId: 50,
             tableNumber: 5,
             type: 'DINE_IN',
-            status: OrderStatus.CREADA,
+            status: OrderStatus.EN_COCINA,
             items: [
                 new OrderItem({
                     id: null,
@@ -63,7 +63,7 @@ describe('OrderRepository', () => {
             });
             mockDb.get.mockImplementation((sql, params, callback) => {
                 callback(null, {
-                    id: 1, branch_id: 1, status: 'CREADA',
+                    id: 1, branch_id: 1, status: 'EN_COCINA',
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });
@@ -87,7 +87,7 @@ describe('OrderRepository', () => {
             const order = new Order({
                 id: null,
                 branchId: null,
-                status: OrderStatus.CREADA,
+                status: OrderStatus.EN_COCINA,
                 items: [new OrderItem({ itemName: 'Item', quantity: 1, unitPrice: 100 })]
             });
 
@@ -126,7 +126,7 @@ describe('OrderRepository', () => {
             waiter_id: 50,
             table_number: 5,
             type: 'DINE_IN',
-            status: 'CREADA',
+            status: 'EN_COCINA',
             discount_total: 0,
             tax_total: 0,
             notes: null,
@@ -158,7 +158,7 @@ describe('OrderRepository', () => {
 
             expect(result).toBeInstanceOf(Order);
             expect(result.id).toBe(1);
-            expect(result.status.value).toBe('CREADA');
+            expect(result.status.value).toBe('EN_COCINA');
         });
 
         test('should return null when order not found', async () => {
@@ -211,7 +211,7 @@ describe('OrderRepository', () => {
                 callback(null, {
                     id: params[0],
                     branch_id: 1,
-                    status: 'CREADA',
+                    status: 'EN_COCINA',
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });
@@ -233,11 +233,11 @@ describe('OrderRepository', () => {
     });
 
     describe('findActive', () => {
-        test('should exclude ENTREGADA and CANCELADA orders', async () => {
+        test('should exclude FINALIZADO and LISTO_PARA_RECOGER orders', async () => {
             mockDb.all
                 .mockImplementationOnce((sql, params, callback) => {
-                    expect(params).toContain(OrderStatus.ENTREGADA);
-                    expect(params).toContain(OrderStatus.CANCELADA);
+                    expect(params).toContain(OrderStatus.FINALIZADO);
+                    expect(params).toContain(OrderStatus.LISTO_PARA_RECOGER);
                     callback(null, [{ id: 1 }]);
                 })
                 .mockImplementation((sql, params, callback) => {
@@ -248,7 +248,7 @@ describe('OrderRepository', () => {
                 callback(null, {
                     id: 1,
                     branch_id: 1,
-                    status: 'CREADA',
+                    status: 'EN_COCINA',
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });
@@ -258,13 +258,94 @@ describe('OrderRepository', () => {
 
             expect(mockDb.all).toHaveBeenCalled();
         });
+
+        test('FIFO: should query orders by created_at ASC (oldest first)', async () => {
+            let capturedSql = '';
+            mockDb.all.mockImplementation((sql, params, callback) => {
+                capturedSql = sql;
+                callback(null, []);
+            });
+
+            await repository.findActive();
+
+            expect(capturedSql).toMatch(/ORDER BY created_at ASC/i);
+        });
+
+        test('FIFO: should return orders in creation order (oldest first)', async () => {
+            const t1 = '2024-01-01 08:00:00';
+            const t2 = '2024-01-01 08:05:00';
+            const t3 = '2024-01-01 08:10:00';
+
+            // db.all returns ids already sorted ASC by the query
+            mockDb.all
+                .mockImplementationOnce((sql, params, callback) => {
+                    callback(null, [{ id: 1 }, { id: 2 }, { id: 3 }]);
+                })
+                .mockImplementation((sql, params, callback) => {
+                    callback(null, [itemRow()]);
+                });
+
+            mockDb.get.mockImplementation((sql, params, callback) => {
+                const id = params[0];
+                const times = { 1: t1, 2: t2, 3: t3 };
+                callback(null, {
+                    id,
+                    branch_id: 1,
+                    status: 'EN_COCINA',
+                    created_at: times[id],
+                    updated_at: times[id]
+                });
+            });
+
+            const results = await repository.findActive();
+
+            expect(results).toHaveLength(3);
+            expect(results[0].id).toBe(1); // oldest
+            expect(results[1].id).toBe(2);
+            expect(results[2].id).toBe(3); // newest
+        });
+
+        test('FIFO: single active order is returned correctly', async () => {
+            mockDb.all
+                .mockImplementationOnce((sql, params, callback) => {
+                    callback(null, [{ id: 5 }]);
+                })
+                .mockImplementation((sql, params, callback) => {
+                    callback(null, [itemRow(5)]);
+                });
+
+            mockDb.get.mockImplementation((sql, params, callback) => {
+                callback(null, {
+                    id: 5,
+                    branch_id: 1,
+                    status: 'LISTO_PARA_SERVIR',
+                    created_at: '2024-01-01 09:00:00',
+                    updated_at: '2024-01-01 09:30:00'
+                });
+            });
+
+            const results = await repository.findActive();
+
+            expect(results).toHaveLength(1);
+            expect(results[0].id).toBe(5);
+        });
+
+        test('FIFO: returns empty array when no active orders', async () => {
+            mockDb.all.mockImplementation((sql, params, callback) => {
+                callback(null, []);
+            });
+
+            const results = await repository.findActive();
+
+            expect(results).toEqual([]);
+        });
     });
 
     describe('findByStatus', () => {
         test('should return orders with specified status', async () => {
             mockDb.all
                 .mockImplementationOnce((sql, params, callback) => {
-                    expect(params).toContain('CREADA');
+                    expect(params).toContain('EN_COCINA');
                     callback(null, [{ id: 1 }]);
                 })
                 .mockImplementation((sql, params, callback) => {
@@ -275,15 +356,58 @@ describe('OrderRepository', () => {
                 callback(null, {
                     id: 1,
                     branch_id: 1,
-                    status: 'CREADA',
+                    status: 'EN_COCINA',
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });
             });
 
-            const results = await repository.findByStatus('CREADA');
+            const results = await repository.findByStatus('EN_COCINA');
 
             expect(Array.isArray(results)).toBe(true);
+        });
+
+        test('FIFO: should query orders by created_at ASC (oldest first)', async () => {
+            let capturedSql = '';
+            mockDb.all.mockImplementation((sql, params, callback) => {
+                capturedSql = sql;
+                callback(null, []);
+            });
+
+            await repository.findByStatus('EN_COCINA');
+
+            expect(capturedSql).toMatch(/ORDER BY created_at ASC/i);
+        });
+
+        test('FIFO: should return orders in creation order for a given status', async () => {
+            const t1 = '2024-01-01 07:00:00';
+            const t2 = '2024-01-01 07:15:00';
+
+            mockDb.all
+                .mockImplementationOnce((sql, params, callback) => {
+                    callback(null, [{ id: 10 }, { id: 20 }]);
+                })
+                .mockImplementation((sql, params, callback) => {
+                    callback(null, [itemRow()]);
+                });
+
+            mockDb.get.mockImplementation((sql, params, callback) => {
+                const id = params[0];
+                const times = { 10: t1, 20: t2 };
+                callback(null, {
+                    id,
+                    branch_id: 1,
+                    status: 'EN_COCINA',
+                    created_at: times[id] || t1,
+                    updated_at: times[id] || t1
+                });
+            });
+
+            const results = await repository.findByStatus('EN_COCINA');
+
+            expect(results).toHaveLength(2);
+            expect(results[0].id).toBe(10); // arrived first
+            expect(results[1].id).toBe(20); // arrived second
         });
     });
 
@@ -291,7 +415,7 @@ describe('OrderRepository', () => {
         const validOrder = new Order({
             id: 1,
             branchId: 1,
-            status: OrderStatus.PREPARANDO,
+            status: OrderStatus.LISTO_PARA_SERVIR,
             items: [new OrderItem({ itemName: 'Item', quantity: 1, unitPrice: 100 })],
             tableNumber: 5
         });
@@ -308,7 +432,7 @@ describe('OrderRepository', () => {
                 callback(null, {
                     id: 1,
                     branch_id: 1,
-                    status: 'PREPARANDO',
+                    status: 'LISTO_PARA_SERVIR',
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });

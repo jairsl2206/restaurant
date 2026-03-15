@@ -2,14 +2,18 @@ import { useState, useEffect } from 'react';
 import './NewOrderModal.css';
 import API_BASE_URL from './config';
 import { ORDER_TYPE } from './constants';
+import { parseInitialItems } from './utils/parseInitialItems';
+import { useToast } from './components/Toast';
 
 // Menu items will be fetched from API
 const API_MENU_URL = API_BASE_URL + '/menu';
 const API_SETTINGS_URL = API_BASE_URL + '/settings';
 
-function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
+function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdditionMode = false }) {
+    const showToast = useToast();
     const [tableNumber, setTableNumber] = useState('');
     const [selectedItems, setSelectedItems] = useState([]);
+    const [submitting, setSubmitting] = useState(false);
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [confirmationChecks, setConfirmationChecks] = useState({});
@@ -45,90 +49,6 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
         setConfirmationChecks({});
     }, [tableNumber, orderMode]);
 
-    const parseInitialItems = (itemsString, menu) => {
-        if (!itemsString) return [];
-
-        // Helper to recursively clean a name from suffixes like " x2 [190.0]"
-        const cleanName = (str) => {
-            let current = str.trim();
-            let changed = true;
-            while (changed) {
-                changed = false;
-                // Match " xQuantity [Price]" at the end
-                const fullSuffixMatch = current.match(/(.+) x\d+(\.\d+)?( \[(\d+\.?\d*)\])?$/);
-                if (fullSuffixMatch) {
-                    current = fullSuffixMatch[1].trim();
-                    changed = true;
-                    continue;
-                }
-                // Match just " [Price]" at the end
-                const priceSuffixMatch = current.match(/(.+) \[(\d+\.?\d*)\]$/);
-                if (priceSuffixMatch) {
-                    current = priceSuffixMatch[1].trim();
-                    changed = true;
-                    continue;
-                }
-                // Match just " xQuantity" at the end
-                const qtySuffixMatch = current.match(/(.+) x\d+$/);
-                if (qtySuffixMatch) {
-                    current = qtySuffixMatch[1].trim();
-                    changed = true;
-                }
-            }
-            return current;
-        };
-
-        const parts = itemsString.split(/,\s*(?![^(]*\))/);
-        const parsed = [];
-
-        parts.forEach(part => {
-            let content = part.trim();
-            let itemPrice = 0;
-
-            // 1. Extract Price if exists: "Name [Price]"
-            const priceMatch = content.match(/(.+) \[(\d+\.?\d*)\]$/);
-            if (priceMatch) {
-                content = priceMatch[1].trim();
-                itemPrice = parseFloat(priceMatch[2]);
-            }
-
-            // 2. Extract Quantity if exists: "Name xQty"
-            const qtyMatch = content.match(/(.+) x(\d+)$/);
-            let nameWithNote = content;
-            let quantity = 1;
-            if (qtyMatch) {
-                nameWithNote = qtyMatch[1].trim();
-                quantity = parseInt(qtyMatch[2], 10);
-            }
-
-            // 3. Extract Note if exists: "Name (Note)"
-            // Use a non-greedy match for the name part and ensure it handles nested parens if any (though simple is usually enough)
-            const noteMatch = nameWithNote.match(/(.+?)\s*\((.+)\)$/);
-            let name = nameWithNote;
-            let note = '';
-            if (noteMatch) {
-                name = noteMatch[1].trim();
-                note = noteMatch[2].trim();
-            }
-
-            // 4. ROBUST CLEANING: Ensure name doesn't contain inherited suffixes
-            name = cleanName(name);
-
-            // 5. Match with menu to get consistent data
-            const menuItem = menu.find(m => m.name === name);
-            parsed.push({
-                uid: `item_${Date.now()}_${Math.random()}`,
-                id: menuItem ? menuItem.id : `legacy_${Date.now()}_${Math.random()}`,
-                name: name,
-                note: note,
-                quantity: quantity,
-                price: itemPrice || (menuItem ? menuItem.price : 0),
-                image_url: menuItem ? menuItem.image_url : null
-            });
-        });
-        return parsed;
-    };
-
     useEffect(() => {
         fetch(API_MENU_URL)
             .then(res => res.json())
@@ -136,12 +56,8 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                 setMenuItems(data.filter(item => item.available));
                 setLoading(false);
 
-                if (initialOrder && initialOrder.items) {
-                    setTableNumber(initialOrder.table_number);
-                    const parsed = parseInitialItems(initialOrder.items, data);
-                    setSelectedItems(parsed);
-
-                    // Set mode and customer info — supports both new `type` and legacy fields
+                if (initialOrder) {
+                    // Always restore type/table/customer data (edit and addition modes)
                     const orderType = initialOrder.type;
                     if (initialOrder.is_pickup || orderType === ORDER_TYPE.PICKUP) {
                         setOrderMode('pickup');
@@ -155,6 +71,13 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                         setCustomerAddress(initialOrder.customer_address || '');
                     } else {
                         setOrderMode('table');
+                        setTableNumber(initialOrder.table_number || '');
+                    }
+
+                    // Only pre-load items when editing (not when adding to an existing order)
+                    if (!isAdditionMode && initialOrder.items) {
+                        const parsed = parseInitialItems(initialOrder.items, data);
+                        setSelectedItems(parsed);
                     }
                 }
             })
@@ -214,30 +137,30 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
 
     const isAllConfirmed = explodedItems.length > 0 && explodedItems.every(item => item.checked);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         // Validate based on mode
         if (isDelivery || isPickup) {
             const trimmedName = customerName.trim();
             if (!trimmedName) {
-                alert('Por favor completa el nombre del cliente');
+                showToast('Por favor completa el nombre del cliente', 'warning');
                 return;
             }
         } else {
             if (!tableNumber) {
-                alert('Por favor selecciona una mesa');
+                showToast('Por favor selecciona una mesa', 'warning');
                 return;
             }
         }
 
         if (selectedItems.length === 0) {
-            alert('Por favor selecciona al menos un platillo');
+            showToast('Por favor selecciona al menos un platillo', 'warning');
             return;
         }
 
         if (!isAllConfirmed) {
-            alert('Por favor verifica todos los artículos');
+            showToast('Por favor verifica todos los artículos', 'warning');
             return;
         }
 
@@ -247,16 +170,21 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
             name: item.note ? `${item.name} (${item.note})` : item.name
         }));
 
-        onSubmit({
-            tableNumber: (isDelivery || isPickup) ? null : parseInt(tableNumber),
-            items:       formattedItems,
-            type:        isDelivery ? ORDER_TYPE.DELIVERY : isPickup ? ORDER_TYPE.PICKUP : ORDER_TYPE.DINE_IN,
-            customerData: (isDelivery || isPickup) ? {
-                name:    customerName.trim(),
-                phone:   customerPhone.trim(),
-                address: isDelivery ? customerAddress.trim() : ''
-            } : null
-        });
+        setSubmitting(true);
+        try {
+            await onSubmit({
+                tableNumber: (isDelivery || isPickup) ? null : parseInt(tableNumber),
+                items:       formattedItems,
+                type:        isDelivery ? ORDER_TYPE.DELIVERY : isPickup ? ORDER_TYPE.PICKUP : ORDER_TYPE.DINE_IN,
+                customerData: (isDelivery || isPickup) ? {
+                    name:    customerName.trim(),
+                    phone:   customerPhone.trim(),
+                    address: isDelivery ? customerAddress.trim() : ''
+                } : null
+            });
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     // Generate table numbers array based on maxTables
@@ -266,8 +194,14 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content glass-card" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h2>{initialOrder ? `Editar Orden #${initialOrder.id}` : 'Nueva Orden'}</h2>
-                    <button className="close-btn" onClick={onClose}>✕</button>
+                    <h2>
+                        {isAdditionMode
+                            ? `Agregar artículos a Orden #${initialOrder.id}`
+                            : initialOrder
+                                ? `Editar Orden #${initialOrder.id}`
+                                : 'Nueva Orden'}
+                    </h2>
+                    <button className="close-btn" onClick={onClose} aria-label="Cerrar modal">✕</button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="modal-form">
@@ -278,38 +212,29 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                 <h3>1. Selecciona Tipo de Orden</h3>
                             </div>
 
-                            {/* Mode Toggles */}
+                            {/* Mode Toggles — read-only in addition mode */}
                             <div className="delivery-toggle" style={{ marginBottom: '18px', display: 'flex', gap: '8px' }}>
                                 <button
                                     type="button"
                                     className={`table-btn ${orderMode === 'table' ? 'selected' : ''}`}
-                                    onClick={() => {
-                                        setOrderMode('table');
-                                        setTableNumber('');
-                                    }}
-                                    style={{ flex: 1, fontSize: '0.85rem' }}
+                                    onClick={() => { if (!isAdditionMode) { setOrderMode('table'); setTableNumber(''); } }}
+                                    style={{ flex: 1, fontSize: '0.85rem', ...(isAdditionMode ? { opacity: 0.6, cursor: 'default' } : {}) }}
                                 >
                                     🪑 Mesas
                                 </button>
                                 <button
                                     type="button"
                                     className={`table-btn ${orderMode === 'pickup' ? 'selected' : ''}`}
-                                    onClick={() => {
-                                        setOrderMode('pickup');
-                                        setTableNumber('');
-                                    }}
-                                    style={{ flex: 1, fontSize: '0.85rem' }}
+                                    onClick={() => { if (!isAdditionMode) { setOrderMode('pickup'); setTableNumber(''); } }}
+                                    style={{ flex: 1, fontSize: '0.85rem', ...(isAdditionMode ? { opacity: 0.6, cursor: 'default' } : {}) }}
                                 >
                                     🛍️ Pickup
                                 </button>
                                 <button
                                     type="button"
                                     className={`table-btn ${orderMode === 'delivery' ? 'selected' : ''}`}
-                                    onClick={() => {
-                                        setOrderMode('delivery');
-                                        setTableNumber('');
-                                    }}
-                                    style={{ flex: 1, fontSize: '0.85rem' }}
+                                    onClick={() => { if (!isAdditionMode) { setOrderMode('delivery'); setTableNumber(''); } }}
+                                    style={{ flex: 1, fontSize: '0.85rem', ...(isAdditionMode ? { opacity: 0.6, cursor: 'default' } : {}) }}
                                 >
                                     🚗 Delivery
                                 </button>
@@ -323,7 +248,8 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                             key={num}
                                             type="button"
                                             className={`table-btn ${parseInt(tableNumber) === num ? 'selected' : ''}`}
-                                            onClick={() => setTableNumber(num)}
+                                            onClick={() => { if (!isAdditionMode) setTableNumber(num); }}
+                                            style={isAdditionMode ? { opacity: 0.6, cursor: 'default' } : {}}
                                         >
                                             Mesa {num}
                                         </button>
@@ -340,13 +266,14 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                             className="form-input"
                                             placeholder="Ej: Juan Pérez"
                                             value={customerName}
-                                            onChange={(e) => setCustomerName(e.target.value)}
+                                            onChange={(e) => { if (!isAdditionMode) setCustomerName(e.target.value); }}
+                                            readOnly={isAdditionMode}
                                             style={{
                                                 width: '100%',
                                                 padding: '6px 10px',
                                                 borderRadius: '8px',
                                                 border: '1px solid rgba(255,255,255,0.1)',
-                                                background: 'rgba(255,255,255,0.05)',
+                                                background: isAdditionMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
                                                 color: 'white',
                                                 fontSize: '0.9rem'
                                             }}
@@ -361,13 +288,14 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                             className="form-input"
                                             placeholder="Ej: 5512345678"
                                             value={customerPhone}
-                                            onChange={(e) => setCustomerPhone(e.target.value)}
+                                            onChange={(e) => { if (!isAdditionMode) setCustomerPhone(e.target.value); }}
+                                            readOnly={isAdditionMode}
                                             style={{
                                                 width: '100%',
                                                 padding: '6px 10px',
                                                 borderRadius: '8px',
                                                 border: '1px solid rgba(255,255,255,0.1)',
-                                                background: 'rgba(255,255,255,0.05)',
+                                                background: isAdditionMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
                                                 color: 'white',
                                                 fontSize: '0.9rem'
                                             }}
@@ -382,14 +310,15 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                 className="form-input"
                                                 placeholder="Ej: Calle 123, Col. Centro"
                                                 value={customerAddress}
-                                                onChange={(e) => setCustomerAddress(e.target.value)}
+                                                onChange={(e) => { if (!isAdditionMode) setCustomerAddress(e.target.value); }}
+                                                readOnly={isAdditionMode}
                                                 rows="2"
                                                 style={{
                                                     width: '100%',
                                                     padding: '6px 10px',
                                                     borderRadius: '8px',
                                                     border: '1px solid rgba(255,255,255,0.1)',
-                                                    background: 'rgba(255,255,255,0.05)',
+                                                    background: isAdditionMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
                                                     color: 'white',
                                                     fontSize: '0.9rem',
                                                     resize: 'none',
@@ -577,6 +506,21 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                             />
                                                             <span className="item-name-summary">{item.name}</span>
                                                         </label>
+                                                        <div className="cart-qty-row">
+                                                            <button
+                                                                type="button"
+                                                                className="qty-btn"
+                                                                onClick={() => handleQuantityChange(index, -1)}
+                                                                aria-label="Reducir cantidad"
+                                                            >−</button>
+                                                            <span className="qty-value">×{selectedItems[index]?.quantity || 1}</span>
+                                                            <button
+                                                                type="button"
+                                                                className="qty-btn"
+                                                                onClick={() => handleQuantityChange(index, 1)}
+                                                                aria-label="Aumentar cantidad"
+                                                            >+</button>
+                                                        </div>
                                                         <div className="item-note-row">
                                                             <span className="note-label">Nota:</span>
                                                             <input
@@ -591,11 +535,10 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                                     <button
                                                         type="button"
                                                         className="remove-mini-icon"
-                                                        onClick={() => {
-                                                            handleQuantityChange(index, -1);
-                                                        }}
+                                                        onClick={() => handleQuantityChange(index, -selectedItems[index]?.quantity || -1)}
+                                                        aria-label={`Eliminar ${item.name}`}
                                                     >
-                                                        ×
+                                                        🗑
                                                     </button>
                                                 </div>
                                             ))}
@@ -613,35 +556,54 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel }) {
                                         <button
                                             type="button"
                                             className="btn btn-danger btn-block mb-2"
-                                            style={{ backgroundColor: '#e74c3c', color: 'white' }}
+                                            style={{ backgroundColor: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', color: '#ef4444' }}
                                             onClick={() => {
-                                                if (window.confirm('¿Seguro que deseas cancelar esta orden?')) {
-                                                    onCancel(initialOrder.id);
-                                                    onClose();
-                                                }
+                                                onCancel(initialOrder.id);
+                                                onClose();
                                             }}
                                         >
                                             Cancelar Orden
                                         </button>
                                     )}
 
+                                    {isAdditionMode && initialOrder?.items && (
+                                        <div style={{ marginBottom: '12px', padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <p style={{ margin: '0 0 6px', fontSize: '0.8rem', color: 'var(--text-secondary, #94a3b8)' }}>
+                                                Artículos actuales en la orden:
+                                            </p>
+                                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary, #e2e8f0)' }}>
+                                                {initialOrder.items}
+                                            </p>
+                                        </div>
+                                    )}
                                     <button
                                         type="submit"
-                                        className="btn btn-primary btn-block btn-lg"
-                                        disabled={
-                                            (orderMode === 'table' ? !tableNumber : !customerName.trim()) ||
-                                            selectedItems.length === 0 ||
-                                            !isAllConfirmed
-                                        }
+                                        className={`btn btn-primary btn-block btn-lg ${submitting ? 'btn-loading' : ''}`}
+                                        disabled={submitting || (
+                                            isAdditionMode
+                                                ? (selectedItems.length === 0 || !isAllConfirmed)
+                                                : ((orderMode === 'table' ? !tableNumber : !customerName.trim()) ||
+                                                    selectedItems.length === 0 ||
+                                                    !isAllConfirmed)
+                                        )}
                                         style={{
-                                            opacity: (
-                                                (orderMode === 'table' ? !tableNumber : !customerName.trim()) ||
-                                                selectedItems.length === 0 ||
-                                                !isAllConfirmed
-                                            ) ? 0.6 : 1
+                                            opacity: (submitting || (
+                                                isAdditionMode
+                                                    ? (selectedItems.length === 0 || !isAllConfirmed)
+                                                    : ((orderMode === 'table' ? !tableNumber : !customerName.trim()) ||
+                                                        selectedItems.length === 0 ||
+                                                        !isAllConfirmed)
+                                            )) ? 0.6 : 1
                                         }}
                                     >
-                                        {initialOrder ? 'Guardar Cambios' : (isAllConfirmed ? 'Crear Orden' : 'Verifica Artículos')}
+                                        {submitting && <span className="btn-spinner" aria-hidden="true" />}
+                                        {submitting
+                                            ? 'Enviando...'
+                                            : isAdditionMode
+                                                ? (isAllConfirmed ? 'Agregar a Orden' : 'Verifica Artículos')
+                                                : initialOrder
+                                                    ? 'Guardar Cambios'
+                                                    : (isAllConfirmed ? 'Crear Orden' : 'Verifica Artículos')}
                                     </button>
                                 </div>
                             </div>

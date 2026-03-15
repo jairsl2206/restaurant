@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const db = require('./db');
 const logger = require('./logger');
 const { ORDER_STATUS, ORDER_TYPE, USER_ROLE, PAYMENT_METHOD } = require('./constants');
+const requireActivePeriod = require('./middleware/requireActivePeriod')(db);
 
 const router = express.Router();
 
@@ -126,7 +127,7 @@ router.get('/orders/:id', verifyToken, (req, res) => {
 });
 
 // POST /api/orders — create order
-router.post('/orders', verifyToken, (req, res) => {
+router.post('/orders', verifyToken, requireActivePeriod, (req, res) => {
     const { tableNumber, items, type, customerData, notes } = req.body;
     const orderType = type || ORDER_TYPE.DINE_IN;
 
@@ -236,6 +237,25 @@ router.put('/orders/:id', verifyToken, (req, res) => {
     });
 });
 
+// POST /api/orders/:id/additions — add items to an existing active order (creates sub-order)
+router.post('/orders/:id/additions', verifyToken, requireActivePeriod, (req, res) => {
+    const { id } = req.params;
+    const { items } = req.body;
+
+    if (!items || items.length === 0) {
+        return res.status(400).json({ error: 'Items required' });
+    }
+
+    db.createSubOrder(id, items, (err, subOrderId) => {
+        if (err) return res.status(500).json({ error: err.message || 'Failed to create addition' });
+
+        db.getOrderById(subOrderId, (err2, order) => {
+            if (err2) return res.status(500).json({ error: 'Created but failed to retrieve' });
+            res.status(201).json(_mapOrder(order));
+        });
+    });
+});
+
 // PUT /api/orders/:id/status
 router.put('/orders/:id/status', verifyToken, (req, res) => {
     const { id } = req.params;
@@ -253,12 +273,15 @@ router.put('/orders/:id/status', verifyToken, (req, res) => {
             if (err) return res.status(500).json({ error: 'Updated but failed to retrieve' });
 
             // WhatsApp notifications by new status
-            if (status === ORDER_STATUS.CANCELADA) {
-                notifyWhatsApp(req, `❌ *Orden Cancelada*\nOrden #${order.id}\n${order.type === ORDER_TYPE.DELIVERY ? `🚗 ${order.customer_name}` : `🪑 Mesa: ${order.table_number}`}\nTotal: $${order.total}`);
-            } else if (status === ORDER_STATUS.ENTREGADA) {
-                notifyWhatsApp(req, `✅ *Pago Recibido*\nOrden #${order.id}\n${order.type === ORDER_TYPE.DELIVERY ? `🚗 ${order.customer_name}` : `🪑 Mesa: ${order.table_number}`}\nTotal: $${order.total}\nGracias por su compra!`);
-            } else if (status === ORDER_STATUS.LISTA && order.type === ORDER_TYPE.DELIVERY) {
-                notifyWhatsApp(req, `🔔 *ORDEN LISTA #${order.id}*\n🚗 Delivery — ${order.customer_name}\n📍 ${order.customer_address || 'Dirección registrada'}`);
+            if (status === ORDER_STATUS.FINALIZADO) {
+                db.finalizeSubOrders(id, (err) => {
+                    if (err) logger.error('Error finalizing sub-orders:', err);
+                });
+                notifyWhatsApp(req, `✅ *Pago Recibido*\nOrden #${order.id}\n${order.type === ORDER_TYPE.DELIVERY ? `🚗 ${order.customer_name}` : `🪑 Mesa: ${order.table_number}`}\nTotal: $${order.total}\n¡Gracias por su compra!`);
+            } else if (status === ORDER_STATUS.EN_REPARTO) {
+                notifyWhatsApp(req, `🚗 *ORDEN EN CAMINO #${order.id}*\n🚗 Delivery — ${order.customer_name}\n📍 ${order.customer_address || 'Dirección registrada'}`);
+            } else if (status === ORDER_STATUS.LISTO_PARA_RECOGER) {
+                notifyWhatsApp(req, `🔔 *ORDEN LISTA PARA RECOGER #${order.id}*\n📦 ${order.customer_name} — su pedido está listo para recoger.`);
             }
 
             res.json(_mapOrder(order));
@@ -498,6 +521,70 @@ router.post('/settings', isAdmin, async (req, res) => {
         logger.error('Error updating settings:', err);
         res.status(500).json({ error: 'Failed to update settings' });
     }
+});
+
+// ── SALE PERIODS ──────────────────────────────────────────────────────────────
+
+// GET /api/sale-periods/active — periodo actualmente abierto (o null)
+router.get('/sale-periods/active', verifyToken, (req, res) => {
+    db.getActiveSalePeriod((err, period) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(period || null);
+    });
+});
+
+// GET /api/sale-periods — historial de todos los periodos
+router.get('/sale-periods', verifyToken, (req, res) => {
+    db.getSalePeriods((err, periods) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(periods || []);
+    });
+});
+
+// POST /api/sale-periods — abrir nueva jornada (solo admin/manager)
+router.post('/sale-periods', isAdmin, (req, res) => {
+    db.openSalePeriod(req.user.id, (err, periodId) => {
+        if (err) {
+            if (err.message === 'Ya existe una jornada abierta') {
+                return res.status(409).json({ error: err.message });
+            }
+            return res.status(500).json({ error: 'Failed to open period' });
+        }
+        db.getActiveSalePeriod((err2, period) => {
+            if (err2) return res.status(500).json({ error: 'Period opened but failed to retrieve' });
+            res.status(201).json(period);
+        });
+    });
+});
+
+// PUT /api/sale-periods/:id/close — cerrar jornada (solo admin/manager)
+// Body: { force: true } para forzar cierre con órdenes activas
+router.put('/sale-periods/:id/close', isAdmin, (req, res) => {
+    const { id } = req.params;
+    const force = req.body && req.body.force === true;
+
+    db.closeSalePeriod(id, req.user.id, force, (err, result) => {
+        if (err) return res.status(500).json({ error: 'Failed to close period' });
+        if (result.warning) {
+            return res.status(409).json({
+                warning: true,
+                activeOrdersCount: result.activeOrdersCount,
+                message: `Hay ${result.activeOrdersCount} orden(es) activa(s). Usa force:true para forzar el cierre.`
+            });
+        }
+        res.json({ success: true });
+    });
+});
+
+// GET /api/sale-periods/:id/report — reporte de ventas por jornada
+router.get('/sale-periods/:id/report', verifyToken, (req, res) => {
+    db.getSalePeriodReport(req.params.id, (err, report) => {
+        if (err) {
+            if (err.message === 'Period not found') return res.status(404).json({ error: 'Period not found' });
+            return res.status(500).json({ error: 'Failed to generate report' });
+        }
+        res.json(report);
+    });
 });
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────

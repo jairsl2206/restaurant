@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import { authHeaders } from '../utils/api';
 import { USER_ROLE, USER_ROLE_LABELS } from '../constants';
+import { useToast } from './Toast';
 
 const API_URL = API_BASE_URL + '/users';
 
 function UserManager() {
+    const showToast = useToast();
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -47,10 +50,11 @@ function UserManager() {
             });
 
             if (res.ok) {
+                showToast('Usuario creado correctamente', 'success');
                 fetchUsers();
                 closeModal();
             } else {
-                alert('Error al crear usuario');
+                showToast('Error al crear usuario', 'error');
             }
         } catch (err) {
             console.error('Error creating user:', err);
@@ -58,14 +62,16 @@ function UserManager() {
     };
 
     const handleDelete = async (id) => {
-        if (!confirm('¿Seguro que deseas eliminar este usuario?')) return;
-
+        setConfirmDeleteId(null);
         try {
             const res = await fetch(`${API_URL}/${id}`, {
                 method: 'DELETE',
                 headers: authHeaders()
             });
-            if (res.ok) fetchUsers();
+            if (res.ok) {
+                showToast('Usuario eliminado', 'success');
+                fetchUsers();
+            }
         } catch (err) {
             console.error('Error deleting user:', err);
         }
@@ -129,7 +135,7 @@ function UserManager() {
                                             </select>
                                         </td>
                                         <td>
-                                            <button className="action-btn delete-btn" onClick={() => handleDelete(user.id)}>🗑️</button>
+                                            <button className="action-btn delete-btn" onClick={() => setConfirmDeleteId(user.id)} aria-label={`Eliminar usuario ${user.username}`}>🗑️</button>
                                         </td>
                                     </tr>
                                 ))}
@@ -186,6 +192,29 @@ function UserManager() {
                             <button type="submit" className="btn btn-primary">Crear Usuario</button>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {confirmDeleteId && (
+                <div className="modal-overlay" onClick={() => setConfirmDeleteId(null)}>
+                    <div className="modal-content glass-card slide-in" style={{ maxWidth: '360px' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 style={{ fontSize: '1.1rem' }}>⚠️ Eliminar usuario</h3>
+                            <button type="button" className="close-btn" onClick={() => setConfirmDeleteId(null)} aria-label="Cancelar">×</button>
+                        </div>
+                        <div className="modal-body">
+                            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>¿Seguro que deseas eliminar este usuario?</p>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Esta acción no se puede deshacer.</p>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" onClick={() => setConfirmDeleteId(null)}>Cancelar</button>
+                            <button type="button" className="btn btn-danger"
+                                style={{ background: 'rgba(239,68,68,0.2)', borderColor: '#ef4444', color: '#ef4444' }}
+                                onClick={() => handleDelete(confirmDeleteId)}>
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
