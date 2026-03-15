@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import { authHeaders } from '../utils/api';
 import NewOrderModal from '../NewOrderModal';
 import './PastOrders.css';
 
@@ -26,7 +27,7 @@ function PastOrders() {
     const fetchOrdersByDate = async (date) => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/orders/by-date?date=${date}`);
+            const response = await fetch(`${API_URL}/orders/by-date?date=${date}`, { headers: authHeaders() });
             const data = await response.json();
             setOrders(data);
         } catch (err) {
@@ -43,7 +44,8 @@ function PastOrders() {
 
         try {
             const response = await fetch(`${API_URL}/orders/${orderId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: authHeaders()
             });
 
             if (response.ok) {
@@ -66,9 +68,7 @@ function PastOrders() {
         try {
             const response = await fetch(`${API_URL}/orders/${editOrder.id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ items: orderData.items }),
             });
 

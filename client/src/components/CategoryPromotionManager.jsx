@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './CategoryPromotionManager.css';
 import API_BASE_URL from '../config';
+import { authHeaders } from '../utils/api';
 
 const CATEGORY_PROMOS_URL = API_BASE_URL + '/category-promotions';
 const ITEM_PROMOS_URL = API_BASE_URL + '/item-promotions';
@@ -38,8 +39,8 @@ function CategoryPromotionManager() {
         setLoading(true);
         try {
             const [catPromosRes, itemPromosRes, menuRes, catsRes] = await Promise.all([
-                fetch(CATEGORY_PROMOS_URL, { headers: { 'x-role': 'admin' } }),
-                fetch(ITEM_PROMOS_URL, { headers: { 'x-role': 'admin' } }),
+                fetch(CATEGORY_PROMOS_URL, { headers: authHeaders() }),
+                fetch(ITEM_PROMOS_URL, { headers: authHeaders() }),
                 fetch(MENU_API_URL),
                 fetch(CATEGORIES_API_URL)
             ]);
@@ -78,10 +79,7 @@ function CategoryPromotionManager() {
         try {
             const res = await fetch(url, {
                 method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-role': 'admin'
-                },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify(payload)
             });
 
@@ -104,7 +102,7 @@ function CategoryPromotionManager() {
         try {
             const res = await fetch(url, {
                 method: 'DELETE',
-                headers: { 'x-role': 'admin' }
+                headers: authHeaders()
             });
             if (res.ok) fetchData();
         } catch (err) {

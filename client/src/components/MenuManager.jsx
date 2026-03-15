@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './MenuManager.css';
 import API_BASE_URL from '../config';
+import { authHeaders } from '../utils/api';
 
 const MENU_API_URL = `${API_BASE_URL}/menu`;
 const CATEGORIES_API_URL = `${API_BASE_URL}/categories`;
@@ -70,10 +71,7 @@ function MenuManager() {
         try {
             const res = await fetch(url, {
                 method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-role': 'admin'
-                },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify(payload)
             });
 
@@ -94,7 +92,7 @@ function MenuManager() {
         try {
             const res = await fetch(`${MENU_API_URL}/${id}`, {
                 method: 'DELETE',
-                headers: { 'x-role': 'admin' }
+                headers: authHeaders()
             });
             if (res.ok) fetchData();
         } catch (err) {

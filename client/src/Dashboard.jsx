@@ -6,6 +6,7 @@ import NotificationCenter from './components/NotificationCenter';
 import { playNotificationSound } from './utils/sound';
 import './Dashboard.css';
 import API_BASE_URL from './config';
+import { authHeaders } from './utils/api';
 
 const API_URL = API_BASE_URL;
 
@@ -68,7 +69,7 @@ function Dashboard({ user, onLogout, settings }) {
     const fetchOrders = async () => {
         try {
             const endpoint = filter === 'all' ? '/orders/all' : '/orders';
-            const response = await fetch(`${API_URL}${endpoint}`);
+            const response = await fetch(`${API_URL}${endpoint}`, { headers: authHeaders() });
             const data = await response.json();
 
             // Waiter: LISTA = ready to serve/deliver/hand off
@@ -147,9 +148,7 @@ function Dashboard({ user, onLogout, settings }) {
         try {
             const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ status: newStatus }),
             });
 
@@ -165,9 +164,7 @@ function Dashboard({ user, onLogout, settings }) {
         try {
             const response = await fetch(`${API_URL}/orders`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify(orderData),
             });
 
@@ -198,9 +195,7 @@ function Dashboard({ user, onLogout, settings }) {
         try {
             const response = await fetch(`${API_URL}/orders/${editOrder.id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ items: orderData.items }), // Only items update supported currently
             });
 

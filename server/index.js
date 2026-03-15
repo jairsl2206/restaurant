@@ -12,8 +12,22 @@ const whatsappService = require('./whatsappService');
 // Initialize WhatsApp
 whatsappService.initializeClient();
 
-// Middleware
-app.use(cors());
+// CORS — restrict to known origins
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : ['http://localhost:5173', 'http://localhost:3001'];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow same-origin requests (no Origin header) and whitelisted origins
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -46,9 +60,22 @@ const storage = multer.diskStorage({
         cb(null, 'upload-' + uniqueSuffix + safeExt)
     }
 });
-const upload = multer({ storage: storage });
+const jwt = require('jsonwebtoken');
+const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-app.post('/api/upload', upload.single('file'), (req, res) => {
+const _requireAuth = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Authentication required' });
+    try {
+        jwt.verify(token, process.env.JWT_SECRET);
+        next();
+    } catch {
+        res.status(401).json({ error: 'Invalid or expired token' });
+    }
+};
+
+app.post('/api/upload', _requireAuth, upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }

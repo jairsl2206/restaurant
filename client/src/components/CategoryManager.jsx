@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import { authHeaders } from '../utils/api';
 
 const CATEGORIES_URL = API_BASE_URL + '/categories';
 const MENU_URL = API_BASE_URL + '/menu';
@@ -43,10 +44,7 @@ function CategoryManager() {
         try {
             const res = await fetch(CATEGORIES_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-role': 'admin'
-                },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ name: newCategoryInput.trim() })
             });
 
@@ -67,10 +65,7 @@ function CategoryManager() {
         try {
             const res = await fetch(`${CATEGORIES_URL}/${editingCategory.id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-role': 'admin'
-                },
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ name: newCategoryName.trim() })
             });
 
@@ -91,7 +86,7 @@ function CategoryManager() {
         try {
             const res = await fetch(`${CATEGORIES_URL}/${categoryId}`, {
                 method: 'DELETE',
-                headers: { 'x-role': 'admin' }
+                headers: authHeaders()
             });
 
             if (res.ok) {

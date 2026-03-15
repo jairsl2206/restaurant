@@ -16,7 +16,9 @@ class UpdateOrderStatus {
         const order = await this.orderRepository.findById(input.orderId);
         if (!order) throw new NotFoundError(`Order with ID ${input.orderId} not found`);
 
-        const newStatus = new OrderStatus(input.status);
+        const newStatus = input.status instanceof OrderStatus
+            ? input.status
+            : new OrderStatus(input.status);
 
         // updateStatus() in Order entity enforces transition rules
         const updatedOrder = order.updateStatus(newStatus);
