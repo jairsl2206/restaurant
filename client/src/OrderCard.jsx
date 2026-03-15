@@ -1,27 +1,8 @@
+import { useState, useEffect } from 'react';
 import './OrderCard.css';
-import { ORDER_STATUS, ORDER_TYPE } from './constants';
+import { ORDER_STATUS, ORDER_TYPE, STATUS_CSS_CLASSES, ORDER_STATUS_LABELS, TIME_BADGE_WARN_MIN, TIME_BADGE_URGENT_MIN } from './constants';
 import { getNextStatus, getStatusSteps, cleanItemName, parseItemsIndividual, parseItemsGrouped, buildBillingItemsList } from './utils/orderCardUtils';
 import { useToast } from './components/Toast';
-
-const statusColors = {
-    [ORDER_STATUS.EN_COCINA]:          'status-cocina',
-    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'status-listo',
-    [ORDER_STATUS.SERVIDO]:            'status-servido',
-    [ORDER_STATUS.EN_REPARTO]:         'status-reparto',
-    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'status-recoger',
-    [ORDER_STATUS.FINALIZADO]:         'status-pagado'
-};
-
-const statusLabels = {
-    [ORDER_STATUS.EN_COCINA]:          'En cocina',
-    [ORDER_STATUS.LISTO_PARA_SERVIR]:  'Listo para servir',
-    [ORDER_STATUS.SERVIDO]:            'Servido (En mesa)',
-    [ORDER_STATUS.EN_REPARTO]:         'En reparto',
-    [ORDER_STATUS.LISTO_PARA_RECOGER]: 'Listo para recoger',
-    [ORDER_STATUS.FINALIZADO]:         'Finalizado'
-};
-
-import { useState, useEffect } from 'react';
 
 function getWaitingMinutes(dateStr) {
     if (!dateStr) return 0;
@@ -108,8 +89,8 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
 
     // Time badge: show if waiting ≥ 10 min and order is active
     const waitMins = !isFinalizado ? getWaitingMinutes(order.updated_at) : 0;
-    const showTimeBadge = waitMins >= 10;
-    const timeBadgeClass = waitMins > 20 ? 'time-badge-urgent' : 'time-badge-warn';
+    const showTimeBadge = waitMins >= TIME_BADGE_WARN_MIN;
+    const timeBadgeClass = waitMins > TIME_BADGE_URGENT_MIN ? 'time-badge-urgent' : 'time-badge-warn';
 
     // Render helper for Individual Row
     const renderIndividualRow = (item, isDiff = false) => {
@@ -148,39 +129,28 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
         };
 
         return (
-            <li key={item.id} className={`checklist-item ${isChecked ? 'checked' : ''} ${isRemoved ? 'item-removed' : ''}`}
-                style={isRemoved ? { opacity: 0.6 } : {}}>
-                <label style={{ cursor: isRemoved ? 'default' : (isLocked ? 'not-allowed' : 'pointer'), display: 'flex', alignItems: 'center', width: '100%' }}>
+            <li key={item.id} className={`checklist-item ${isChecked ? 'checked' : ''} ${isRemoved ? 'item-removed' : ''}`}>
+                <label className={`checklist-label checklist-label--${isRemoved ? 'removed' : isLocked ? 'locked' : 'active'}`}>
                     {!isRemoved && (
                         <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={handleToggle}
                             disabled={!canAdvance || isLocked}
-                            style={{ marginRight: '10px' }}
+                            className="checklist-checkbox"
                         />
                     )}
 
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                            <span className="item-text" style={isRemoved ? { textDecoration: 'line-through', color: '#e74c3c' } : {}}>
+                    <div className="checklist-item-body">
+                        <div className="checklist-item-row">
+                            <span className={`item-text ${isRemoved ? 'item-text--removed' : ''}`}>
                                 {item.text}
                             </span>
-                            {isRemoved && <span style={{ marginLeft: 'auto', color: '#e74c3c', fontSize: '0.8rem' }}>(Eliminado)</span>}
+                            {isRemoved && <span className="item-removed-label">(Eliminado)</span>}
                         </div>
                         {item.note && !isRemoved && (
-                            <span className="item-note-badge" style={{
-                                alignSelf: 'flex-start',
-                                fontSize: '0.75rem',
-                                background: 'rgba(231, 76, 60, 0.2)',
-                                color: '#ff6b6b',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                marginTop: '2px',
-                                fontWeight: 'bold',
-                                border: '1px solid rgba(231, 76, 60, 0.3)'
-                            }}>
-                                <span style={{ marginRight: '4px', filter: 'none' }}>📋</span> {item.note}
+                            <span className="item-note-badge">
+                                <span className="note-icon">📋</span> {item.note}
                             </span>
                         )}
                     </div>
@@ -224,17 +194,13 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                         </span>
                     )}
                     {order.parent_order_id && (
-                        <div style={{ fontSize: '0.75rem', background: 'rgba(52, 152, 219, 0.2)', color: '#74b9ff', border: '1px solid rgba(52, 152, 219, 0.4)', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }}>
-                            + Adición a #{order.parent_order_id}
-                        </div>
+                        <div className="badge-info">+ Adición a #{order.parent_order_id}</div>
                     )}
                     {!order.parent_order_id && order.pending_additions_count > 0 && (
-                        <div style={{ fontSize: '0.75rem', background: 'rgba(243, 156, 18, 0.2)', color: '#fdcb6e', border: '1px solid rgba(243, 156, 18, 0.4)', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }}>
-                            +{order.pending_additions_count} adición(es)
-                        </div>
+                        <div className="badge-warn">+{order.pending_additions_count} adición(es)</div>
                     )}
-                    <div className={`status-badge ${statusColors[order.status] || ''}`}>
-                        {statusLabels[order.status] || order.status}
+                    <div className={`status-badge ${STATUS_CSS_CLASSES[order.status] || ''}`}>
+                        {ORDER_STATUS_LABELS[order.status] || order.status}
                     </div>
                 </div>
             </div>
@@ -247,7 +213,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                         const isActive = index <= currentStepIndex;
                         return (
                             <div key={step} className={`progress-step ${isActive ? 'active' : ''}`}>
-                                <div className="step-dot" title={statusLabels[step]}></div>
+                                <div className="step-dot" title={ORDER_STATUS_LABELS[step]}></div>
                                 {index < steps.length - 1 && <div className="step-line"></div>}
                             </div>
                         );
@@ -268,15 +234,11 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
 
                         {/* Edit button — available in any active status (before FINALIZADO), only for waiters */}
                         {onEdit && order.status !== ORDER_STATUS.FINALIZADO && !isAllowedRole && (
-                            <div style={{ marginLeft: 'auto' }}>
+                            <div className="edit-btn-wrap">
                                 <button
                                     onClick={() => onEdit(order)}
                                     aria-label={`Editar orden #${order.id}`}
-                                    style={{
-                                        background: 'none', border: '1px solid var(--primary)',
-                                        color: 'var(--primary)', borderRadius: '4px',
-                                        padding: '2px 8px', fontSize: '0.8rem', cursor: 'pointer'
-                                    }}
+                                    className="btn-edit-inline"
                                 >
                                     ✏️ Editar
                                 </button>
@@ -291,7 +253,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                                 {itemsList.map((item, i) => (
                                     <li key={i} className={`receipt-item ${item.isAddition ? 'receipt-item-addition' : ''}`}>
                                         <div className="receipt-item-info">
-                                            <span className="receipt-item-dot" style={{ color: item.isAddition ? '#fdcb6e' : '#74b9ff' }}>•</span>
+                                            <span className={`receipt-item-dot ${item.isAddition ? 'receipt-item-dot--addition' : ''}`}>•</span>
                                             <span className="receipt-item-name">{item.text}</span>
                                             {item.isAddition && <span className="receipt-addition-badge">+adición</span>}
                                             {item.note && (
@@ -312,7 +274,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                                 {additionsTotal > 0 && (
                                     <div className="receipt-row receipt-additions">
                                         <span>Adiciones (+{itemsList.filter(i => i.isAddition).length} ítem{itemsList.filter(i => i.isAddition).length !== 1 ? 's' : ''})</span>
-                                        <span style={{ color: '#fdcb6e' }}>+${additionsTotal.toFixed(2)}</span>
+                                        <span className="receipt-additions-amount">+${additionsTotal.toFixed(2)}</span>
                                     </div>
                                 )}
                                 <div className="receipt-divider" />
@@ -336,41 +298,33 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                             </div>
                         </div>
                     ) : showSimpleList ? (
-                        <ul className="items-list-simple" style={{ listStyle: 'none', padding: 0 }}>
+                        <ul className="items-list-simple">
                             {parseItemsGrouped(order.items).map((item, i) => (
-                                <li key={i} className="simple-item" style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                                            <span style={{ marginRight: '8px', color: '#3498db' }}>•</span>
-                                            <span className="item-text" style={{ color: '#ecf0f1' }}>{item.text}</span>
+                                <li key={i} className="simple-item">
+                                    <div className="simple-item-body">
+                                        <div className="simple-item-row">
+                                            <span className="simple-item-bullet">•</span>
+                                            <span className="item-text simple-item-text">{item.text}</span>
                                         </div>
                                         {item.note && (
-                                            <span style={{
-                                                marginLeft: '15px',
-                                                fontSize: '0.75rem',
-                                                color: '#ff6b6b',
-                                                fontWeight: 'bold',
-                                                fontStyle: 'italic'
-                                            }}>
-                                                ↳ {item.note}
-                                            </span>
+                                            <span className="simple-item-note">↳ {item.note}</span>
                                         )}
                                     </div>
-                                    <span style={{ color: '#95a5a6', fontSize: '0.9rem', fontWeight: 'bold' }}>x{item.quantity}</span>
+                                    <span className="simple-item-qty">x{item.quantity}</span>
                                 </li>
                             ))}
                         </ul>
                     ) : showDiff ? (
                         <div className="diff-view">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                {displayItems.length > 0 && <p style={{ fontSize: '0.8rem', color: '#aaa', margin: 0 }}>Orden Original:</p>}
+                            <div className="diff-header">
+                                {displayItems.length > 0 && <p className="diff-section-label">Orden Original:</p>}
                                 {!isLocked && !isPaymentStage && (
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', color: 'var(--primary)', cursor: 'pointer' }}>
+                                    <label className="select-all-label">
                                         <input
                                             type="checkbox"
                                             checked={itemsList.length > 0 && itemsList.every(i => i.checked)}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
-                                            style={{ width: '14px', height: '14px' }}
+                                            className="select-all-checkbox"
                                         />
                                         Marcar Todo
                                     </label>
@@ -382,10 +336,10 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
 
                             {addedItems.length > 0 && (
                                 <>
-                                    <div style={{ borderTop: '1px solid #555', margin: '10px 0', position: 'relative' }}>
-                                        <span style={{ position: 'absolute', top: '-10px', left: '0', background: '#333', paddingRight: '5px', fontSize: '0.8rem', color: '#2ecc71' }}>Nuevos / Agregados</span>
+                                    <div className="diff-additions-divider">
+                                        <span className="diff-additions-label">Nuevos / Agregados</span>
                                     </div>
-                                    <ul className="items-list-checklist" style={{ marginTop: '15px' }}>
+                                    <ul className="items-list-checklist items-list-checklist--added">
                                         {addedItems.map((item) => renderIndividualRow({ ...item, status: 'added' }, true))}
                                     </ul>
                                 </>
@@ -394,13 +348,13 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                     ) : (
                         <div>
                             {!isLocked && !isPaymentStage && itemsList.length > 0 && (
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', color: 'var(--primary)', cursor: 'pointer' }}>
+                                <div className="select-all-row">
+                                    <label className="select-all-label">
                                         <input
                                             type="checkbox"
                                             checked={itemsList.length > 0 && itemsList.every(i => i.checked)}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
-                                            style={{ width: '14px', height: '14px' }}
+                                            className="select-all-checkbox"
                                         />
                                         Marcar Todo
                                     </label>
@@ -428,11 +382,10 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                             className={`btn btn-primary btn-block advance-btn ${advancing ? 'btn-loading' : ''}`}
                             onClick={handleAdvance}
                             disabled={!canSubmit || advancing}
-                            style={{ opacity: (canSubmit && !advancing) ? 1 : 0.6, cursor: (canSubmit && !advancing) ? 'pointer' : 'not-allowed' }}
-                            aria-label={isPaymentStage ? 'Finalizar orden' : `Avanzar a ${statusLabels[nextStatus] || nextStatus}`}
+                            aria-label={isPaymentStage ? 'Finalizar orden' : `Avanzar a ${ORDER_STATUS_LABELS[nextStatus] || nextStatus}`}
                         >
                             {advancing && <span className="btn-spinner" aria-hidden="true" />}
-                            <span>{advancing ? 'Procesando...' : (isPaymentStage ? 'Finalizar Orden' : `Avanzar a ${statusLabels[nextStatus] || nextStatus}`)}</span>
+                            <span>{advancing ? 'Procesando...' : (isPaymentStage ? 'Finalizar Orden' : `Avanzar a ${ORDER_STATUS_LABELS[nextStatus] || nextStatus}`)}</span>
                             {!advancing && <span className="arrow-icon" aria-hidden="true">→</span>}
                         </button>
                     )}
@@ -441,5 +394,21 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
         </div>
     );
 }
+
+import PropTypes from 'prop-types';
+
+OrderCard.propTypes = {
+    order: PropTypes.shape({
+        id:     PropTypes.number.isRequired,
+        status: PropTypes.string.isRequired,
+        items:  PropTypes.string,
+        total:  PropTypes.number
+    }).isRequired,
+    user: PropTypes.shape({
+        role: PropTypes.string.isRequired
+    }).isRequired,
+    onStatusChange: PropTypes.func.isRequired,
+    onEdit:         PropTypes.func
+};
 
 export default OrderCard;

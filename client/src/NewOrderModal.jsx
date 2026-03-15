@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react';
 import './NewOrderModal.css';
 import API_BASE_URL from './config';
-import { ORDER_TYPE } from './constants';
+import { ORDER_TYPE, DEFAULT_MAX_TABLES } from './constants';
 import { parseInitialItems } from './utils/parseInitialItems';
 import { useToast } from './components/Toast';
-
-// Menu items will be fetched from API
-const API_MENU_URL = API_BASE_URL + '/menu';
-const API_SETTINGS_URL = API_BASE_URL + '/settings';
+import { apiGet } from './utils/api';
 
 function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdditionMode = false }) {
     const showToast = useToast();
@@ -18,7 +15,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
     const [loading, setLoading] = useState(true);
     const [confirmationChecks, setConfirmationChecks] = useState({});
     const [expandedCategory, setExpandedCategory] = useState(null);
-    const [maxTables, setMaxTables] = useState(20); // Default value
+    const [maxTables, setMaxTables] = useState(DEFAULT_MAX_TABLES);
 
     // Mode state for order type
     const [orderMode, setOrderMode] = useState('table'); // 'table', 'delivery', 'pickup'
@@ -31,16 +28,15 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
 
     // Fetch settings to get max_tables
     useEffect(() => {
-        fetch(API_SETTINGS_URL)
-            .then(res => res.json())
-            .then(data => {
-                if (data.max_tables) {
-                    setMaxTables(parseInt(data.max_tables));
-                }
-            })
-            .catch(err => {
+        const loadSettings = async () => {
+            try {
+                const data = await apiGet(`${API_BASE_URL}/settings`, { auth: false });
+                if (data.max_tables) setMaxTables(parseInt(data.max_tables));
+            } catch (err) {
                 console.error('Error fetching settings:', err);
-            });
+            }
+        };
+        loadSettings();
     }, []);
 
     // Persistence check: We only reset checks when the table changes, 
@@ -50,14 +46,13 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
     }, [tableNumber, orderMode]);
 
     useEffect(() => {
-        fetch(API_MENU_URL)
-            .then(res => res.json())
-            .then(data => {
+        const loadMenu = async () => {
+            try {
+                const data = await apiGet(`${API_BASE_URL}/menu`, { auth: false });
                 setMenuItems(data.filter(item => item.available));
                 setLoading(false);
 
                 if (initialOrder) {
-                    // Always restore type/table/customer data (edit and addition modes)
                     const orderType = initialOrder.type;
                     if (initialOrder.is_pickup || orderType === ORDER_TYPE.PICKUP) {
                         setOrderMode('pickup');
@@ -74,17 +69,17 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
                         setTableNumber(initialOrder.table_number || '');
                     }
 
-                    // Only pre-load items when editing (not when adding to an existing order)
                     if (!isAdditionMode && initialOrder.items) {
                         const parsed = parseInitialItems(initialOrder.items, data);
                         setSelectedItems(parsed);
                     }
                 }
-            })
-            .catch(err => {
+            } catch (err) {
                 console.error('Error fetching menu:', err);
                 setLoading(false);
-            });
+            }
+        };
+        loadMenu();
     }, [initialOrder]);
 
     const handleAddItem = (item) => {
@@ -213,28 +208,25 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
                             </div>
 
                             {/* Mode Toggles — read-only in addition mode */}
-                            <div className="delivery-toggle" style={{ marginBottom: '18px', display: 'flex', gap: '8px' }}>
+                            <div className="delivery-toggle">
                                 <button
                                     type="button"
-                                    className={`table-btn ${orderMode === 'table' ? 'selected' : ''}`}
+                                    className={`table-btn mode-toggle-btn ${orderMode === 'table' ? 'selected' : ''} ${isAdditionMode ? 'mode-toggle-btn--disabled' : ''}`}
                                     onClick={() => { if (!isAdditionMode) { setOrderMode('table'); setTableNumber(''); } }}
-                                    style={{ flex: 1, fontSize: '0.85rem', ...(isAdditionMode ? { opacity: 0.6, cursor: 'default' } : {}) }}
                                 >
                                     🪑 Mesas
                                 </button>
                                 <button
                                     type="button"
-                                    className={`table-btn ${orderMode === 'pickup' ? 'selected' : ''}`}
+                                    className={`table-btn mode-toggle-btn ${orderMode === 'pickup' ? 'selected' : ''} ${isAdditionMode ? 'mode-toggle-btn--disabled' : ''}`}
                                     onClick={() => { if (!isAdditionMode) { setOrderMode('pickup'); setTableNumber(''); } }}
-                                    style={{ flex: 1, fontSize: '0.85rem', ...(isAdditionMode ? { opacity: 0.6, cursor: 'default' } : {}) }}
                                 >
                                     🛍️ Pickup
                                 </button>
                                 <button
                                     type="button"
-                                    className={`table-btn ${orderMode === 'delivery' ? 'selected' : ''}`}
+                                    className={`table-btn mode-toggle-btn ${orderMode === 'delivery' ? 'selected' : ''} ${isAdditionMode ? 'mode-toggle-btn--disabled' : ''}`}
                                     onClick={() => { if (!isAdditionMode) { setOrderMode('delivery'); setTableNumber(''); } }}
-                                    style={{ flex: 1, fontSize: '0.85rem', ...(isAdditionMode ? { opacity: 0.6, cursor: 'default' } : {}) }}
                                 >
                                     🚗 Delivery
                                 </button>
@@ -256,75 +248,39 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
                                     ))}
                                 </div>
                             ) : (
-                                <div className="customer-form" style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                                <div className="customer-form">
                                     <div className="form-group">
-                                        <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
-                                            Nombre del Cliente *
-                                        </label>
+                                        <label className="form-label">Nombre del Cliente *</label>
                                         <input
                                             type="text"
-                                            className="form-input"
+                                            className={`form-input form-input-glass ${isAdditionMode ? 'form-input-glass--readonly' : ''}`}
                                             placeholder="Ej: Juan Pérez"
                                             value={customerName}
                                             onChange={(e) => { if (!isAdditionMode) setCustomerName(e.target.value); }}
                                             readOnly={isAdditionMode}
-                                            style={{
-                                                width: '100%',
-                                                padding: '6px 10px',
-                                                borderRadius: '8px',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                background: isAdditionMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
-                                                color: 'white',
-                                                fontSize: '0.9rem'
-                                            }}
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
-                                            Teléfono (Opcional)
-                                        </label>
+                                        <label className="form-label">Teléfono (Opcional)</label>
                                         <input
                                             type="tel"
-                                            className="form-input"
+                                            className={`form-input form-input-glass ${isAdditionMode ? 'form-input-glass--readonly' : ''}`}
                                             placeholder="Ej: 5512345678"
                                             value={customerPhone}
                                             onChange={(e) => { if (!isAdditionMode) setCustomerPhone(e.target.value); }}
                                             readOnly={isAdditionMode}
-                                            style={{
-                                                width: '100%',
-                                                padding: '6px 10px',
-                                                borderRadius: '8px',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                background: isAdditionMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
-                                                color: 'white',
-                                                fontSize: '0.9rem'
-                                            }}
                                         />
                                     </div>
                                     {isDelivery && (
                                         <div className="form-group">
-                                            <label style={{ display: 'block', color: 'var(--text-secondary)' }}>
-                                                Dirección (Opcional)
-                                            </label>
+                                            <label className="form-label">Dirección (Opcional)</label>
                                             <textarea
-                                                className="form-input"
+                                                className={`form-input form-input-glass ${isAdditionMode ? 'form-input-glass--readonly' : ''}`}
                                                 placeholder="Ej: Calle 123, Col. Centro"
                                                 value={customerAddress}
                                                 onChange={(e) => { if (!isAdditionMode) setCustomerAddress(e.target.value); }}
                                                 readOnly={isAdditionMode}
                                                 rows="2"
-                                                style={{
-                                                    width: '100%',
-                                                    padding: '6px 10px',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid rgba(255,255,255,0.1)',
-                                                    background: isAdditionMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
-                                                    color: 'white',
-                                                    fontSize: '0.9rem',
-                                                    resize: 'none',
-                                                    fontFamily: 'inherit',
-                                                    minHeight: '45px'
-                                                }}
                                             />
                                         </div>
                                     )}
@@ -614,5 +570,15 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
         </div>
     );
 }
+
+import PropTypes from 'prop-types';
+
+NewOrderModal.propTypes = {
+    onClose:        PropTypes.func.isRequired,
+    onSubmit:       PropTypes.func.isRequired,
+    initialOrder:   PropTypes.object,
+    onCancel:       PropTypes.func,
+    isAdditionMode: PropTypes.bool
+};
 
 export default NewOrderModal;
