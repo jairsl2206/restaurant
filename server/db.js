@@ -773,7 +773,7 @@ class Database {
                     ' [' || oi.unit_price || ']'
                 ) AS items,
                 (SELECT COUNT(*) FROM orders sub WHERE sub.parent_order_id = o.id AND sub.status != 'FINALIZADO') AS pending_additions_count,
-                (SELECT COUNT(*) FROM orders sub WHERE sub.parent_order_id = o.id AND sub.status NOT IN ('SERVIDO', 'FINALIZADO')) AS unserved_additions_count,
+                (SELECT COUNT(*) FROM orders sub WHERE sub.parent_order_id = o.id AND sub.status NOT IN ('SERVIDO', 'EN_REPARTO', 'LISTO_PARA_RECOGER', 'FINALIZADO')) AS unserved_additions_count,
                 (SELECT COALESCE(SUM(sub.total), 0) FROM orders sub WHERE sub.parent_order_id = o.id) AS additions_total,
                 (SELECT GROUP_CONCAT(
                     COALESCE(mi2.name, 'item') ||
@@ -883,7 +883,7 @@ class Database {
         if (status === ORDER_STATUS.FINALIZADO) {
             this.db.get(
                 `SELECT COUNT(*) AS cnt FROM orders sub
-                 WHERE sub.parent_order_id = ? AND sub.status NOT IN ('SERVIDO', 'FINALIZADO')`,
+                 WHERE sub.parent_order_id = ? AND sub.status NOT IN ('SERVIDO', 'EN_REPARTO', 'LISTO_PARA_RECOGER', 'FINALIZADO')`,
                 [orderId],
                 (err, row) => {
                     if (err) return callback(err);
