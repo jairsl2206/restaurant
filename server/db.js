@@ -614,12 +614,14 @@ class Database {
                                 });
                             }
                             // Free entry — unit_price = 0 so the items string shows [0]
+                            // _original_price kept for discount_total computation
                             finalItems.push({
                                 ...item,
-                                quantity:    freeQty,
-                                price:       0,
-                                unit_price:  0,
-                                total_price: 0
+                                quantity:        freeQty,
+                                price:           0,
+                                unit_price:      0,
+                                total_price:     0,
+                                _original_price: item.price
                             });
                         }
                     });
@@ -647,6 +649,21 @@ class Database {
      * items: [{ menu_item_id, name, quantity, price }]
      * type: 'DINE_IN' | 'DELIVERY' | 'PICKUP'
      */
+
+    /**
+     * Computes total discount from a finalItems array (after _applyBundleDiscounts).
+     * - Bundle free units: savings = _original_price × freeQty
+     * - PERCENTAGE/FIXED_AMOUNT: discount_amount × quantity (set by frontend)
+     */
+    _computeDiscountTotal(fi) {
+        return fi.reduce((sum, item) => {
+            if (item._original_price != null && item.unit_price === 0) {
+                return sum + item._original_price * item.quantity;
+            }
+            return sum + (item.discount_amount || 0) * item.quantity;
+        }, 0);
+    }
+
     createOrder(tableNumber, items, type = ORDER_TYPE.DINE_IN, customerId = null, userId = null, callback) {
         // Support legacy calls where userId is omitted (callback passed as 5th arg)
         if (typeof userId === 'function') {
@@ -671,10 +688,12 @@ class Database {
                 if (err2) logger.error('Error fetching active period for order:', err2);
                 const salePeriodId = activePeriod ? activePeriod.id : null;
 
+                const discountTotal = self._computeDiscountTotal(fi);
+
                 self.db.run(
-                    `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, sale_period_id, waiter_user_id, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
-                    [DEFAULT_BRANCH_ID, customerId, tableNumber || null, itemType, ORDER_STATUS.EN_COCINA, subtotal, total, salePeriodId, userId || null],
+                    `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, discount_total, sale_period_id, waiter_user_id, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
+                    [DEFAULT_BRANCH_ID, customerId, tableNumber || null, itemType, ORDER_STATUS.EN_COCINA, subtotal, total, discountTotal, salePeriodId, userId || null],
                     function (err3) {
                         if (err3) return callback(err3);
 
@@ -712,33 +731,43 @@ class Database {
         this.getOrderById(parentOrderId, (err, parent) => {
             if (err || !parent) return callback(err || new Error('Parent order not found'));
 
-            const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const total    = subtotal;
-            const self     = this;
+            const self = this;
 
-            this.db.run(
-                `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, sale_period_id, parent_order_id, waiter_user_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
-                [parent.branch_id || 1, parent.customer_id, parent.table_number, parent.type,
-                 ORDER_STATUS.EN_COCINA, subtotal, total, parent.sale_period_id || null, parentOrderId, parent.waiter_user_id || null],
-                function (err) {
-                    if (err) return callback(err);
-                    const subOrderId = this.lastID;
+            this._applyBundleDiscounts(items, (err2, finalItems) => {
+                if (err2) logger.warn('Bundle discount apply failed (createSubOrder):', err2);
+                const fi = finalItems || items;
 
-                    const stmt = self.db.prepare(
-                        'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
-                    );
-                    items.forEach(item => {
-                        let menuItemId = item.id || item.menu_item_id;
-                        if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) menuItemId = null;
-                        stmt.run(subOrderId, menuItemId, item.quantity, item.price, item.price * item.quantity, item.note || null);
-                    });
-                    stmt.finalize((err) => {
-                        if (err) return callback(err);
-                        callback(null, subOrderId);
-                    });
-                }
-            );
+                const subtotal      = fi.reduce((sum, item) =>
+                    sum + (item.total_price != null ? item.total_price : item.price * item.quantity), 0);
+                const total         = subtotal;
+                const discountTotal = self._computeDiscountTotal(fi);
+
+                self.db.run(
+                    `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, discount_total, sale_period_id, parent_order_id, waiter_user_id, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
+                    [parent.branch_id || 1, parent.customer_id, parent.table_number, parent.type,
+                     ORDER_STATUS.EN_COCINA, subtotal, total, discountTotal, parent.sale_period_id || null, parentOrderId, parent.waiter_user_id || null],
+                    function (err3) {
+                        if (err3) return callback(err3);
+                        const subOrderId = this.lastID;
+
+                        const stmt = self.db.prepare(
+                            'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
+                        );
+                        fi.forEach(item => {
+                            let menuItemId = item.id || item.menu_item_id;
+                            if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) menuItemId = null;
+                            const unitPrice  = item.unit_price  != null ? item.unit_price  : item.price;
+                            const totalPrice = item.total_price != null ? item.total_price : unitPrice * item.quantity;
+                            stmt.run(subOrderId, menuItemId, item.quantity, unitPrice, totalPrice, item.note || null);
+                        });
+                        stmt.finalize((err4) => {
+                            if (err4) return callback(err4);
+                            callback(null, subOrderId);
+                        });
+                    }
+                );
+            });
         });
     }
 
@@ -775,6 +804,7 @@ class Database {
                 (SELECT COUNT(*) FROM orders sub WHERE sub.parent_order_id = o.id AND sub.status != 'FINALIZADO') AS pending_additions_count,
                 (SELECT COUNT(*) FROM orders sub WHERE sub.parent_order_id = o.id AND sub.status NOT IN ('SERVIDO', 'EN_REPARTO', 'LISTO_PARA_RECOGER', 'FINALIZADO')) AS unserved_additions_count,
                 (SELECT COALESCE(SUM(sub.total), 0) FROM orders sub WHERE sub.parent_order_id = o.id) AS additions_total,
+                (SELECT COALESCE(SUM(sub.discount_total), 0) FROM orders sub WHERE sub.parent_order_id = o.id) AS additions_discount_total,
                 (SELECT GROUP_CONCAT(
                     COALESCE(mi2.name, 'item') ||
                     CASE WHEN oi2.note IS NOT NULL AND oi2.note != '' THEN ' (' || oi2.note || ')' ELSE '' END ||
@@ -935,14 +965,15 @@ class Database {
                     stmt.finalize((err) => {
                         if (err) { this.db.run('ROLLBACK'); return callback(err); }
 
-                        const subtotal  = fi.reduce((s, i) =>
+                        const subtotal      = fi.reduce((s, i) =>
                             s + (i.total_price != null ? i.total_price : i.price * i.quantity), 0);
-                        const diffValue = diff ? JSON.stringify(diff) : null;
+                        const discountTotal = this._computeDiscountTotal(fi);
+                        const diffValue     = diff ? JSON.stringify(diff) : null;
                         this.db.run(
-                            `UPDATE orders SET subtotal = ?, total = ?, diff_json = ?,
+                            `UPDATE orders SET subtotal = ?, total = ?, discount_total = ?, diff_json = ?,
                                 last_edit_diff_json = CASE WHEN ? IS NOT NULL THEN ? ELSE last_edit_diff_json END,
                                 updated_at = datetime('now','localtime') WHERE id = ?`,
-                            [subtotal, subtotal, diffValue, diffValue, diffValue, orderId],
+                            [subtotal, subtotal, discountTotal, diffValue, diffValue, diffValue, orderId],
                             (err) => {
                                 if (err) { this.db.run('ROLLBACK'); return callback(err); }
                                 this.db.run('COMMIT');
