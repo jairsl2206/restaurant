@@ -15,8 +15,32 @@ class Database {
                 logger.info('Connected to SQLite database');
                 this.db.run('PRAGMA foreign_keys = ON');
                 this.initializeTables();
+                this._runMigrations();
             }
         });
+    }
+
+    _runMigrations() {
+        this.db.run(
+            `ALTER TABLE orders ADD COLUMN cook_user_id INTEGER REFERENCES users(id)`,
+            () => { /* ignore — column may already exist */ }
+        );
+        this.db.run(
+            `ALTER TABLE orders ADD COLUMN waiter_user_id INTEGER REFERENCES users(id)`,
+            () => { /* ignore — column may already exist */ }
+        );
+        this.db.run(
+            `ALTER TABLE menu_items ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0`,
+            () => { /* ignore — column may already exist */ }
+        );
+        this.db.run(
+            `ALTER TABLE orders ADD COLUMN diff_json TEXT`,
+            () => { /* ignore — column may already exist */ }
+        );
+        this.db.run(
+            `ALTER TABLE orders ADD COLUMN last_edit_diff_json TEXT`,
+            () => { /* ignore — column may already exist */ }
+        );
     }
 
     initializeTables() {
@@ -502,57 +526,182 @@ class Database {
     // ── ORDER METHODS ────────────────────────────────────────────────────────────
 
     /**
+     * Enriches items with category_id, applies active BUNDLE promotions, and
+     * SPLITS each item into a "paid" entry (original unit_price) and a "free"
+     * entry (unit_price = 0) so the items string in the DB clearly shows $0 for
+     * the discounted units.  Gracefully falls back on any error.
+     */
+    _applyBundleDiscounts(items, callback) {
+        const now = new Date().toISOString().split('T')[0];
+        this.db.all(
+            `SELECT category_id, buy_quantity, pay_quantity
+             FROM category_promotions
+             WHERE type = 'BUNDLE' AND active = 1
+               AND (valid_from IS NULL OR valid_from <= ?)
+               AND (valid_to   IS NULL OR valid_to   >= ?)`,
+            [now, now],
+            (err, promos) => {
+                if (err || !promos || !promos.length) return callback(null, items);
+
+                const ids = [...new Set(
+                    items.map(i => i.id || i.menu_item_id)
+                         .filter(id => id && !String(id).startsWith('legacy'))
+                         .map(Number)
+                )];
+
+                const splitItems = (catMap) => {
+                    // Enrich with category_id
+                    const enriched = items.map(item => ({
+                        ...item,
+                        category_id: item.category_id != null
+                            ? item.category_id
+                            : (catMap[Number(item.id || item.menu_item_id)] || null)
+                    }));
+
+                    // Build map: category_id → promo
+                    const bundleCatMap = {};
+                    promos.forEach(p => { bundleCatMap[p.category_id] = p; });
+
+                    // Per-item index: how many free units each item earns
+                    const freeQtyByIndex = new Array(enriched.length).fill(0);
+
+                    // Group items by bundle category
+                    const catGroups = {};
+                    enriched.forEach((item, idx) => {
+                        const catId = item.category_id;
+                        if (catId && bundleCatMap[catId]) {
+                            if (!catGroups[catId]) catGroups[catId] = [];
+                            catGroups[catId].push({ item, idx });
+                        }
+                    });
+
+                    for (const [catId, entries] of Object.entries(catGroups)) {
+                        const { buy_quantity, pay_quantity } = bundleCatMap[catId];
+                        const freePerGroup = buy_quantity - pay_quantity;
+
+                        // Expand to individual units, cheapest first
+                        const units = [];
+                        entries.forEach(({ item, idx }) => {
+                            for (let u = 0; u < item.quantity; u++)
+                                units.push({ idx, unit_price: item.price });
+                        });
+                        units.sort((a, b) => a.unit_price - b.unit_price);
+
+                        const freeUnits = Math.floor(units.length / buy_quantity) * freePerGroup;
+                        for (let i = 0; i < freeUnits && i < units.length; i++)
+                            freeQtyByIndex[units[i].idx]++;
+                    }
+
+                    // Build final list: split items with freeQty > 0 into paid + free entries
+                    const finalItems = [];
+                    enriched.forEach((item, idx) => {
+                        const freeQty = freeQtyByIndex[idx];
+                        const paidQty = item.quantity - freeQty;
+
+                        if (freeQty === 0) {
+                            finalItems.push({
+                                ...item,
+                                unit_price:  item.price,
+                                total_price: item.price * item.quantity
+                            });
+                        } else {
+                            if (paidQty > 0) {
+                                finalItems.push({
+                                    ...item,
+                                    quantity:    paidQty,
+                                    unit_price:  item.price,
+                                    total_price: item.price * paidQty
+                                });
+                            }
+                            // Free entry — unit_price = 0 so the items string shows [0]
+                            finalItems.push({
+                                ...item,
+                                quantity:    freeQty,
+                                price:       0,
+                                unit_price:  0,
+                                total_price: 0
+                            });
+                        }
+                    });
+
+                    callback(null, finalItems);
+                };
+
+                if (!ids.length) return splitItems({});
+
+                this.db.all(
+                    `SELECT id, category_id FROM menu_items WHERE id IN (${ids.map(() => '?').join(',')})`,
+                    ids,
+                    (err2, rows) => {
+                        if (err2) return splitItems({});
+                        const catMap = {};
+                        (rows || []).forEach(r => { catMap[r.id] = r.category_id; });
+                        splitItems(catMap);
+                    }
+                );
+            }
+        );
+    }
+
+    /**
      * items: [{ menu_item_id, name, quantity, price }]
      * type: 'DINE_IN' | 'DELIVERY' | 'PICKUP'
      */
-    createOrder(tableNumber, items, type = ORDER_TYPE.DINE_IN, customerId = null, callback) {
-        const itemType = type || ORDER_TYPE.DINE_IN;
-        const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const total    = subtotal;
+    createOrder(tableNumber, items, type = ORDER_TYPE.DINE_IN, customerId = null, userId = null, callback) {
+        // Support legacy calls where userId is omitted (callback passed as 5th arg)
+        if (typeof userId === 'function') {
+            callback = userId;
+            userId = null;
+        }
 
+        const itemType     = type || ORDER_TYPE.DINE_IN;
         const DEFAULT_BRANCH_ID = 1;
         const self = this;
 
-        // Auto-assign the current active sale period (nullable — no period = null)
-        this.getActiveSalePeriod((err, activePeriod) => {
-            if (err) logger.error('Error fetching active period for order:', err);
-            const salePeriodId = activePeriod ? activePeriod.id : null;
+        this._applyBundleDiscounts(items, (err, finalItems) => {
+            if (err) logger.warn('Bundle discount apply failed (createOrder):', err);
+            const fi = finalItems || items;
 
-        self.db.run(
-            `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, sale_period_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
-            [DEFAULT_BRANCH_ID, customerId, tableNumber || null, itemType, ORDER_STATUS.EN_COCINA, subtotal, total, salePeriodId],
-            function (err) {
-                if (err) return callback(err);
+            const subtotal = fi.reduce((sum, item) =>
+                sum + (item.total_price != null ? item.total_price : item.price * item.quantity), 0);
+            const total = subtotal;
 
-                const orderId = this.lastID;
-                const stmt = self.db.prepare(
-                    'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
-                );
+            // Auto-assign the current active sale period (nullable — no period = null)
+            self.getActiveSalePeriod((err2, activePeriod) => {
+                if (err2) logger.error('Error fetching active period for order:', err2);
+                const salePeriodId = activePeriod ? activePeriod.id : null;
 
-                items.forEach(item => {
-                    let menuItemId = item.id || item.menu_item_id;
-                    // Ensure it's a number and not a legacy string
-                    if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) {
-                        menuItemId = null;
+                self.db.run(
+                    `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, sale_period_id, waiter_user_id, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
+                    [DEFAULT_BRANCH_ID, customerId, tableNumber || null, itemType, ORDER_STATUS.EN_COCINA, subtotal, total, salePeriodId, userId || null],
+                    function (err3) {
+                        if (err3) return callback(err3);
+
+                        const orderId = this.lastID;
+                        const stmt = self.db.prepare(
+                            'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
+                        );
+
+                        fi.forEach(item => {
+                            let menuItemId = item.id || item.menu_item_id;
+                            if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) menuItemId = null;
+                            const unitPrice  = item.unit_price  != null ? item.unit_price  : item.price;
+                            const totalPrice = item.total_price != null ? item.total_price : unitPrice * item.quantity;
+                            const note       = item.note || null;
+                            stmt.run(orderId, menuItemId, item.quantity, unitPrice, totalPrice, note, (e) => {
+                                if (e) logger.error(`Error inserting order item: ${e.message}`, { orderId, menuItemId });
+                            });
+                        });
+
+                        stmt.finalize((err4) => {
+                            if (err4) return callback(err4);
+                            callback(null, orderId);
+                        });
                     }
-                    
-                    const unitPrice  = item.price;
-                    const totalPrice = unitPrice * item.quantity;
-                    const note       = item.note || null;
-                    
-                    stmt.run(orderId, menuItemId, item.quantity, unitPrice, totalPrice, note, (err) => {
-                        if (err) logger.error(`Error inserting order item: ${err.message}`, { orderId, menuItemId });
-                    });
-                });
-
-                stmt.finalize((err) => {
-                    if (err) return callback(err);
-                    callback(null, orderId);
-                });
-            }
-        );
-        }); // end getActiveSalePeriod
+                );
+            });
+        });
     }
 
     /**
@@ -568,10 +717,10 @@ class Database {
             const self     = this;
 
             this.db.run(
-                `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, sale_period_id, parent_order_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
+                `INSERT INTO orders (branch_id, customer_id, table_number, type, status, subtotal, total, sale_period_id, parent_order_id, waiter_user_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`,
                 [parent.branch_id || 1, parent.customer_id, parent.table_number, parent.type,
-                 ORDER_STATUS.EN_COCINA, subtotal, total, parent.sale_period_id || null, parentOrderId],
+                 ORDER_STATUS.EN_COCINA, subtotal, total, parent.sale_period_id || null, parentOrderId, parent.waiter_user_id || null],
                 function (err) {
                     if (err) return callback(err);
                     const subOrderId = this.lastID;
@@ -615,6 +764,8 @@ class Database {
                 c.name    AS customer_name,
                 c.phone   AS customer_phone,
                 a.line1   AS customer_address,
+                uw.username AS waiter_username,
+                uc.username AS cook_username,
                 GROUP_CONCAT(
                     COALESCE(mi.name, 'item') ||
                     CASE WHEN oi.note IS NOT NULL AND oi.note != '' THEN ' (' || oi.note || ')' ELSE '' END ||
@@ -622,6 +773,7 @@ class Database {
                     ' [' || oi.unit_price || ']'
                 ) AS items,
                 (SELECT COUNT(*) FROM orders sub WHERE sub.parent_order_id = o.id AND sub.status != 'FINALIZADO') AS pending_additions_count,
+                (SELECT COUNT(*) FROM orders sub WHERE sub.parent_order_id = o.id AND sub.status NOT IN ('SERVIDO', 'FINALIZADO')) AS unserved_additions_count,
                 (SELECT COALESCE(SUM(sub.total), 0) FROM orders sub WHERE sub.parent_order_id = o.id) AS additions_total,
                 (SELECT GROUP_CONCAT(
                     COALESCE(mi2.name, 'item') ||
@@ -639,6 +791,8 @@ class Database {
             LEFT JOIN addresses a         ON a.id = ca.address_id
             LEFT JOIN order_items oi      ON oi.order_id = o.id
             LEFT JOIN menu_items mi       ON mi.id = oi.menu_item_id
+            LEFT JOIN users uw            ON uw.id = o.waiter_user_id
+            LEFT JOIN users uc            ON uc.id = o.cook_user_id
         `;
     }
 
@@ -653,9 +807,15 @@ class Database {
         this.db.all(
             `${this._orderSelect()}
              WHERE o.status != ?
-               AND (o.parent_order_id IS NULL OR o.status = ?)
+               AND (
+                 o.parent_order_id IS NULL
+                 OR (
+                   o.status IN ('EN_COCINA', 'LISTO_PARA_SERVIR', 'LISTO_PARA_RECOGER')
+                   AND o.status != (SELECT p.status FROM orders p WHERE p.id = o.parent_order_id)
+                 )
+               )
              GROUP BY o.id ORDER BY o.created_at ASC`,
-            [ORDER_STATUS.FINALIZADO, ORDER_STATUS.EN_COCINA],
+            [ORDER_STATUS.FINALIZADO],
             callback
         );
     }
@@ -687,15 +847,24 @@ class Database {
             changedByUserId = null;
         }
 
+        const doUpdate = () => {
         this.db.get('SELECT status FROM orders WHERE id = ?', [orderId], (err, row) => {
             if (err) return callback(err);
             const oldStatus = row ? row.status : null;
 
             this.db.run(
-                `UPDATE orders SET status = ?, updated_at = datetime('now','localtime') WHERE id = ?`,
+                `UPDATE orders SET status = ?, diff_json = NULL, updated_at = datetime('now','localtime') WHERE id = ?`,
                 [status, orderId],
                 (err) => {
                     if (err) return callback(err);
+
+                    // Set cook_user_id: first cook to advance the order out of EN_COCINA wins
+                    if (oldStatus === ORDER_STATUS.EN_COCINA && changedByUserId) {
+                        this.db.run(
+                            `UPDATE orders SET cook_user_id = ? WHERE id = ? AND cook_user_id IS NULL`,
+                            [changedByUserId, orderId]
+                        );
+                    }
 
                     // Record history
                     this.db.run(
@@ -708,48 +877,79 @@ class Database {
                 }
             );
         });
+        }; // end doUpdate
+
+        // Business rule: cannot finalize if any addition is still unserved
+        if (status === ORDER_STATUS.FINALIZADO) {
+            this.db.get(
+                `SELECT COUNT(*) AS cnt FROM orders sub
+                 WHERE sub.parent_order_id = ? AND sub.status NOT IN ('SERVIDO', 'FINALIZADO')`,
+                [orderId],
+                (err, row) => {
+                    if (err) return callback(err);
+                    if (row && row.cnt > 0) {
+                        const e = new Error('No se puede cerrar: hay adiciones pendientes de servir.');
+                        e.code = 'PENDING_ADDITIONS';
+                        return callback(e);
+                    }
+                    doUpdate();
+                }
+            );
+        } else {
+            doUpdate();
+        }
     }
 
     /**
      * Update the items of an existing order.
      * items: [{ menu_item_id, name, quantity, price }]
      */
-    updateOrderItems(orderId, items, total, callback) {
-        this.db.serialize(() => {
-            this.db.run('BEGIN TRANSACTION');
+    updateOrderItems(orderId, items, total, diff, callback) {
+        // Support legacy calls without diff
+        if (typeof diff === 'function') { callback = diff; diff = null; }
 
-            this.db.run('DELETE FROM order_items WHERE order_id = ?', [orderId], (err) => {
-                if (err) { this.db.run('ROLLBACK'); return callback(err); }
+        this._applyBundleDiscounts(items, (err, finalItems) => {
+            if (err) logger.warn('Bundle discount apply failed (updateOrderItems):', err);
+            const fi = finalItems || items;
 
-                const stmt = this.db.prepare(
-                    'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
-                );
-                items.forEach(item => {
-                    let menuItemId = item.id || item.menu_item_id;
-                    if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) {
-                        menuItemId = null;
-                    }
-                    const unitPrice  = item.price;
-                    const totalPrice = unitPrice * item.quantity;
-                    const note       = item.note || null;
-                    stmt.run(orderId, menuItemId, item.quantity, unitPrice, totalPrice, note, (err) => {
-                        if (err) logger.error(`Error updating order item: ${err.message}`, { orderId, menuItemId });
-                    });
-                });
+            this.db.serialize(() => {
+                this.db.run('BEGIN TRANSACTION');
 
-                stmt.finalize((err) => {
+                this.db.run('DELETE FROM order_items WHERE order_id = ?', [orderId], (err) => {
                     if (err) { this.db.run('ROLLBACK'); return callback(err); }
 
-                    const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-                    this.db.run(
-                        `UPDATE orders SET subtotal = ?, total = ?, updated_at = datetime('now','localtime') WHERE id = ?`,
-                        [subtotal, subtotal, orderId],
-                        (err) => {
-                            if (err) { this.db.run('ROLLBACK'); return callback(err); }
-                            this.db.run('COMMIT');
-                            callback(null);
-                        }
+                    const stmt = this.db.prepare(
+                        'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, note) VALUES (?, ?, ?, ?, ?, ?)'
                     );
+                    fi.forEach(item => {
+                        let menuItemId = item.id || item.menu_item_id;
+                        if (typeof menuItemId === 'string' && menuItemId.startsWith('legacy')) menuItemId = null;
+                        const unitPrice  = item.unit_price  != null ? item.unit_price  : item.price;
+                        const totalPrice = item.total_price != null ? item.total_price : unitPrice * item.quantity;
+                        const note       = item.note || null;
+                        stmt.run(orderId, menuItemId, item.quantity, unitPrice, totalPrice, note, (e) => {
+                            if (e) logger.error(`Error updating order item: ${e.message}`, { orderId, menuItemId });
+                        });
+                    });
+
+                    stmt.finalize((err) => {
+                        if (err) { this.db.run('ROLLBACK'); return callback(err); }
+
+                        const subtotal  = fi.reduce((s, i) =>
+                            s + (i.total_price != null ? i.total_price : i.price * i.quantity), 0);
+                        const diffValue = diff ? JSON.stringify(diff) : null;
+                        this.db.run(
+                            `UPDATE orders SET subtotal = ?, total = ?, diff_json = ?,
+                                last_edit_diff_json = CASE WHEN ? IS NOT NULL THEN ? ELSE last_edit_diff_json END,
+                                updated_at = datetime('now','localtime') WHERE id = ?`,
+                            [subtotal, subtotal, diffValue, diffValue, diffValue, orderId],
+                            (err) => {
+                                if (err) { this.db.run('ROLLBACK'); return callback(err); }
+                                this.db.run('COMMIT');
+                                callback(null);
+                            }
+                        );
+                    });
                 });
             });
         });
@@ -778,6 +978,7 @@ class Database {
             SELECT mi.*, mc.name AS category
             FROM menu_items mi
             LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+            WHERE mi.is_deleted = 0
         `, callback);
     }
 
@@ -787,6 +988,7 @@ class Database {
             FROM menu_items mi
             LEFT JOIN menu_categories mc ON mc.id = mi.category_id
             WHERE mi.available = 1
+              AND mi.is_deleted = 0
         `, callback);
     }
 
@@ -810,7 +1012,7 @@ class Database {
     }
 
     deleteMenuItem(id, callback) {
-        this.db.run('DELETE FROM menu_items WHERE id = ?', [id], callback);
+        this.db.run('UPDATE menu_items SET is_deleted = 1, available = 0 WHERE id = ?', [id], callback);
     }
 
     clearAllMenuItems(callback) {
@@ -920,9 +1122,11 @@ class Database {
                    ip.type  AS item_promo_type,
                    ip.value AS item_promo_value,
                    ip.id    AS item_promo_id,
-                   cp.type  AS cat_promo_type,
-                   cp.value AS cat_promo_value,
-                   cp.id    AS cat_promo_id
+                   cp.type         AS cat_promo_type,
+                   cp.value        AS cat_promo_value,
+                   cp.id           AS cat_promo_id,
+                   cp.buy_quantity AS cat_promo_buy,
+                   cp.pay_quantity AS cat_promo_pay
             FROM menu_items mi
             LEFT JOIN menu_categories mc ON mc.id = mi.category_id
             LEFT JOIN item_promotions ip ON ip.menu_item_id = mi.id
@@ -933,6 +1137,7 @@ class Database {
                 AND cp.active = 1
                 AND (cp.valid_from IS NULL OR cp.valid_from <= ?)
                 AND (cp.valid_to   IS NULL OR cp.valid_to   >= ?)
+            WHERE mi.is_deleted = 0
         `, [now, now, now, now], (err, items) => {
             if (err) return callback(err);
 
@@ -974,7 +1179,10 @@ class Database {
                     has_promotion:    hasPromo,
                     promotion_type:   promoType,
                     promotion_value:  promoValue,
-                    discount_amount:  parseFloat(discount.toFixed(2))
+                    discount_amount:  parseFloat(discount.toFixed(2)),
+                    // BUNDLE-specific fields (null for other promo types)
+                    bundle_buy:       promoType === 'BUNDLE' ? item.cat_promo_buy : null,
+                    bundle_pay:       promoType === 'BUNDLE' ? item.cat_promo_pay : null
                 };
             });
 
@@ -1026,7 +1234,7 @@ class Database {
         const endStr = endD.toISOString().split('T')[0];
         const end = `${endStr} 05:59:59`;
 
-        const report = { summary: {}, dailySales: [], topItems: [] };
+        const report = { summary: {}, dailySales: [], topItems: [], byWaiter: [] };
 
         this.db.get(`
             SELECT COUNT(*) AS total_orders,
@@ -1090,7 +1298,21 @@ class Database {
                         return { ...cat, totalRevenue };
                     }).sort((a, b) => b.totalRevenue - a.totalRevenue);
 
-                    callback(null, report);
+                    this.db.all(`
+                        SELECT
+                            COALESCE(uw.username, 'Sin asignar') AS waiter_username,
+                            COUNT(o.id)                          AS order_count,
+                            SUM(o.total)                         AS revenue
+                        FROM orders o
+                        LEFT JOIN users uw ON uw.id = o.waiter_user_id
+                        WHERE o.status = ? AND o.created_at BETWEEN ? AND ?
+                        GROUP BY o.waiter_user_id
+                        ORDER BY revenue DESC
+                    `, [ORDER_STATUS.FINALIZADO, start, end], (err, waiterRows) => {
+                        if (err) return callback(err);
+                        report.byWaiter = waiterRows || [];
+                        callback(null, report);
+                    });
                 });
             });
         });

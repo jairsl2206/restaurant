@@ -3,7 +3,16 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    border-left: 4px solid transparent;
 }
+
+/* Status accent border — matches STATUS_CSS_CLASSES in constants.js */
+.order-card.status-cocina  { border-left-color: hsl(45, 93%, 57%); }
+.order-card.status-listo   { border-left-color: hsl(0, 100%, 65%); }
+.order-card.status-servido { border-left-color: hsl(260, 85%, 68%); }
+.order-card.status-reparto { border-left-color: hsl(200, 80%, 60%); }
+.order-card.status-recoger { border-left-color: hsl(30, 100%, 60%); }
+.order-card.status-pagado  { border-left-color: hsl(142, 76%, 46%); }
 
 .order-header {
     display: flex;
@@ -130,6 +139,12 @@
     font-weight: 600;
 }
 
+.meta-staff {
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
 .order-footer {
     margin-top: var(--spacing-lg);
     padding-top: var(--spacing-md);
@@ -204,7 +219,7 @@
     border: 1px solid rgba(22, 160, 133, 0.4);
 }
 
-.status-pagado {
+.checklist-item.status-pagado {
     background: rgba(46, 204, 113, 0.2);
     color: #2ecc71;
     border: 1px solid rgba(46, 204, 113, 0.4);
@@ -302,6 +317,22 @@
     color: #fdcb6e;
     font-weight: bold;
     margin-left: 4px;
+}
+
+.receipt-bundle-badge {
+    font-size: 0.68rem;
+    color: #2ecc71;
+    font-weight: bold;
+    margin-left: 4px;
+}
+
+.receipt-item-free {
+    opacity: 0.85;
+}
+
+.receipt-item-price--free {
+    color: #2ecc71;
+    font-weight: 700;
 }
 
 .receipt-item-note {

@@ -83,12 +83,21 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
     }, [initialOrder]);
 
     const handleAddItem = (item) => {
-        setSelectedItems([...selectedItems, {
-            ...item,
-            uid: `item_${Date.now()}_${Math.random()}`,
-            quantity: 1,
-            note: ''
-        }]);
+        const existingIndex = selectedItems.findIndex(i =>
+            !i.note && (i.id === item.id || i.name === item.name)
+        );
+        if (existingIndex >= 0) {
+            const updated = [...selectedItems];
+            updated[existingIndex] = { ...updated[existingIndex], quantity: updated[existingIndex].quantity + 1 };
+            setSelectedItems(updated);
+        } else {
+            setSelectedItems([...selectedItems, {
+                ...item,
+                uid: `item_${Date.now()}_${Math.random()}`,
+                quantity: 1,
+                note: ''
+            }]);
+        }
     };
 
     const handleRemoveItem = (itemName) => {
@@ -363,8 +372,19 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
                                                                     <div className="accordion-content">
                                                                         <div className="menu-grid">
                                                                             {groupedItems[category].map(item => {
+                                                                                const isBundle      = item.promotion_type === 'BUNDLE';
                                                                                 const discountedPrice = item.final_price ?? item.price;
-                                                                                const hasPromo = item.has_promotion;
+                                                                                const hasPromo      = item.has_promotion;
+                                                                                const hasDiscount   = hasPromo && !isBundle; // BUNDLE has no per-item price change
+
+                                                                                const promoTag = !hasPromo ? null
+                                                                                    : isBundle
+                                                                                        ? (item.bundle_buy && item.bundle_pay
+                                                                                            ? `${item.bundle_buy}×${item.bundle_pay}`
+                                                                                            : 'Bundle')
+                                                                                        : item.promotion_type === 'PERCENTAGE'
+                                                                                            ? `-${item.promotion_value}%`
+                                                                                            : `-$${item.promotion_value}`;
 
                                                                                 return (
                                                                                     <div
@@ -377,10 +397,8 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
                                                                                             ) : (
                                                                                                 <div className="item-placeholder-full">🍽️</div>
                                                                                             )}
-                                                                                            {!!hasPromo && (
-                                                                                                <div className="promo-tag">
-                                                                                                    {item.promotion_type === 'PERCENTAGE' ? `-${item.promotion_value}%` : `-$${item.promotion_value}`}
-                                                                                                </div>
+                                                                                            {promoTag && (
+                                                                                                <div className="promo-tag">{promoTag}</div>
                                                                                             )}
                                                                                         </div>
                                                                                         <div className="item-info-premium">
@@ -390,7 +408,7 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
                                                                                             )}
                                                                                             <div className="item-footer-premium">
                                                                                                 <div className="item-price-premium">
-                                                                                                    {!!hasPromo && (
+                                                                                                    {hasDiscount && (
                                                                                                         <span className="old-price" style={{ textDecoration: 'line-through', opacity: 0.6, fontSize: '0.8rem', marginRight: '5px' }}>
                                                                                                             ${(item.original_price ?? item.price).toFixed(2)}
                                                                                                         </span>

@@ -161,38 +161,38 @@
     border-top-color: #7f8c8d;
 }
 
-/* Status Badges in OrderCard */
-.status-cocina {
+/* Status Badges — scoped to badge element only */
+.status-badge.status-cocina {
     background: rgba(243, 156, 18, 0.15);
     color: #f39c12;
     border: 1px solid rgba(243, 156, 18, 0.3);
 }
 
-.status-listo {
+.status-badge.status-listo {
     background: rgba(231, 76, 60, 0.15);
     color: #e74c3c;
     border: 1px solid rgba(231, 76, 60, 0.3);
 }
 
-.status-servido {
+.status-badge.status-servido {
     background: rgba(46, 204, 113, 0.15);
     color: #2ecc71;
     border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
-.status-reparto {
+.status-badge.status-reparto {
     background: rgba(46, 204, 113, 0.15);
     color: #2ecc71;
     border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
-.status-pagado {
+.status-badge.status-pagado {
     background: rgba(155, 89, 182, 0.15);
     color: #9b59b6;
     border: 1px solid rgba(155, 89, 182, 0.3);
 }
 
-.status-cancelled {
+.status-badge.status-cancelled {
     background: rgba(127, 140, 141, 0.15);
     color: #7f8c8d;
     border: 1px solid rgba(127, 140, 141, 0.3);
@@ -208,13 +208,22 @@
     display: inline-block;
 }
 
-.status-col-cola-de-cocina {
-    border-top-color: #f39c12;
+.status-col-cola-de-cocina,
+.status-col-en-cocina {
+    border-top-color: hsl(45, 93%, 57%);
 }
 
 /* Para Entregar combined column */
 .status-col-para-entregar {
-    border-top-color: #e74c3c;
+    border-top-color: hsl(0, 100%, 65%);
+}
+
+.status-col-servido {
+    border-top-color: hsl(260, 85%, 68%);
+}
+
+.status-col-finalizado {
+    border-top-color: hsl(142, 76%, 46%);
 }
 
 .ready-subgroup {
