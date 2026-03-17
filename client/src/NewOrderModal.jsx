@@ -83,21 +83,14 @@ function NewOrderModal({ onClose, onSubmit, initialOrder = null, onCancel, isAdd
     }, [initialOrder]);
 
     const handleAddItem = (item) => {
-        const existingIndex = selectedItems.findIndex(i =>
-            !i.note && (i.id === item.id || i.name === item.name)
-        );
-        if (existingIndex >= 0) {
-            const updated = [...selectedItems];
-            updated[existingIndex] = { ...updated[existingIndex], quantity: updated[existingIndex].quantity + 1 };
-            setSelectedItems(updated);
-        } else {
-            setSelectedItems([...selectedItems, {
-                ...item,
-                uid: `item_${Date.now()}_${Math.random()}`,
-                quantity: 1,
-                note: ''
-            }]);
-        }
+        // Siempre crea una línea individual para que cada unidad pueda tener su propio comentario.
+        // Los botones +1/-1 de cada línea son la única forma de cambiar la cantidad.
+        setSelectedItems(prev => [...prev, {
+            ...item,
+            uid: `item_${Date.now()}_${Math.random()}`,
+            quantity: 1,
+            note: ''
+        }]);
     };
 
     const handleRemoveItem = (itemName) => {

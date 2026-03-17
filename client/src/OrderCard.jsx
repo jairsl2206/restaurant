@@ -206,9 +206,15 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
     };
 
     // Billing totals for payment stage
-    const originalTotal = order.total;
+    const originalTotal  = order.total;
     const additionsTotal = Number(order.additions_total) || 0;
-    const grandTotal = originalTotal + additionsTotal;
+    const grandTotal     = originalTotal + additionsTotal;
+
+    // Total savings = discounts applied to this order + discounts on any additions
+    const discountTotal   = (Number(order.discount_total) || 0)
+                          + (Number(order.additions_discount_total) || 0);
+    // Gross = what is actually paid + what was saved → price before any discounts
+    const grossOrderTotal = grandTotal + discountTotal;
 
     return (
         <div className={`order-card glass-card slide-in ${STATUS_CSS_CLASSES[order.status] || ''}`}>
@@ -322,9 +328,15 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                             {/* Totals */}
                             <div className="receipt-totals">
                                 <div className="receipt-row">
-                                    <span>Orden original</span>
-                                    <span>${originalTotal.toFixed(2)}</span>
+                                    <span>{discountTotal > 0 ? 'Subtotal' : 'Orden original'}</span>
+                                    <span>${(discountTotal > 0 ? grossOrderTotal : originalTotal).toFixed(2)}</span>
                                 </div>
+                                {discountTotal > 0 && (
+                                    <div className="receipt-row receipt-bundle-savings">
+                                        <span>🏷️ Descuento</span>
+                                        <span className="receipt-savings-amount">-${discountTotal.toFixed(2)}</span>
+                                    </div>
+                                )}
                                 {additionsTotal > 0 && (
                                     <div className="receipt-row receipt-additions">
                                         <span>Adiciones (+{itemsList.filter(i => i.isAddition).length} ítem{itemsList.filter(i => i.isAddition).length !== 1 ? 's' : ''})</span>

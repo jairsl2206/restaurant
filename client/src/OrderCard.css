@@ -537,3 +537,6 @@
 .receipt-item-dot--addition { color: #fdcb6e; }
 .receipt-item-dot:not(.receipt-item-dot--addition) { color: #74b9ff; }
 .receipt-additions-amount { color: #fdcb6e; }
+
+.receipt-bundle-savings { color: #2ecc71; }
+.receipt-savings-amount { color: #2ecc71; font-weight: 700; }

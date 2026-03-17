@@ -343,7 +343,9 @@
 }
 
 .accordion-item {
-    overflow: hidden;
+    /* clip ≠ hidden: clips content without creating a scroll context,
+       so position:sticky on the header works inside .modal-left */
+    overflow: clip;
     transition: all 0.3s ease;
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -360,7 +362,19 @@
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.03);
+    /* Opaque bg required for sticky — prevents content showing through */
+    background: var(--bg-card);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* Shadow separator visible only while the header is sticking over items */
+.accordion-item.active .accordion-header {
+    border-bottom-color: var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Order Summary (Right Column) */
