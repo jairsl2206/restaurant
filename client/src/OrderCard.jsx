@@ -57,10 +57,17 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
     const isPaymentStage = nextStatus === ORDER_STATUS.FINALIZADO;
     const showSimpleList = isFinalizado;
 
-    // No more diff view in the new schema (snapshots removed)
-    const showDiff = false;
-    let displayItems = itemsList.map(item => ({ ...item, status: 'kept' }));
-    let addedItems = [];
+    // Show diff view when the order has a pending diff (set after an edit, cleared on next poll)
+    const hasDiff = Array.isArray(order.diff) && order.diff.length > 0;
+    const showDiff = hasDiff;
+    let displayItems = hasDiff
+        ? order.diff.filter(i => i.diffStatus === 'kept' || i.diffStatus === 'removed')
+              .map((item, idx) => ({ ...item, id: `diff_${idx}`, status: item.diffStatus }))
+        : itemsList.map(item => ({ ...item, status: 'kept' }));
+    let addedItems = hasDiff
+        ? order.diff.filter(i => i.diffStatus === 'added')
+              .map((item, idx) => ({ ...item, id: `added_${idx}` }))
+        : [];
 
     const allChecked = itemsList.length > 0 && itemsList.every(item => item.checked);
     const canSubmit = isPaymentStage ? paymentConfirmed : allChecked;
