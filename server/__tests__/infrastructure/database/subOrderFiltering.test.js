@@ -2,11 +2,12 @@
  * Tests that verify sub-order (addition) filtering rules in the Database layer.
  *
  * Rules:
- *  1. getActiveOrders MUST exclude sub-orders that are not in EN_COCINA
- *     (they are reflected in the parent's additions_total / additions_items).
- *  2. getActiveOrders MUST include sub-orders that ARE in EN_COCINA
- *     (the cook needs to see and prepare them).
- *  3. _orderSelect() MUST include the additions_items column for parent orders
+ *  1. getActiveOrders MUST include sub-orders in EN_COCINA (cook needs to see them).
+ *  2. getActiveOrders MUST include sub-orders in LISTO_PARA_SERVIR / LISTO_PARA_RECOGER
+ *     so the waiter can see and serve them after the kitchen marks them ready.
+ *  3. getActiveOrders MUST exclude sub-orders in SERVIDO or FINALIZADO
+ *     (they are already reflected in the parent's totals).
+ *  4. _orderSelect() MUST include the additions_items column for parent orders
  *     so the billing view can show a merged item list.
  */
 
@@ -57,9 +58,15 @@ function buildActiveOrdersQuery() {
     return {
         sql: `${buildOrderSelect()}
              WHERE o.status != ?
-               AND (o.parent_order_id IS NULL OR o.status = ?)
+               AND (
+                 o.parent_order_id IS NULL
+                 OR (
+                   o.status IN ('EN_COCINA', 'LISTO_PARA_SERVIR', 'LISTO_PARA_RECOGER')
+                   AND o.status != (SELECT p.status FROM orders p WHERE p.id = o.parent_order_id)
+                 )
+               )
              GROUP BY o.id ORDER BY o.created_at ASC`,
-        params: [ORDER_STATUS.FINALIZADO, ORDER_STATUS.EN_COCINA]
+        params: [ORDER_STATUS.FINALIZADO]
     };
 }
 
@@ -111,10 +118,12 @@ describe('getActiveOrders — SQL filtering', () => {
         expect(sql).toMatch(/parent_order_id\s+IS\s+NULL/i);
     });
 
-    test('SQL allows sub-orders when status = EN_COCINA', () => {
-        const { sql, params } = buildActiveOrdersQuery();
-        expect(sql).toMatch(/o\.status\s*=\s*\?/i);
-        expect(params).toContain('EN_COCINA');
+    test('SQL allows sub-orders when status IN (EN_COCINA, LISTO_PARA_SERVIR, LISTO_PARA_RECOGER)', () => {
+        const { sql } = buildActiveOrdersQuery();
+        expect(sql).toMatch(/o\.status\s+IN\s*\(/i);
+        expect(sql).toContain('EN_COCINA');
+        expect(sql).toContain('LISTO_PARA_SERVIR');
+        expect(sql).toContain('LISTO_PARA_RECOGER');
     });
 
     test('orders results ASC (FIFO queue)', () => {
@@ -122,11 +131,12 @@ describe('getActiveOrders — SQL filtering', () => {
         expect(sql).toMatch(/ORDER BY.*created_at\s+ASC/i);
     });
 
-    test('combined condition ensures sub-orders only visible when EN_COCINA', () => {
+    test('combined condition ensures sub-orders only visible while active AND at a different status than their parent', () => {
         const { sql } = buildActiveOrdersQuery();
-        // Both parts of the OR must be present
         expect(sql).toMatch(/parent_order_id\s+IS\s+NULL/i);
-        expect(sql).toMatch(/OR\s+o\.status\s*=\s*\?/i);
+        expect(sql).toMatch(/o\.status\s+IN\s*\(/i);
+        // The new merge rule: sub-order must be at a different status than its parent
+        expect(sql).toMatch(/o\.status\s*!=\s*\(SELECT p\.status/i);
     });
 });
 
@@ -165,36 +175,44 @@ describe('getActiveOrders — callback behaviour', () => {
         });
     });
 
-    test('sub-orders in EN_COCINA pass the WHERE filter (SQL test)', () => {
-        // Verify that a row with parent_order_id and status EN_COCINA would NOT
-        // be filtered out by evaluating the filter expression in JS (mirrors SQL logic)
-        const filterFn = (row) =>
-            row.status !== 'FINALIZADO' &&
-            (row.parent_order_id === null || row.status === 'EN_COCINA');
+    // filterFn mirrors the new SQL: sub shown only when active AND at different status than parent
+    const makeFilterFn = (parentStatusMap = {}) => (row) => {
+        const activeStatuses = new Set(['EN_COCINA', 'LISTO_PARA_SERVIR', 'LISTO_PARA_RECOGER']);
+        if (row.status === 'FINALIZADO') return false;
+        if (row.parent_order_id === null) return true;
+        const parentStatus = parentStatusMap[row.parent_order_id];
+        return activeStatuses.has(row.status) && row.status !== parentStatus;
+    };
 
+    test('sub-orders in EN_COCINA pass when parent is at a different status (SQL test)', () => {
+        const filterFn = makeFilterFn({ 5: 'SERVIDO' }); // parent already served
         const subOrderInKitchen = { id: 10, status: 'EN_COCINA', parent_order_id: 5 };
         expect(filterFn(subOrderInKitchen)).toBe(true);
     });
 
-    test('sub-orders outside EN_COCINA are filtered out (SQL test)', () => {
-        const filterFn = (row) =>
-            row.status !== 'FINALIZADO' &&
-            (row.parent_order_id === null || row.status === 'EN_COCINA');
+    test('sub-orders in EN_COCINA are merged (hidden) when parent is also EN_COCINA', () => {
+        const filterFn = makeFilterFn({ 5: 'EN_COCINA' });
+        const subSameStatus = { id: 10, status: 'EN_COCINA', parent_order_id: 5 };
+        expect(filterFn(subSameStatus)).toBe(false);
+    });
 
-        const subOrderReady   = { id: 11, status: 'LISTO_PARA_SERVIR', parent_order_id: 5 };
-        const subOrderServido = { id: 12, status: 'SERVIDO',           parent_order_id: 5 };
-        const subOrderReparto = { id: 13, status: 'EN_REPARTO',        parent_order_id: 5 };
+    test('sub-orders in LISTO_PARA_SERVIR pass when parent is at SERVIDO (SQL test)', () => {
+        const filterFn = makeFilterFn({ 5: 'SERVIDO' });
+        const subOrderReady = { id: 11, status: 'LISTO_PARA_SERVIR', parent_order_id: 5 };
+        expect(filterFn(subOrderReady)).toBe(true);
+    });
 
-        expect(filterFn(subOrderReady)).toBe(false);
+    test('sub-orders in SERVIDO or EN_REPARTO are filtered out (SQL test)', () => {
+        const filterFn = makeFilterFn({ 5: 'SERVIDO' });
+        const subOrderServido = { id: 12, status: 'SERVIDO',    parent_order_id: 5 };
+        const subOrderReparto = { id: 13, status: 'EN_REPARTO', parent_order_id: 5 };
+
         expect(filterFn(subOrderServido)).toBe(false);
         expect(filterFn(subOrderReparto)).toBe(false);
     });
 
     test('parent orders are never filtered out by the sub-order clause', () => {
-        const filterFn = (row) =>
-            row.status !== 'FINALIZADO' &&
-            (row.parent_order_id === null || row.status === 'EN_COCINA');
-
+        const filterFn = makeFilterFn({});
         const statuses = ['EN_COCINA', 'LISTO_PARA_SERVIR', 'SERVIDO', 'EN_REPARTO', 'LISTO_PARA_RECOGER'];
         statuses.forEach(status => {
             const parent = { id: 1, status, parent_order_id: null };

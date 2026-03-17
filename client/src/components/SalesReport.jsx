@@ -237,6 +237,32 @@ function SalesReport() {
                                     )}
                                 </div>
                             </div>
+                            {/* By Waiter */}
+                            {activeReport.byWaiter && activeReport.byWaiter.length > 0 && (
+                                <div className="top-items-section card">
+                                    <h3>🧑‍💼 Ventas por Mesero</h3>
+                                    <div className="table-wrapper">
+                                        <table className="data-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Mesero</th>
+                                                    <th className="text-right">Órdenes</th>
+                                                    <th className="text-right">Ingresos</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {activeReport.byWaiter.map((row, idx) => (
+                                                    <tr key={idx}>
+                                                        <td>{row.waiter_username || '—'}</td>
+                                                        <td className="text-right">{row.order_count}</td>
+                                                        <td className="text-right">${Number(row.revenue).toFixed(2)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ) : null}

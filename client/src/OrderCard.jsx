@@ -60,17 +60,56 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
     // Show diff view when the order has a pending diff (set after an edit, cleared on next poll)
     const hasDiff = Array.isArray(order.diff) && order.diff.length > 0;
     const showDiff = hasDiff;
-    let displayItems = hasDiff
-        ? order.diff.filter(i => i.diffStatus === 'kept' || i.diffStatus === 'removed')
-              .map((item, idx) => ({ ...item, id: `diff_${idx}`, status: item.diffStatus }))
-        : itemsList.map(item => ({ ...item, status: 'kept' }));
-    let addedItems = hasDiff
-        ? order.diff.filter(i => i.diffStatus === 'added')
-              .map((item, idx) => ({ ...item, id: `added_${idx}` }))
+    // Quantity-aware partition of itemsList into kept vs. added.
+    // Uses the diff's added-quantities so partial increases (x2→x3) correctly
+    // put only the delta unit into addedInList, not all units.
+    const addedQtyMap = {};
+    (order.diff || []).filter(d => d.diffStatus === 'added').forEach(d => {
+        addedQtyMap[d.name] = (addedQtyMap[d.name] || 0) + (d.quantity || 1);
+    });
+    const totalCountMap = {};
+    itemsList.forEach(item => {
+        totalCountMap[item.text] = (totalCountMap[item.text] || 0) + 1;
+    });
+    const seenCountMap = {};
+    const keptInList  = [];
+    const addedInList = [];
+    for (const item of itemsList) {
+        const name = item.text;
+        seenCountMap[name] = (seenCountMap[name] || 0) + 1;
+        const keptQty = (totalCountMap[name] || 0) - (addedQtyMap[name] || 0);
+        if (seenCountMap[name] <= keptQty) {
+            keptInList.push(item);
+        } else {
+            addedInList.push(item);
+        }
+    }
+    const removedFromDiff = (order.diff || []).filter(d => d.diffStatus === 'removed');
+    // For the regular (non-diff) checklist branch
+    let displayItems = itemsList.map(item => ({ ...item, status: 'kept' }));
+
+    // Waiter (non-cook) read-only view: show item + qty + price, no checkboxes
+    const isWaiterView = !isAllowedRole && !isPaymentStage && !isFinalizado;
+    // Grouped items with price for the waiter view
+    const waiterViewItems = isWaiterView
+        ? itemsList.reduce((acc, item) => {
+            const key = `${item.text}|${item.note || ''}|${item.price}`;
+            const existing = acc.find(a => a.key === key);
+            if (existing) { existing.quantity++; }
+            else { acc.push({ key, text: item.text, note: item.note || '', price: item.price, quantity: 1 }); }
+            return acc;
+          }, [])
         : [];
 
+    // Block finalization when there are additions not yet served
+    const hasUnservedAdditions = (order.unserved_additions_count || 0) > 0;
+    const blockedByAdditions = isPaymentStage && hasUnservedAdditions;
+
     const allChecked = itemsList.length > 0 && itemsList.every(item => item.checked);
-    const canSubmit = isPaymentStage ? paymentConfirmed : allChecked;
+    // Waiters don't need to check individual items — they just advance status
+    const canSubmit = isPaymentStage
+        ? (paymentConfirmed && !blockedByAdditions)
+        : (isAllowedRole ? allChecked : true);
     const validationRequired = canAdvance;
 
     const handleAdvance = async () => {
@@ -78,7 +117,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
         if (isPaymentStage && !paymentConfirmed) {
             showToast('Por favor confirma antes de finalizar.', 'warning');
             return;
-        } else if (!isPaymentStage && !allChecked) {
+        } else if (!isPaymentStage && isAllowedRole && !allChecked) {
             showToast('Por favor verifica todos los artículos antes de avanzar.', 'warning');
             return;
         }
@@ -172,7 +211,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
     const grandTotal = originalTotal + additionsTotal;
 
     return (
-        <div className={`order-card glass-card slide-in`}>
+        <div className={`order-card glass-card slide-in ${STATUS_CSS_CLASSES[order.status] || ''}`}>
             <div className="order-header">
                 <div className="order-info">
                     <h3 className="order-number">#{order.id}</h3>
@@ -199,6 +238,9 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                         <span className={`time-badge ${timeBadgeClass}`} title={`Esperando ${waitMins} min`}>
                             🕐 {waitMins}m
                         </span>
+                    )}
+                    {hasDiff && (
+                        <div className="badge-updated">✏️ ACTUALIZADA</div>
                     )}
                     {order.parent_order_id && (
                         <div className="badge-info">+ Adición a #{order.parent_order_id}</div>
@@ -233,7 +275,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h4>{isPaymentStage ? '💳 Cobro' : 'Artículos'}</h4>
 
-                        {!isPaymentStage && validationRequired && !allChecked && !isLocked && (
+                        {!isPaymentStage && validationRequired && !allChecked && !isLocked && isAllowedRole && (
                             <span style={{ fontSize: '0.8rem', color: '#ff6b6b' }}>
                                 Faltan {itemsList.filter(i => !i.checked).length}
                             </span>
@@ -258,16 +300,21 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                             {/* Item list */}
                             <ul className="receipt-items-list">
                                 {itemsList.map((item, i) => (
-                                    <li key={i} className={`receipt-item ${item.isAddition ? 'receipt-item-addition' : ''}`}>
+                                    <li key={i} className={`receipt-item ${item.isAddition ? 'receipt-item-addition' : ''} ${item.price === 0 && !item.isAddition ? 'receipt-item-free' : ''}`}>
                                         <div className="receipt-item-info">
                                             <span className={`receipt-item-dot ${item.isAddition ? 'receipt-item-dot--addition' : ''}`}>•</span>
                                             <span className="receipt-item-name">{item.text}</span>
                                             {item.isAddition && <span className="receipt-addition-badge">+adición</span>}
+                                            {item.price === 0 && !item.isAddition && (
+                                                <span className="receipt-bundle-badge">🎁 bundle</span>
+                                            )}
                                             {item.note && (
                                                 <span className="receipt-item-note">↳ {item.note}</span>
                                             )}
                                         </div>
-                                        <span className="receipt-item-price">${(item.price || 0).toFixed(2)}</span>
+                                        <span className={`receipt-item-price ${item.price === 0 && !item.isAddition ? 'receipt-item-price--free' : ''}`}>
+                                            {item.price === 0 && !item.isAddition ? 'GRATIS' : `$${(item.price || 0).toFixed(2)}`}
+                                        </span>
                                     </li>
                                 ))}
                             </ul>
@@ -291,7 +338,41 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                                 </div>
                             </div>
 
+                            {/* Edit history summary — shown if the order was ever modified */}
+                            {Array.isArray(order.lastEditDiff) && order.lastEditDiff.length > 0 && (() => {
+                                const added   = order.lastEditDiff.filter(i => i.diffStatus === 'added');
+                                const removed = order.lastEditDiff.filter(i => i.diffStatus === 'removed');
+                                if (!added.length && !removed.length) return null;
+                                return (
+                                    <div style={{ marginTop: '10px', padding: '8px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '0.8rem' }}>
+                                        <div style={{ fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>✏️ Cambios en la orden</div>
+                                        {added.length > 0 && (
+                                            <ul style={{ margin: '0 0 4px', paddingLeft: '4px', listStyle: 'none' }}>
+                                                {added.map((item, i) => (
+                                                    <li key={i} style={{ color: '#2ecc71', marginBottom: '2px' }}>+ {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}</li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                        {removed.length > 0 && (
+                                            <ul style={{ margin: 0, paddingLeft: '4px', listStyle: 'none' }}>
+                                                {removed.map((item, i) => (
+                                                    <li key={i} style={{ color: '#e74c3c', textDecoration: 'line-through', marginBottom: '2px' }}>✕ {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}</li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Block finalization if additions are pending */}
+                            {blockedByAdditions && (
+                                <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', fontSize: '0.85rem', color: '#fca5a5' }}>
+                                    ⚠️ Hay adiciones aún en preparación. Espera a que estén servidas antes de cobrar.
+                                </div>
+                            )}
+
                             {/* Payment confirmation */}
+                            {!blockedByAdditions && (
                             <div className="payment-check-container">
                                 <label className="payment-confirm-label">
                                     <input
@@ -303,6 +384,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                                     <span>✅ Confirmar pago y finalizar orden</span>
                                 </label>
                             </div>
+                            )}
                         </div>
                     ) : showSimpleList ? (
                         <ul className="items-list-simple">
@@ -321,33 +403,82 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                                 </li>
                             ))}
                         </ul>
+                    ) : isWaiterView ? (
+                        /* Waiter read-only view — item, quantity, price. No checkboxes. */
+                        <ul className="items-list-simple">
+                            {waiterViewItems.map((item, i) => (
+                                <li key={i} className="simple-item">
+                                    <div className="simple-item-body">
+                                        <div className="simple-item-row">
+                                            <span className="simple-item-bullet">•</span>
+                                            <span className="item-text simple-item-text">{item.text}</span>
+                                            {item.price === 0 && (
+                                                <span style={{ fontSize: '0.7rem', color: '#2ecc71', marginLeft: '4px' }}>🎁</span>
+                                            )}
+                                        </div>
+                                        {item.note && (
+                                            <span className="simple-item-note">↳ {item.note}</span>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1px' }}>
+                                        <span className="simple-item-qty">×{item.quantity}</span>
+                                        <span style={{ fontSize: '0.78rem', color: item.price === 0 ? '#2ecc71' : 'var(--text-secondary)', fontWeight: 600 }}>
+                                            {item.price === 0 ? 'GRATIS' : `$${(item.price).toFixed(2)}`}
+                                        </span>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
                     ) : showDiff ? (
                         <div className="diff-view">
-                            <div className="diff-header">
-                                {displayItems.length > 0 && <p className="diff-section-label">Orden Original:</p>}
-                                {!isLocked && !isPaymentStage && (
+                            {/* Marcar Todo */}
+                            {!isLocked && !isPaymentStage && itemsList.length > 0 && (
+                                <div className="select-all-row">
                                     <label className="select-all-label">
                                         <input
                                             type="checkbox"
-                                            checked={itemsList.length > 0 && itemsList.every(i => i.checked)}
+                                            checked={allChecked}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                             className="select-all-checkbox"
                                         />
                                         Marcar Todo
                                     </label>
-                                )}
-                            </div>
+                                </div>
+                            )}
+
+                            {/* Kept items — original items still in the order */}
                             <ul className="items-list-checklist">
-                                {displayItems.map((item) => renderIndividualRow(item, true))}
+                                {keptInList.map((item) => renderIndividualRow(item))}
                             </ul>
 
-                            {addedItems.length > 0 && (
+                            {/* Added items — visually separated */}
+                            {addedInList.length > 0 && (
                                 <>
-                                    <div className="diff-additions-divider">
-                                        <span className="diff-additions-label">Nuevos / Agregados</span>
+                                    <div className="diff-additions-divider" style={{ margin: '8px 0' }}>
+                                        <span className="diff-additions-label" style={{ color: '#2ecc71' }}>✚ Agregados</span>
                                     </div>
-                                    <ul className="items-list-checklist items-list-checklist--added">
-                                        {addedItems.map((item) => renderIndividualRow({ ...item, status: 'added' }, true))}
+                                    <ul className="items-list-checklist">
+                                        {addedInList.map((item) => renderIndividualRow(item))}
+                                    </ul>
+                                </>
+                            )}
+
+                            {/* Removed items — read-only, with strikethrough */}
+                            {removedFromDiff.length > 0 && (
+                                <>
+                                    <div className="diff-additions-divider" style={{ margin: '8px 0' }}>
+                                        <span className="diff-additions-label" style={{ color: '#e74c3c' }}>✕ Ya no se preparan</span>
+                                    </div>
+                                    <ul className="items-list-checklist">
+                                        {removedFromDiff.map((item, i) => renderIndividualRow({
+                                            id: `removed_${i}`,
+                                            text: (item.quantity || 1) > 1
+                                                ? `${item.name} ×${item.quantity}`
+                                                : item.name,
+                                            status: 'removed',
+                                            note: null,
+                                            checked: false
+                                        }))}
                                     </ul>
                                 </>
                             )}
@@ -370,6 +501,29 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                             <ul className="items-list-checklist">
                                 {displayItems.map((item) => renderIndividualRow(item))}
                             </ul>
+
+                            {/* Merged additions: sub-orders at same status, shown inline */}
+                            {order.additions_items && (
+                                <>
+                                    <div className="diff-additions-divider" style={{ marginTop: '10px' }}>
+                                        <span className="diff-additions-label">+ Adición incluida</span>
+                                    </div>
+                                    <ul className="items-list-simple" style={{ marginTop: '8px' }}>
+                                        {parseItemsGrouped(order.additions_items).map((item, i) => (
+                                            <li key={i} className="simple-item">
+                                                <div className="simple-item-body">
+                                                    <div className="simple-item-row">
+                                                        <span className="simple-item-bullet" style={{ color: '#fdcb6e' }}>+</span>
+                                                        <span className="item-text simple-item-text">{item.text}</span>
+                                                    </div>
+                                                    {item.note && <span className="simple-item-note">↳ {item.note}</span>}
+                                                </div>
+                                                <span className="simple-item-qty">x{item.quantity}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
@@ -378,6 +532,12 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                     <div className="order-meta">
                         <div className="meta-item"><span className="meta-label">Total</span><span className="meta-value">${order.total.toFixed(2)}</span></div>
                         <div className="meta-item"><span className="meta-label">Hora</span><span className="meta-value">{formatDate(order.created_at)}</span></div>
+                        {order.waiter_username && (
+                            <div className="meta-item"><span className="meta-label">🧑‍💼 Mesero</span><span className="meta-value meta-staff">{order.waiter_username}</span></div>
+                        )}
+                        {order.cook_username && (
+                            <div className="meta-item"><span className="meta-label">👨‍🍳 Cocinero</span><span className="meta-value meta-staff">{order.cook_username}</span></div>
+                        )}
                     </div>
                 )}
             </div>

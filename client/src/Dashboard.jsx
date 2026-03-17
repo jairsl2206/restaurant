@@ -123,9 +123,15 @@ function Dashboard({ user, onLogout, settings }) {
     const handleStatusChange = async (orderId, newStatus) => {
         try {
             const response = await apiPut(`${API_BASE_URL}/orders/${orderId}/status`, { status: newStatus }, { json: false });
-            if (response.ok) fetchOrders();
+            if (response.ok) {
+                fetchOrders();
+            } else {
+                const data = await response.json().catch(() => ({}));
+                showToast(`Error al actualizar orden: ${data.error || response.statusText}`, 'error');
+            }
         } catch (err) {
             console.error('Error updating order:', err);
+            showToast('Error de conexión al actualizar orden', 'error');
         }
     };
 

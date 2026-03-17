@@ -127,7 +127,8 @@ function MenuManager() {
                 showToast('Artículo eliminado', 'success');
                 fetchData();
             } else {
-                showToast('Error al eliminar el artículo', 'error');
+                const data = await res.json().catch(() => ({}));
+                showToast(data.error || 'Error al eliminar el artículo', 'error');
             }
         } catch (err) {
             console.error('Error deleting item:', err);
@@ -359,7 +360,7 @@ function MenuManager() {
                             <h3>{editingItem ? 'Editar Artículo' : 'Nuevo Artículo'}</h3>
                             <button type="button" className="close-btn" onClick={closeModal} aria-label="Cerrar modal">×</button>
                         </div>
-                        <div className="modal-body">
+                        <div className="modal-body" style={{ padding: 0 }}>
                             <div className="menu-form-grid">
                                 <div className="form-left">
                                     <div className="form-group">

@@ -53,20 +53,21 @@
 .menu-modal-enhanced {
     max-width: 900px;
     width: 90%;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
 }
 
 .menu-form-grid {
     display: grid;
     grid-template-columns: 1.2fr 0.8fr;
-    gap: 2.5rem;
-    padding: 1.5rem;
+    gap: 3rem;
+    padding: 2rem;
 }
 
 .form-left,
 .form-right {
     display: flex;
     flex-direction: column;
-    gap: 1.75rem;
+    gap: 2rem;
 }
 
 .form-group {
@@ -164,7 +165,7 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    min-height: 250px;
+    min-height: 280px;
     position: relative;
     transition: all 0.3s ease;
 }
@@ -341,7 +342,7 @@
 .full-width {
     grid-column: 1 / -1;
     margin-top: 0.5rem;
-    padding-top: 2rem;
+    padding-top: 2.5rem;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     justify-content: flex-end;
@@ -354,6 +355,11 @@
         grid-template-columns: 1fr;
         gap: 1.5rem;
         padding: 1rem;
+    }
+
+    .form-left,
+    .form-right {
+        gap: 1.5rem;
     }
 
     .form-row {

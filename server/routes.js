@@ -147,7 +147,7 @@ router.post('/orders', verifyToken, requireActivePeriod, (req, res) => {
     }
 
     const doCreate = (customerId) => {
-        db.createOrder(tableNumber || null, items, orderType, customerId, (err, orderId) => {
+        db.createOrder(tableNumber || null, items, orderType, customerId, req.user.id, (err, orderId) => {
             if (err) {
                 logger.error('Error creating order:', err);
                 return res.status(500).json({ error: 'Failed to create order' });
@@ -251,31 +251,52 @@ router.put('/orders/:id', verifyToken, (req, res) => {
     db.getOrderById(id, (err, orderBefore) => {
         if (err) return res.status(500).json({ error: 'Failed to retrieve order before update' });
 
-        // Parse itemsBefore from the order's current items string (format: "name x{qty} [{price}], ...")
-        const itemsBefore = [];
+        // beforeMap: key=name.toLowerCase(), value={ qty, originalName, price }
+        const beforeMap = {};
         if (orderBefore && orderBefore.items) {
             orderBefore.items.split(/,\s*(?![^(]*\))/).forEach(part => {
                 let content = part.trim();
+                let price = 0;
                 const priceMatch = content.match(/(.+) \[(\d+\.?\d*)\]$/);
-                if (priceMatch) content = priceMatch[1].trim();
+                if (priceMatch) { content = priceMatch[1].trim(); price = parseFloat(priceMatch[2]); }
                 const qtyMatch = content.match(/(.+) x(\d+)$/);
                 const name = qtyMatch ? qtyMatch[1].trim() : content;
                 const qty  = qtyMatch ? parseInt(qtyMatch[2], 10) : 1;
-                itemsBefore.push({ name: name.toLowerCase(), qty });
+                const k = name.toLowerCase();
+                if (!beforeMap[k]) beforeMap[k] = { qty: 0, name, price };
+                beforeMap[k].qty += qty;
             });
         }
 
-        const beforeMap = {};
-        itemsBefore.forEach(i => { beforeMap[i.name] = (beforeMap[i.name] || 0) + i.qty; });
+        // afterMap: key=name.toLowerCase(), value={ qty }
         const afterMap = {};
-        items.forEach(i => { const k = i.name.trim().toLowerCase(); afterMap[k] = (afterMap[k] || 0) + i.quantity; });
+        items.forEach(i => {
+            const k = i.name.trim().toLowerCase();
+            if (!afterMap[k]) afterMap[k] = { qty: 0 };
+            afterMap[k].qty += i.quantity;
+        });
 
-        const keptItems    = items.filter(i =>  beforeMap[i.name.trim().toLowerCase()] !== undefined).map(i => ({ ...i, diffStatus: 'kept' }));
-        const addedItems   = items.filter(i =>  beforeMap[i.name.trim().toLowerCase()] === undefined).map(i => ({ ...i, diffStatus: 'added' }));
-        const removedItems = Object.keys(beforeMap).filter(k => afterMap[k] === undefined).map(k => ({ name: k, quantity: beforeMap[k], diffStatus: 'removed' }));
-        const diff = [...keptItems, ...addedItems, ...removedItems];
+        // Quantity-aware diff: tracks unit additions/removals, not just name presence
+        const diff = [];
+        const allKeys = new Set([...Object.keys(beforeMap), ...Object.keys(afterMap)]);
+        for (const key of allKeys) {
+            const before    = beforeMap[key] || { qty: 0, name: key, price: 0 };
+            const after     = afterMap[key]  || { qty: 0 };
+            const afterItem = items.find(i => i.name.trim().toLowerCase() === key);
 
-        db.updateOrderItems(id, items, total, (err) => {
+            const keptQty    = Math.min(before.qty, after.qty);
+            const addedQty   = Math.max(0, after.qty - before.qty);
+            const removedQty = Math.max(0, before.qty - after.qty);
+
+            if (keptQty  > 0 && afterItem)
+                diff.push({ ...afterItem, quantity: keptQty,    diffStatus: 'kept'    });
+            if (addedQty > 0 && afterItem)
+                diff.push({ ...afterItem, quantity: addedQty,   diffStatus: 'added'   });
+            if (removedQty > 0)
+                diff.push({ name: before.name, quantity: removedQty, price: before.price, diffStatus: 'removed' });
+        }
+
+        db.updateOrderItems(id, items, total, diff, (err) => {
             if (err) return res.status(500).json({ error: 'Failed to update order items' });
 
             db.getOrderById(id, (err, order) => {
@@ -289,10 +310,11 @@ router.put('/orders/:id', verifyToken, (req, res) => {
                         ? `🛍️ Pickup: ${order.customer_name || 'N/A'}`
                         : `🪑 Mesa: ${order.table_number || 'N/A'}`;
 
+                const addedForWA   = diff.filter(d => d.diffStatus === 'added');
+                const removedForWA = diff.filter(d => d.diffStatus === 'removed');
                 const diffLines = [
-                    ...keptItems.map(i  => `  • ${trunc(i.name)} x${i.quantity}`),
-                    ...addedItems.map(i => `  ✅ ${trunc(i.name)} x${i.quantity} (AGREGADO)`),
-                    ...removedItems.map(i => `  ❌ ${trunc(i.name)} (CANCELADO)`),
+                    ...addedForWA.map(i   => `  ✅ ${trunc(i.name)} x${i.quantity} (AGREGADO)`),
+                    ...removedForWA.map(i => `  ❌ ${trunc(i.name)} x${i.quantity} (CANCELADO)`),
                 ].join('\n');
 
                 notifyWhatsApp(req, `📝 *ORDEN ACTUALIZADA #${id}*\n${locationInfo}\n\n${diffLines}\n\n💰 Nuevo Total: $${total.toFixed(2)}\n🕒 ${new Date().toLocaleTimeString()}`);
@@ -332,8 +354,11 @@ router.put('/orders/:id/status', verifyToken, (req, res) => {
         return res.status(400).json({ error: `Invalid status. Valid values: ${validStatuses.join(', ')}` });
     }
 
-    db.updateOrderStatus(id, status, null, (err) => {
-        if (err) return res.status(500).json({ error: 'Failed to update order status' });
+    db.updateOrderStatus(id, status, req.user.id, (err) => {
+        if (err) {
+            if (err.code === 'PENDING_ADDITIONS') return res.status(409).json({ error: err.message });
+            return res.status(500).json({ error: 'Failed to update order status' });
+        }
 
         db.getOrderById(id, (err, order) => {
             if (err) return res.status(500).json({ error: 'Updated but failed to retrieve' });
@@ -720,9 +745,11 @@ router.post('/whatsapp/reset', isAdmin, async (req, res) => {
  */
 function _mapOrder(o) {
     if (!o) return null;
+    const _parseJson = (str) => { try { return JSON.parse(str); } catch { return null; } };
     return {
         ...o,
-        // Derived compat fields so old frontend components still work
+        diff:         o.diff_json            ? _parseJson(o.diff_json)            : null,
+        lastEditDiff: o.last_edit_diff_json  ? _parseJson(o.last_edit_diff_json)  : null,
         is_delivery: o.type === ORDER_TYPE.DELIVERY ? 1 : 0,
         is_pickup:   o.type === ORDER_TYPE.PICKUP   ? 1 : 0
     };
