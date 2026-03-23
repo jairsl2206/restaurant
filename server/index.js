@@ -13,9 +13,15 @@ const whatsappService = require('./whatsappService');
 whatsappService.initializeClient();
 
 // CORS — restrict to known origins
+// Always includes the server's own port so production mode (same-port serving) works
+// regardless of which PORT is configured in .env
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:5173', 'http://localhost:3001'];
+    : ['http://localhost:5173', `http://localhost:${PORT}`];
+
+if (!allowedOrigins.includes(`http://localhost:${PORT}`)) {
+    allowedOrigins.push(`http://localhost:${PORT}`);
+}
 
 app.use(cors({
     origin: (origin, callback) => {

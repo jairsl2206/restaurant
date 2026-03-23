@@ -1,8 +1,8 @@
 // API configuration
-// Use window.location.origin to automatically use the correct host
-// This works both for localhost and network access (e.g., 192.168.1.88:3001)
+// In development, Vite proxies /api and /uploads to the backend (see vite.config.js).
+// In production, requests go to the same origin as the frontend.
 const API_BASE_URL = import.meta.env.DEV
-    ? `${window.location.protocol}//${window.location.hostname}:3001/api`
+    ? '/api'
     : window.location.origin + '/api';
 
 export default API_BASE_URL;

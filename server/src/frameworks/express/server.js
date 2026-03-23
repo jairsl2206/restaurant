@@ -62,11 +62,9 @@ app.use((req, res, next) => {
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📊 API available at http://localhost:${PORT}/api`);
-    console.log(`🏗️  Clean Architecture API at http://localhost:${PORT}/api/v2`);
-    console.log(`🌐 Frontend available at http://localhost:${PORT}`);
-    console.log(`🌍 Network access: http://192.168.1.81:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`API available at http://localhost:${PORT}/api`);
+    console.log(`Clean Architecture API at http://localhost:${PORT}/api/v2`);
 });
 
 module.exports = app;

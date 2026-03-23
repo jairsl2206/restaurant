@@ -66,14 +66,12 @@ const CustomerMenu = ({ restaurantName, restaurantLogo }) => {
     // Helper to construct image URL
     const getImageUrl = (path) => {
         if (!path) return null;
+        // Normalize legacy absolute localhost URLs to work via current origin
+        if (path.match(/^http:\/\/localhost:\d+/)) {
+            return path.replace(/^http:\/\/localhost:\d+/, window.location.origin);
+        }
         if (path.startsWith('http')) return path;
-
-        const isDev = import.meta.env.DEV;
-        const baseUrl = isDev
-            ? `${window.location.protocol}//${window.location.hostname}:3001`
-            : window.location.origin;
-
-        return `${baseUrl}${path}`;
+        return `${window.location.origin}${path}`;
     };
 
     const groupedItems = groupItems(menuItems);
