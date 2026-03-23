@@ -150,7 +150,9 @@ const CustomerMenu = ({ restaurantName, restaurantLogo }) => {
                                                     <span className="promo-discount">
                                                         {item.promotion_type === 'PERCENTAGE'
                                                             ? `-${item.promotion_value}%`
-                                                            : `-$${item.promotion_value.toFixed(2)}`
+                                                            : item.promotion_type === 'BUNDLE'
+                                                                ? `${item.bundle_buy}×${item.bundle_pay}`
+                                                                : `-$${item.promotion_value.toFixed(2)}`
                                                         }
                                                     </span>
                                                 </div>
