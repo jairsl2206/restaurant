@@ -814,7 +814,8 @@ class Database {
                    LEFT JOIN order_items oi2 ON oi2.order_id = sub2.id
                    LEFT JOIN menu_items  mi2 ON mi2.id = oi2.menu_item_id
                    WHERE sub2.parent_order_id = o.id
-                ) AS additions_items
+                ) AS additions_items,
+                (SELECT method FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1) AS payment_method
             FROM orders o
             LEFT JOIN customers c         ON c.id = o.customer_id
             LEFT JOIN customer_addresses ca ON ca.customer_id = c.id AND ca.is_default = 1
@@ -1342,7 +1343,23 @@ class Database {
                     `, [ORDER_STATUS.FINALIZADO, start, end], (err, waiterRows) => {
                         if (err) return callback(err);
                         report.byWaiter = waiterRows || [];
-                        callback(null, report);
+
+                        this.db.all(`
+                            SELECT
+                                COALESCE(p.method, 'SIN_REGISTRO') AS payment_method,
+                                COUNT(DISTINCT o.id)                AS order_count,
+                                SUM(o.total)                        AS revenue
+                            FROM orders o
+                            LEFT JOIN payments p ON p.order_id = o.id
+                            WHERE o.status = ? AND o.created_at BETWEEN ? AND ?
+                              AND o.parent_order_id IS NULL
+                            GROUP BY p.method
+                            ORDER BY revenue DESC
+                        `, [ORDER_STATUS.FINALIZADO, start, end], (err, paymentRows) => {
+                            if (err) return callback(err);
+                            report.byPaymentMethod = paymentRows || [];
+                            callback(null, report);
+                        });
                     });
                 });
             });
@@ -1482,7 +1499,22 @@ class Database {
                         totalRevenue: cat.items.reduce((s, i) => s + i.item_revenue, 0)
                     })).sort((a, b) => b.totalRevenue - a.totalRevenue);
 
-                    callback(null, report);
+                    this.db.all(`
+                        SELECT
+                            COALESCE(p.method, 'SIN_REGISTRO') AS payment_method,
+                            COUNT(DISTINCT o.id)                AS order_count,
+                            SUM(o.total)                        AS revenue
+                        FROM orders o
+                        LEFT JOIN payments p ON p.order_id = o.id
+                        WHERE o.status = ? AND o.sale_period_id = ?
+                          AND o.parent_order_id IS NULL
+                        GROUP BY p.method
+                        ORDER BY revenue DESC
+                    `, [ORDER_STATUS.FINALIZADO, periodId], (err, paymentRows) => {
+                        if (err) return callback(err);
+                        report.byPaymentMethod = paymentRows || [];
+                        callback(null, report);
+                    });
                 });
             });
         });

@@ -26,7 +26,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
     const isPickup   = order.type === ORDER_TYPE.PICKUP   || order.is_pickup == 1;
 
     const [itemsList, setItemsList] = useState([]);
-    const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState(null);
     const [advancing, setAdvancing] = useState(false);
 
     useEffect(() => {
@@ -35,7 +35,7 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
             ? buildBillingItemsList(order)
             : parseItemsIndividual(order.items);
         setItemsList(items);
-        setPaymentConfirmed(false);
+        setPaymentMethod(null);
     }, [order.items, order.additions_items, order.status]);
 
     const handleCheck = (index) => {
@@ -108,21 +108,21 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
     const allChecked = itemsList.length > 0 && itemsList.every(item => item.checked);
     // Waiters don't need to check individual items — they just advance status
     const canSubmit = isPaymentStage
-        ? (paymentConfirmed && !blockedByAdditions)
+        ? (paymentMethod !== null && !blockedByAdditions)
         : (isAllowedRole ? allChecked : true);
     const validationRequired = canAdvance;
 
     const handleAdvance = async () => {
         if (!canAdvance) return;
-        if (isPaymentStage && !paymentConfirmed) {
-            showToast('Por favor confirma antes de finalizar.', 'warning');
+        if (isPaymentStage && !paymentMethod) {
+            showToast('Por favor selecciona un medio de pago antes de finalizar.', 'warning');
             return;
         } else if (!isPaymentStage && isAllowedRole && !allChecked) {
             showToast('Por favor verifica todos los artículos antes de avanzar.', 'warning');
             return;
         }
         setAdvancing(true);
-        await onStatusChange(order.id, nextStatus);
+        await onStatusChange(order.id, nextStatus, isPaymentStage ? paymentMethod : null);
         // Component may unmount after status change; no need to reset
     };
 
@@ -383,18 +383,27 @@ function OrderCard({ order, onStatusChange, user, onEdit }) {
                                 </div>
                             )}
 
-                            {/* Payment confirmation */}
+                            {/* Payment method selection */}
                             {!blockedByAdditions && (
-                            <div className="payment-check-container">
-                                <label className="payment-confirm-label">
-                                    <input
-                                        type="checkbox"
-                                        checked={paymentConfirmed}
-                                        onChange={(e) => setPaymentConfirmed(e.target.checked)}
-                                        className="payment-confirm-checkbox"
-                                    />
-                                    <span>✅ Confirmar pago y finalizar orden</span>
-                                </label>
+                            <div className="payment-method-container">
+                                <p className="payment-method-label">Medio de pago</p>
+                                <div className="payment-method-buttons">
+                                    {[
+                                        { value: 'CASH',     emoji: '💵', label: 'Efectivo' },
+                                        { value: 'CARD',     emoji: '💳', label: 'Tarjeta' },
+                                        { value: 'TRANSFER', emoji: '📲', label: 'Transferencia' },
+                                    ].map(({ value, emoji, label }) => (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            className={`payment-method-btn ${paymentMethod === value ? 'selected' : ''}`}
+                                            onClick={() => setPaymentMethod(prev => prev === value ? null : value)}
+                                        >
+                                            <span>{emoji}</span>
+                                            <span>{label}</span>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                             )}
                         </div>

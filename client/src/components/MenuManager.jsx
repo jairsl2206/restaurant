@@ -206,7 +206,7 @@ function MenuManager() {
             const formDataUpload = new FormData();
             formDataUpload.append('file', processedBlob, 'image.jpg');
 
-            const data = await apiFetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formDataUpload, auth: false });
+            const data = await apiFetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formDataUpload });
             if (data.url) {
                 const serverUrl = API_BASE_URL.replace('/api', '');
                 setFormData(prev => ({ ...prev, image_url: serverUrl + data.url }));

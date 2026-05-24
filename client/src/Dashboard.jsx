@@ -120,8 +120,15 @@ function Dashboard({ user, onLogout, settings }) {
         }
     };
 
-    const handleStatusChange = async (orderId, newStatus) => {
+    const handleStatusChange = async (orderId, newStatus, paymentMethod = null) => {
         try {
+            if (newStatus === ORDER_STATUS.FINALIZADO && paymentMethod) {
+                const order = orders.find(o => o.id === orderId);
+                const amount = order
+                    ? (Number(order.total) || 0) + (Number(order.additions_total) || 0)
+                    : 0;
+                await apiPost(`${API_BASE_URL}/orders/${orderId}/payments`, { method: paymentMethod, amount });
+            }
             const response = await apiPut(`${API_BASE_URL}/orders/${orderId}/status`, { status: newStatus }, { json: false });
             if (response.ok) {
                 fetchOrders();

@@ -15,6 +15,22 @@ function parseItemsString(str) {
     }).filter(i => i.name);
 }
 
+const PAYMENT_LABELS = {
+    CASH:     { emoji: '💵', label: 'Efectivo' },
+    CARD:     { emoji: '💳', label: 'Tarjeta' },
+    TRANSFER: { emoji: '📲', label: 'Transferencia' },
+};
+
+function PaymentBadge({ method, showLabel = false }) {
+    if (!method) return <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>;
+    const p = PAYMENT_LABELS[method] || { emoji: '❓', label: method };
+    return (
+        <span title={p.label} style={{ fontSize: showLabel ? '0.85rem' : '1rem' }}>
+            {p.emoji}{showLabel && <span style={{ marginLeft: '4px' }}>{p.label}</span>}
+        </span>
+    );
+}
+
 function PastOrders() {
     const showToast = useToast();
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -134,6 +150,7 @@ function PastOrders() {
                                 <th>Mesa/Cliente</th>
                                 <th>Items</th>
                                 <th>Total</th>
+                                <th>Pago</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
                             </tr>
@@ -156,6 +173,9 @@ function PastOrders() {
                                         {order.items ? order.items.substring(0, 50) + '...' : 'N/A'}
                                     </td>
                                     <td className="total-cell" data-label="Total">${order.total.toFixed(2)}</td>
+                                    <td data-label="Pago" style={{ textAlign: 'center' }}>
+                                        <PaymentBadge method={order.payment_method} />
+                                    </td>
                                     <td data-label="Estado">
                                         <span
                                             className="status-badge"
@@ -289,6 +309,10 @@ function PastOrders() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1.15rem', color: '#2ecc71', marginTop: '0.25rem' }}>
                                         <span>TOTAL</span>
                                         <span>${detailOrder.total.toFixed(2)}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Medio de pago</span>
+                                        <PaymentBadge method={detailOrder.payment_method} showLabel />
                                     </div>
                                 </div>
                             </div>

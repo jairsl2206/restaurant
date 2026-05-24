@@ -391,29 +391,54 @@
     line-height: 1;
 }
 
-.payment-check-container {
+.payment-method-container {
     padding: 0.75rem;
-    background: rgba(46, 204, 113, 0.08);
+    background: rgba(46, 204, 113, 0.06);
     border-radius: 10px;
-    border: 1px solid rgba(46, 204, 113, 0.25);
+    border: 1px solid rgba(46, 204, 113, 0.2);
 }
 
-.payment-confirm-label {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    cursor: pointer;
+.payment-method-label {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    color: #e0e0e0;
-    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
 }
 
-.payment-confirm-checkbox {
-    width: 24px !important;
-    height: 24px !important;
-    accent-color: #2ecc71;
+.payment-method-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.payment-method-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 0.55rem 0.4rem;
+    border-radius: 8px;
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #c0c0c0;
+    font-size: 0.78rem;
+    font-weight: 600;
     cursor: pointer;
-    flex-shrink: 0;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.payment-method-btn:hover {
+    border-color: rgba(46, 204, 113, 0.4);
+    background: rgba(46, 204, 113, 0.08);
+    color: #e0e0e0;
+}
+
+.payment-method-btn.selected {
+    border-color: #2ecc71;
+    background: rgba(46, 204, 113, 0.18);
+    color: #2ecc71;
 }
 
 /* ============================================
@@ -452,8 +477,9 @@
         padding: 0.75rem;
     }
 
-    .payment-confirm-label {
-        font-size: 0.875rem;
+    .payment-method-btn {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.3rem;
     }
 
     /* Ensure order card itself doesn't overflow */

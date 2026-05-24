@@ -4,6 +4,13 @@ import { apiGet } from '../utils/api';
 import './SalesReport.css';
 import './SalesReportPeriod.css';
 
+const PAYMENT_DISPLAY = {
+    CASH:         { emoji: '💵', label: 'Efectivo' },
+    CARD:         { emoji: '💳', label: 'Tarjeta' },
+    TRANSFER:     { emoji: '📲', label: 'Transferencia' },
+    SIN_REGISTRO: { emoji: '❓', label: 'Sin registro' },
+};
+
 function SalesReport() {
     const [mode, setMode] = useState('date'); // 'date' | 'period'
 
@@ -263,6 +270,35 @@ function SalesReport() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* By Payment Method */}
+                            {activeReport.byPaymentMethod && activeReport.byPaymentMethod.length > 0 && (() => {
+                                const totalRev = activeReport.byPaymentMethod.reduce((s, r) => s + (Number(r.revenue) || 0), 0) || 1;
+                                return (
+                                    <div className="top-items-section card">
+                                        <h3>💳 Ventas por Medio de Pago</h3>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                            {activeReport.byPaymentMethod.map((row, idx) => {
+                                                const p = PAYMENT_DISPLAY[row.payment_method] || { emoji: '❓', label: row.payment_method };
+                                                const pct = Math.round((Number(row.revenue) / totalRev) * 100);
+                                                return (
+                                                    <div key={idx}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                                            <span style={{ fontWeight: 600 }}>{p.emoji} {p.label}</span>
+                                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                                                {row.order_count} órden{row.order_count !== 1 ? 'es' : ''} · ${Number(row.revenue).toFixed(2)}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                            <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent, #2ecc71)', borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
                 ) : null}
