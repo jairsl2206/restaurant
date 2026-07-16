@@ -1,6 +1,10 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
+const fs = require('fs');
+const path = require('path');
 const logger = require('./logger');
+
+const SESSION_DIR = path.join(__dirname, '..', '.wwebjs_auth');
 
 let client;
 let qrCodeData = null;
@@ -11,13 +15,12 @@ const initializeClient = () => {
         authStrategy: new LocalAuth(),
         puppeteer: {
             args: ['--no-sandbox'],
-            protocolTimeout: 60000 // Increase to 60 seconds
+            protocolTimeout: 60000
         }
     });
 
     client.on('qr', (qr) => {
         logger.info('QR Code received from WhatsApp');
-        // Convert QR text to Data URL for frontend
         qrcode.toDataURL(qr, (err, url) => {
             if (err) {
                 logger.error('Error generating QR image', err);
@@ -35,7 +38,7 @@ const initializeClient = () => {
     client.on('ready', () => {
         logger.info('WhatsApp Client is ready');
         isReady = true;
-        qrCodeData = null; // Clear QR code once connected
+        qrCodeData = null;
     });
 
     client.on('authenticated', () => {
@@ -47,10 +50,18 @@ const initializeClient = () => {
     client.on('disconnected', (reason) => {
         logger.info(`WhatsApp Disconnected: ${reason}`);
         isReady = false;
-        client.initialize(); // Auto reconnect
+        try {
+            client.initialize();
+        } catch (err) {
+            logger.error('Error reconnecting after disconnect:', err);
+        }
     });
 
-    client.initialize();
+    try {
+        client.initialize();
+    } catch (err) {
+        logger.error('Error initializing WhatsApp client:', err);
+    }
 };
 
 const getStatus = () => {
@@ -70,28 +81,42 @@ const getGroups = async () => {
         return [];
     }
 
-    // Return cache if it's still valid
     if (cachedGroups.length > 0 && (Date.now() - lastFetchTime < CACHE_DURATION)) {
         logger.info('Returning cached groups');
         return cachedGroups;
     }
+
     try {
-        logger.info('Fetching chats to find groups...');
-        const chats = await client.getChats();
-        logger.info(`Found ${chats.length} total chats`);
-        const groups = chats
-            .filter(chat => chat.isGroup)
-            .map(chat => ({
-                id: chat.id._serialized,
-                name: chat.name || chat.id.user || 'Grupo sin nombre'
-            }));
+        logger.info('Fetching groups from WhatsApp Web...');
+        const page = client.pupPage;
+
+        await page.waitForFunction(
+            () => typeof window.require === 'function',
+            { timeout: 15000 }
+        ).catch(() => {});
+
+        const groups = await page.evaluate(() => {
+            try {
+                const ChatCollection = window.require('WAWebCollections');
+                const models = ChatCollection.Chat.getModelsArray();
+                return models
+                    .filter(m => m && m.id && m.id._serialized && m.id._serialized.includes('@g.us'))
+                    .map(m => ({
+                        id: m.id._serialized,
+                        name: m.name || m.formattedTitle || 'Grupo sin nombre'
+                    }));
+            } catch (e) {
+                return [];
+            }
+        });
+
         cachedGroups = groups;
         lastFetchTime = Date.now();
         logger.info(`Found ${groups.length} groups`);
         return groups;
     } catch (err) {
-        logger.error('Error fetching groups:', err);
-        return cachedGroups; // Return last known good state on error
+        logger.error('Error fetching groups:', err.message || err);
+        return cachedGroups;
     }
 };
 
@@ -137,8 +162,15 @@ const resetSession = async () => {
     isReady = false;
     qrCodeData = null;
 
-    // The session folder .wwebjs_auth should be manually cleared if we want a fresh start
-    // but Logout usually handles it. For now, let's just re-init.
+    try {
+        if (fs.existsSync(SESSION_DIR)) {
+            fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+            logger.info('WhatsApp session directory cleared');
+        }
+    } catch (err) {
+        logger.error('Error clearing session directory:', err);
+    }
+
     initializeClient();
     return true;
 };

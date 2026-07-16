@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
-import { apiGet, apiPost, apiFetch } from '../utils/api';
+import { apiGet, apiPost, apiFetch, authHeaders } from '../utils/api';
 import { useToast } from './Toast';
 import { POLL_INTERVAL_WHATSAPP_MS } from '../constants';
 
@@ -58,6 +58,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
             setWhatsappGroups(data);
         } catch (err) {
             console.error('Error fetching groups', err);
+            setTimeout(fetchGroups, 5000);
         } finally {
             setLoadingGroups(false);
         }
@@ -76,8 +77,12 @@ function SettingsManager({ settings, onSettingsUpdate }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        await saveSettings({ ...formData, whatsapp_number: whatsappNumber });
+    };
+
+    const saveSettings = async (data) => {
         try {
-            const res = await apiPost(`${API_BASE_URL}/settings`, { ...formData, whatsapp_number: whatsappNumber }, { json: false });
+            const res = await apiPost(`${API_BASE_URL}/settings`, data, { json: false });
             if (res.ok) {
                 showToast('Configuración actualizada exitosamente', 'success');
                 onSettingsUpdate();
@@ -175,7 +180,7 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                                         </button>
                                     </div>
 
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                         {!whatsappNumber.includes('@g.us') ? (
                                             <input
                                                 type="text"
@@ -188,26 +193,40 @@ function SettingsManager({ settings, onSettingsUpdate }) {
                                             <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flex: 1 }}>
                                                 <select
                                                     style={{ flex: 1 }}
-                                                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                                                    onChange={(e) => {
+                                                        const value = e.target.value;
+                                                        setWhatsappNumber(value);
+                                                        saveSettings({ ...formData, whatsapp_number: value });
+                                                    }}
                                                     value={whatsappNumber}
                                                 >
                                                     {whatsappGroups.map(group => (
                                                         <option key={group.id} value={group.id}>{group.name}</option>
                                                     ))}
                                                 </select>
-                                                <button
-                                                    type="button"
-                                                    onClick={fetchGroups}
-                                                    className="btn btn-secondary"
-                                                    disabled={loadingGroups}
-                                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                                                    title="Actualizar lista de grupos"
-                                                >
-                                                    {loadingGroups ? '⏳' : '🔄'}
-                                                </button>
                                             </div>
                                         )}
+                                        <button
+                                            type="button"
+                                            onClick={fetchGroups}
+                                            className="btn btn-secondary"
+                                            disabled={loadingGroups}
+                                            style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                            title="Actualizar lista de grupos"
+                                        >
+                                            {loadingGroups ? '⏳' : '🔄'}
+                                        </button>
                                     </div>
+
+                                    {whatsappStatus.isReady && (
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                                            {loadingGroups
+                                                ? 'Cargando grupos...'
+                                                : whatsappGroups.length > 0
+                                                    ? `${whatsappGroups.length} grupo(s) encontrado(s)`
+                                                    : 'No se encontraron grupos. Toca 🔄 para reintentar.'}
+                                        </div>
+                                    )}
                                     <small style={{ fontSize: '0.75rem', opacity: 0.8 }}>
                                         {!whatsappNumber.includes('@g.us')
                                             ? "Ingresa el número con código de país sin el símbolo +."
