@@ -1261,10 +1261,18 @@ class Database {
     getSalesReport(startDate, endDate, callback) {
         const start = startDate ? `${startDate} 06:00:00` : '1970-01-01 00:00:00';
 
-        let endD = endDate ? new Date(endDate) : new Date();
-        endD.setDate(endD.getDate() + 1);
-        const endStr = endD.toISOString().split('T')[0];
-        const end = `${endStr} 05:59:59`;
+        let endDStr;
+        if (endDate) {
+            const [y, m, d] = endDate.split('-').map(Number);
+            const dObj = new Date(y, m - 1, d + 1);
+            const pad = (n) => String(n).padStart(2, '0');
+            endDStr = `${dObj.getFullYear()}-${pad(dObj.getMonth() + 1)}-${pad(dObj.getDate())}`;
+        } else {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            endDStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate() + 1)}`;
+        }
+        const end = `${endDStr} 05:59:59`;
 
         const report = { summary: {}, dailySales: [], topItems: [], byWaiter: [] };
 
@@ -1274,6 +1282,7 @@ class Database {
                    AVG(total) AS average_ticket
             FROM orders
             WHERE status = ? AND created_at BETWEEN ? AND ?
+              AND parent_order_id IS NULL
         `, [ORDER_STATUS.FINALIZADO, start, end], (err, summaryRow) => {
             if (err) return callback(err);
             report.summary = summaryRow || { total_orders: 0, total_revenue: 0, average_ticket: 0 };
@@ -1282,17 +1291,25 @@ class Database {
                 SELECT created_at, total
                 FROM orders
                 WHERE status = ? AND created_at BETWEEN ? AND ?
+                  AND parent_order_id IS NULL
                 ORDER BY created_at ASC
             `, [ORDER_STATUS.FINALIZADO, start, end], (err, orderRows) => {
                 if (err) return callback(err);
 
                 const periodMap = {};
                 orderRows.forEach(order => {
-                    const d    = new Date(order.created_at);
-                    const hour = d.getHours();
-                    const key  = (hour < 6)
-                        ? new Date(d.getTime() - 86400000).toISOString().split('T')[0]
-                        : d.toISOString().split('T')[0];
+                    const [datePart, timePart] = order.created_at.split(' ');
+                    const hour = parseInt(timePart.split(':')[0], 10);
+                    let key;
+                    if (hour < 6) {
+                        const [y, m, d] = datePart.split('-').map(Number);
+                        const prevDay = new Date(y, m - 1, d);
+                        prevDay.setDate(prevDay.getDate() - 1);
+                        const pad = (n) => String(n).padStart(2, '0');
+                        key = `${prevDay.getFullYear()}-${pad(prevDay.getMonth() + 1)}-${pad(prevDay.getDate())}`;
+                    } else {
+                        key = datePart;
+                    }
 
                     if (!periodMap[key]) periodMap[key] = { date: key, orders_count: 0, daily_revenue: 0 };
                     periodMap[key].orders_count++;
@@ -1311,6 +1328,7 @@ class Database {
                     LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
                     LEFT JOIN menu_categories mc ON mc.id = mi.category_id
                     WHERE o.status = ? AND o.created_at BETWEEN ? AND ?
+                      AND o.parent_order_id IS NULL
                     GROUP BY mc.name, mi.name
                     ORDER BY mc.name ASC, quantity_sold DESC
                 `, [ORDER_STATUS.FINALIZADO, start, end], (err, itemRows) => {
@@ -1338,6 +1356,7 @@ class Database {
                         FROM orders o
                         LEFT JOIN users uw ON uw.id = o.waiter_user_id
                         WHERE o.status = ? AND o.created_at BETWEEN ? AND ?
+                          AND o.parent_order_id IS NULL
                         GROUP BY o.waiter_user_id
                         ORDER BY revenue DESC
                     `, [ORDER_STATUS.FINALIZADO, start, end], (err, waiterRows) => {
@@ -1348,12 +1367,12 @@ class Database {
                             SELECT
                                 COALESCE(p.method, 'SIN_REGISTRO') AS payment_method,
                                 COUNT(DISTINCT o.id)                AS order_count,
-                                SUM(o.total)                        AS revenue
+                                COALESCE(SUM(p.amount), SUM(o.total)) AS revenue
                             FROM orders o
                             LEFT JOIN payments p ON p.order_id = o.id
                             WHERE o.status = ? AND o.created_at BETWEEN ? AND ?
                               AND o.parent_order_id IS NULL
-                            GROUP BY p.method
+                            GROUP BY COALESCE(p.method, 'SIN_REGISTRO')
                             ORDER BY revenue DESC
                         `, [ORDER_STATUS.FINALIZADO, start, end], (err, paymentRows) => {
                             if (err) return callback(err);
@@ -1448,7 +1467,7 @@ class Database {
     }
 
     getSalePeriodReport(periodId, callback) {
-        const report = { summary: {}, dailySales: [], topItems: [], period: null };
+        const report = { summary: {}, dailySales: [], topItems: [], byWaiter: [], period: null };
 
         this.db.get(`
             SELECT sp.*, u.username AS opened_by_username
@@ -1465,6 +1484,7 @@ class Database {
                        AVG(total) AS average_ticket
                 FROM orders
                 WHERE status = ? AND sale_period_id = ?
+                  AND parent_order_id IS NULL
             `, [ORDER_STATUS.FINALIZADO, periodId], (err, summaryRow) => {
                 if (err) return callback(err);
                 report.summary = summaryRow || { total_orders: 0, total_revenue: 0, average_ticket: 0 };
@@ -1480,6 +1500,7 @@ class Database {
                     LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
                     LEFT JOIN menu_categories mc ON mc.id = mi.category_id
                     WHERE o.status = ? AND o.sale_period_id = ?
+                      AND o.parent_order_id IS NULL
                     GROUP BY mc.name, mi.name
                     ORDER BY mc.name ASC, quantity_sold DESC
                 `, [ORDER_STATUS.FINALIZADO, periodId], (err, itemRows) => {
@@ -1501,19 +1522,35 @@ class Database {
 
                     this.db.all(`
                         SELECT
-                            COALESCE(p.method, 'SIN_REGISTRO') AS payment_method,
-                            COUNT(DISTINCT o.id)                AS order_count,
-                            SUM(o.total)                        AS revenue
+                            COALESCE(uw.username, 'Sin asignar') AS waiter_username,
+                            COUNT(o.id)                          AS order_count,
+                            SUM(o.total)                         AS revenue
                         FROM orders o
-                        LEFT JOIN payments p ON p.order_id = o.id
+                        LEFT JOIN users uw ON uw.id = o.waiter_user_id
                         WHERE o.status = ? AND o.sale_period_id = ?
                           AND o.parent_order_id IS NULL
-                        GROUP BY p.method
+                        GROUP BY o.waiter_user_id
                         ORDER BY revenue DESC
-                    `, [ORDER_STATUS.FINALIZADO, periodId], (err, paymentRows) => {
+                    `, [ORDER_STATUS.FINALIZADO, periodId], (err, waiterRows) => {
                         if (err) return callback(err);
-                        report.byPaymentMethod = paymentRows || [];
-                        callback(null, report);
+                        report.byWaiter = waiterRows || [];
+
+                        this.db.all(`
+                            SELECT
+                                COALESCE(p.method, 'SIN_REGISTRO') AS payment_method,
+                                COUNT(DISTINCT o.id)                AS order_count,
+                                COALESCE(SUM(p.amount), SUM(o.total)) AS revenue
+                            FROM orders o
+                            LEFT JOIN payments p ON p.order_id = o.id
+                            WHERE o.status = ? AND o.sale_period_id = ?
+                              AND o.parent_order_id IS NULL
+                            GROUP BY COALESCE(p.method, 'SIN_REGISTRO')
+                            ORDER BY revenue DESC
+                        `, [ORDER_STATUS.FINALIZADO, periodId], (err, paymentRows) => {
+                            if (err) return callback(err);
+                            report.byPaymentMethod = paymentRows || [];
+                            callback(null, report);
+                        });
                     });
                 });
             });
