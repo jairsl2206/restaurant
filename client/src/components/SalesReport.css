@@ -1,14 +1,10 @@
 .sales-report {
     color: var(--text-color, #fff);
+    min-width: 0;
 }
 
-.report-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    flex-wrap: wrap;
-    gap: 1rem;
+.report-content {
+    min-width: 0;
 }
 
 .date-filters {
@@ -19,11 +15,14 @@
     padding: 10px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
+    box-sizing: border-box;
+    min-width: 0;
 }
 
 .filter-group {
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .filter-group label {
@@ -39,11 +38,28 @@
     padding: 8px;
     border-radius: 4px;
     font-family: inherit;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.filter-group input[type="date"] {
+    min-width: 0;
+    max-width: 100%;
+    display: block;
+    width: 100%;
+}
+
+.filter-group input::-webkit-datetime-edit {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .summary-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 1.5rem;
     margin-bottom: 2rem;
 }
@@ -68,15 +84,15 @@
 }
 
 .summary-card.revenue {
-    border-bottom: 4px solid #2ecc71;
+    border-bottom: 4px solid var(--chart-green, #2ecc71);
 }
 
 .summary-card.orders {
-    border-bottom: 4px solid #3498db;
+    border-bottom: 4px solid var(--chart-blue, #3498db);
 }
 
 .summary-card.average {
-    border-bottom: 4px solid #f1c40f;
+    border-bottom: 4px solid var(--chart-yellow, #f1c40f);
 }
 
 .card-icon {
@@ -104,18 +120,32 @@
     margin-top: 5px;
 }
 
-.charts-grid {
+/* ── Charts Row — two-column layout ── */
+
+.charts-row {
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    min-width: 0;
 }
 
-.charts-grid--single {
+.charts-row > * {
+    min-width: 0;
+}
+
+.charts-side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.charts-row--single {
     grid-template-columns: 1fr;
 }
 
 @media (max-width: 900px) {
-    .charts-grid {
+    .charts-row {
         grid-template-columns: 1fr;
     }
 }
@@ -125,14 +155,20 @@
         flex-direction: column;
         align-items: stretch;
         gap: 0.75rem;
+        width: 100%;
+        overflow: hidden;
     }
 
     .filter-group {
         width: 100%;
+        min-width: 0;
+        overflow: hidden;
     }
 
     .filter-group input {
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .summary-cards {
@@ -145,8 +181,8 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    .data-table {
-        min-width: 500px;
+    .charts-side .data-table {
+        min-width: 0;
     }
 
     .chart-container {
@@ -155,6 +191,14 @@
 
     .bar-label {
         font-size: 0.6rem;
+    }
+
+    .payment-method-bars {
+        gap: 0.5rem;
+    }
+
+    .payment-method-bar-label {
+        font-size: 0.8rem;
     }
 }
 
@@ -176,21 +220,49 @@
         font-size: 1.75rem;
         width: 44px;
         height: 44px;
+        flex-shrink: 0;
     }
 
     .big-value {
-        font-size: 1.5rem;
+        font-size: 1.4rem;
+    }
+
+    .card-info h3 {
+        font-size: 0.8rem;
     }
 
     .chart-container {
         height: 200px;
     }
 
-    .report-header {
-        flex-direction: column;
-        align-items: stretch;
+    .chart-section,
+    .top-items-section {
+        padding: 1rem;
+    }
+
+    .payment-method-bar-label span:first-child {
+        font-size: 0.85rem;
+    }
+
+    .date-filters {
+        padding: 0;
+        gap: 0.5rem;
+        background: transparent;
+        border: none;
+    }
+
+    .filter-group input,
+    .date-filters select {
+        padding: 6px 8px;
+        font-size: 0.85rem;
+    }
+
+    .filter-group label {
+        font-size: 0.72rem;
     }
 }
+
+/* ── Chart ── */
 
 .chart-section,
 .top-items-section {
@@ -210,30 +282,36 @@
     display: flex;
     align-items: flex-end;
     padding-bottom: 10px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #444 transparent;
 }
 
 .bar-chart {
     display: flex;
-    width: 100%;
+    min-width: 100%;
     height: 100%;
     align-items: flex-end;
     justify-content: space-around;
     gap: 5px;
+    flex-shrink: 0;
 }
 
 .chart-bar-group {
-    flex: 1;
+    flex: 1 0 auto;
     height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     align-items: center;
     position: relative;
+    min-width: 24px;
 }
 
 .chart-bar {
     width: 60%;
-    background: #3498db;
+    background: var(--chart-blue, #3498db);
     border-radius: 4px 4px 0 0;
     transition: height 0.5s ease;
     min-height: 2px;
@@ -241,7 +319,7 @@
 }
 
 .chart-bar:hover {
-    background: #5dade2;
+    background: var(--chart-blue-light, #5dade2);
     cursor: pointer;
 }
 
@@ -251,13 +329,16 @@
     bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.85);
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 0.75rem;
     white-space: nowrap;
     margin-bottom: 5px;
     z-index: 10;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .bar-label {
@@ -266,9 +347,38 @@
     color: #888;
 }
 
+/* ── Data Table ── */
+
 .data-table {
     width: 100%;
     border-collapse: collapse;
+}
+
+.charts-side .data-table {
+    min-width: 0;
+    width: 100%;
+    table-layout: auto;
+}
+
+.charts-side .data-table th,
+.charts-side .data-table td {
+    white-space: normal;
+    padding: 10px 8px;
+    position: static;
+    background: none;
+}
+
+.charts-side .data-table td:nth-child(2) {
+    min-width: 0;
+}
+
+.top-items-collapsed .data-table {
+    min-width: 0;
+    width: 100%;
+}
+
+.top-items-collapsed .data-table td:nth-child(2) {
+    min-width: 0;
 }
 
 .data-table th,
@@ -304,34 +414,224 @@
     margin-top: 100px;
 }
 
+/* ── Payment Method Bars ── */
+
+.payment-method-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.payment-method-bar-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.payment-method-bar-label span:first-child {
+    font-weight: 600;
+}
+
+.payment-method-bar-label span:last-child {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.payment-method-bar-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.payment-method-bar-fill {
+    height: 100%;
+    background: var(--chart-green, #2ecc71);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+/* ── Error / Empty State ── */
+
+.report-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.report-error p {
+    margin: 0;
+    color: #ef4444;
+    font-size: 0.9rem;
+}
+
+.report-error .btn-retry {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+    padding: 0.4rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.report-error .btn-retry:hover {
+    background: rgba(239, 68, 68, 0.25);
+}
+
+.report-empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--text-muted);
+}
+
+.report-empty-state .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 0.75rem;
+}
+
+.report-empty-state p {
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* ── Collapsible Top Items ── */
+
+.top-items-collapsed {
+    background: var(--bg-card);
+    backdrop-filter: blur(10px);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.collapse-toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.collapse-toggle:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.collapse-arrow {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+}
+
+.collapse-body {
+    display: none;
+    padding: 0 1.5rem 1.5rem;
+}
+
+.top-items-collapsed.expanded .collapse-body {
+    display: block;
+}
+
 @media (max-width: 480px) {
-    .report-header {
+    .collapse-toggle {
+        padding: 0.85rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    .collapse-body {
+        padding: 0 1rem 1rem;
+    }
+}
+
+/* ── Mobile: Card-stack tables (≤ 560px) ── */
+
+@media (max-width: 560px) {
+    .category-group .table-wrapper,
+    .charts-side .table-wrapper {
+        overflow-x: visible;
+    }
+
+    .category-group .data-table,
+    .charts-side .data-table {
+        min-width: 0 !important;
+        display: block;
+        width: 100%;
+    }
+
+    .category-group .data-table thead,
+    .charts-side .data-table thead {
+        display: none;
+    }
+
+    .category-group .data-table tbody,
+    .charts-side .data-table tbody {
+        display: flex;
         flex-direction: column;
-        align-items: stretch;
+        gap: 0.5rem;
     }
 
-    .summary-card {
-        gap: 0.75rem;
-        padding: 1rem;
+    .category-group .data-table tbody tr,
+    .charts-side .data-table tbody tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 0.35rem 0.75rem;
+        padding: 0.7rem;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
     }
 
-    .card-icon {
-        width: 44px;
-        height: 44px;
-        font-size: 1.75rem;
-        flex-shrink: 0;
+    .category-group .data-table tbody td,
+    .charts-side .data-table tbody td {
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        border: none !important;
+        white-space: normal;
     }
 
-    .big-value {
-        font-size: 1.4rem;
+    .category-group .data-table tbody td[data-label]::before,
+    .charts-side .data-table tbody td[data-label]::before {
+        content: attr(data-label);
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted);
+        font-weight: 700;
+        margin-bottom: 0.2rem;
     }
 
-    .card-info h3 {
-        font-size: 0.8rem;
+    .category-group .data-table tbody td.td-name,
+    .charts-side .data-table tbody td.td-name {
+        width: 100%;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-primary);
     }
 
-    .chart-section,
-    .top-items-section {
-        padding: 1rem;
+    .category-group .data-table tbody td.td-name::before,
+    .charts-side .data-table tbody td.td-name::before {
+        display: none;
     }
 }

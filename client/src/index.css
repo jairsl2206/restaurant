@@ -15,6 +15,12 @@
   /* Accent - Dark Gray */
   --accent: hsl(0, 0%, 40%);
 
+  /* Chart & Report Accent Colors */
+  --chart-blue: #3498db;
+  --chart-green: #2ecc71;
+  --chart-yellow: #f1c40f;
+  --chart-red: #e74c3c;
+
   /* Status Colors - Grayscale */
   --success: hsl(0, 0%, 70%);
   --warning: hsl(0, 0%, 55%);
@@ -104,6 +110,10 @@
   to { transform: rotate(360deg); }
 }
 
+
+html {
+  scroll-padding-top: 80px;
+}
 
 body {
   font-family: var(--font-main);
@@ -527,6 +537,12 @@ button, [role="button"], input[type="submit"], input[type="button"] {
 .badge-warn   { font-size:.75rem; background:rgba(243,156,18,.2);  color:#fdcb6e; border:1px solid rgba(243,156,18,.4);  border-radius:4px; padding:2px 6px; font-weight:700; }
 .badge-danger   { font-size:.75rem; background:rgba(231,76,60,.2);   color:#ff6b6b; border:1px solid rgba(231,76,60,.3);   border-radius:4px; padding:2px 6px; font-weight:700; }
 .badge-updated  { font-size:.75rem; background:rgba(139,92,246,.25); color:#c4b5fd; border:1px solid rgba(139,92,246,.5);  border-radius:4px; padding:2px 6px; font-weight:700; animation: pulse-badge 1.5s ease-in-out infinite; }
+
+@media (max-width: 768px) {
+    html {
+        scroll-padding-top: 180px;
+    }
+}
 .form-input-glass { width:100%; padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:#fff; font-size:.9rem; }
 .flex-between { display:flex; justify-content:space-between; align-items:center; }
 .text-muted-sm { font-size:.9rem; color:#aaa; }

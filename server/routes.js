@@ -81,7 +81,14 @@ const notifyWhatsApp = (req, message) => {
     db.getSettings((err, settingsMap) => {
         if (err || !settingsMap) return;
         const phone = settingsMap['whatsapp_number'];
-        if (phone) req.whatsapp.sendMessage(phone, message);
+        if (!phone) {
+            console.log('[WhatsApp] No recipient configured');
+            return;
+        }
+        console.log(`[WhatsApp] Sending to ${phone}: ${message.substring(0, 50)}...`);
+        req.whatsapp.sendMessage(phone, message).catch(error =>
+            console.error('[WhatsApp] Error sending message:', error.message)
+        );
     });
 };
 

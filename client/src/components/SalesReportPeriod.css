@@ -1,7 +1,7 @@
 /* Period Info Banner */
 .period-info {
     background: rgba(52, 152, 219, 0.1);
-    border-left: 4px solid #3498db;
+    border-left: 4px solid var(--chart-blue, #3498db);
     padding: 12px 20px;
     margin: 20px 0;
     border-radius: 8px;
@@ -30,13 +30,13 @@
 
 .category-header h4 {
     margin: 0;
-    color: var(--primary, #3498db);
+    color: var(--chart-blue, #3498db);
     font-size: 1.1rem;
 }
 
 .category-total {
     font-weight: 600;
-    color: var(--primary, #3498db);
+    color: var(--chart-blue, #3498db);
     font-size: 1.1rem;
 }
 
@@ -70,8 +70,8 @@
 
 .toggle-btn.active {
     background: rgba(52, 152, 219, 0.2);
-    border-color: #3498db;
-    color: #3498db;
+    border-color: var(--chart-blue, #3498db);
+    color: var(--chart-blue, #3498db);
     font-weight: 600;
 }
 
