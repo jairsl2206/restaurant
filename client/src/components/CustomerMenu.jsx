@@ -5,8 +5,8 @@ import './CustomerMenu.css';
 const CustomerMenu = ({ restaurantName, restaurantLogo }) => {
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
-    // Track expanded state for each category
     const [expandedCategories, setExpandedCategories] = useState({});
+    const [selectedItem, setSelectedItem] = useState(null);
 
     const fetchMenu = async () => {
         try {
@@ -122,13 +122,14 @@ const CustomerMenu = ({ restaurantName, restaurantLogo }) => {
                                                 src={getImageUrl(item.image_url)}
                                                 alt={item.name}
                                                 className="item-image"
+                                                onClick={() => setSelectedItem(item)}
                                                 onError={(e) => {
                                                     e.target.onerror = null;
                                                     e.target.src = 'https://via.placeholder.com/300x200?text=No+Image';
                                                 }}
                                             />
                                         ) : (
-                                            <div className="item-placeholder">🍽️</div>
+                                            <div className="item-placeholder" onClick={() => setSelectedItem(item)}>🍽️</div>
                                         )}
                                         <div className="item-details">
                                             <div className="item-header">
@@ -165,6 +166,58 @@ const CustomerMenu = ({ restaurantName, restaurantLogo }) => {
                         )}
                     </div>
                 ))
+            )}
+
+            {selectedItem && (
+                <div className="item-modal-overlay" onClick={() => setSelectedItem(null)}>
+                    <div className="item-modal" onClick={e => e.stopPropagation()}>
+                        <button
+                            className="item-modal-close"
+                            onClick={() => setSelectedItem(null)}
+                            aria-label="Cerrar"
+                        >
+                            ✕
+                        </button>
+                        <div className="item-modal-image">
+                            {selectedItem.image_url ? (
+                                <img src={getImageUrl(selectedItem.image_url)} alt={selectedItem.name} />
+                            ) : (
+                                <div className="item-placeholder">🍽️</div>
+                            )}
+                        </div>
+                        <div className="item-modal-info">
+                            <h2>{selectedItem.name}</h2>
+                            <div className="item-modal-price">
+                                {selectedItem.has_promotion ? (
+                                    <>
+                                        <span className="item-price-original">${selectedItem.original_price}</span>
+                                        <span className="item-price-promo" style={{ borderRadius: 'var(--radius-md)', padding: '6px 14px' }}>
+                                            ${selectedItem.final_price}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className="item-price">${selectedItem.price}</span>
+                                )}
+                            </div>
+                            {selectedItem.has_promotion && (
+                                <div className="promo-badge">
+                                    <span>🔥 PROMOCIÓN</span>
+                                    <span className="promo-discount">
+                                        {selectedItem.promotion_type === 'PERCENTAGE'
+                                            ? `-${selectedItem.promotion_value}%`
+                                            : selectedItem.promotion_type === 'BUNDLE'
+                                                ? `${selectedItem.bundle_buy}×${selectedItem.bundle_pay}`
+                                                : `-$${selectedItem.promotion_value.toFixed(2)}`
+                                        }
+                                    </span>
+                                </div>
+                            )}
+                            {selectedItem.description && (
+                                <p className="item-modal-description">{selectedItem.description}</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
