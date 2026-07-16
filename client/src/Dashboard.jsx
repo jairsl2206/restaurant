@@ -29,8 +29,29 @@ function Dashboard({ user, onLogout, settings }) {
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
+
+        if ('scrollRestoration' in window.history) {
+            window.history.scrollRestoration = 'manual';
+        }
+
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+    }, []);
+
+    const prevShowNewOrder = useRef(showNewOrder);
+    useEffect(() => {
+        if (prevShowNewOrder.current && !showNewOrder) {
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                document.documentElement.scrollTop = 0;
+            }, 100);
+        }
+        prevShowNewOrder.current = showNewOrder;
+    }, [showNewOrder]);
 
     const addNotification = (message, type, orderId = null) => {
         const newNotif = {
@@ -60,6 +81,11 @@ function Dashboard({ user, onLogout, settings }) {
         const interval = setInterval(() => { fetchOrders(); fetchActivePeriod(); }, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
     }, [filter]);
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+    }, [expandedStatus, selectedOrder]);
 
     const fetchOrders = async () => {
         try {
@@ -355,9 +381,9 @@ function Dashboard({ user, onLogout, settings }) {
                                 <OrderCard
                                     order={selectedOrder}
                                     user={user}
-                                    onStatusChange={(id, status) => {
-                                        handleStatusChange(id, status);
-                                        setSelectedOrder(null); // Go back after action
+                                    onStatusChange={(id, status, paymentMethod) => {
+                                        handleStatusChange(id, status, paymentMethod);
+                                        setSelectedOrder(null);
                                     }}
                                     onEdit={handleEditOrder}
                                 />

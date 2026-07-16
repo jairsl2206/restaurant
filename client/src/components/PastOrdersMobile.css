@@ -29,7 +29,7 @@
     }
 
     .orders-table {
-        min-width: 800px;
+        min-width: 600px;
     }
 
     .orders-table th,
@@ -69,7 +69,7 @@
     }
 
     .orders-table {
-        min-width: 700px;
+        min-width: 520px;
     }
 
     .orders-table th,
