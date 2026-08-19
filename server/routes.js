@@ -8,7 +8,13 @@ const { ORDER_STATUS } = require('./constants');
 const router = express.Router();
 
 // JWT Configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'REDACTED';
+// El secret DEBE venir del entorno (JWT_SECRET). No hay fallback: si falta,
+// el servidor no arranca, evitando secretos hardcodeados expuestos en el repo.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET no está definido. Configúralo en el entorno (ej: export JWT_SECRET=... o .env).');
+    process.exit(1);
+}
 const JWT_EXPIRES_IN = '6h';
 
 // Login endpoint
@@ -195,7 +201,6 @@ router.post('/orders', (req, res) => {
     };
 
     // Handle customer creation for delivery/pickup orders
-<<<<<<< HEAD
     if ((isDelivery || isPickup) && customerData) {
         const rawPhone = customerData.phone ? customerData.phone.trim() : '';
         const name = customerData.name ? customerData.name.trim() : '';
@@ -250,38 +255,6 @@ router.post('/orders', (req, res) => {
                 } else {
                     // New customer
                     db.createCustomer(name, phone, email, address, (err, customerId) => {
-=======
-    // If both name and phone are absent/empty, treat as anonymous order (no customer record)
-    const hasCustomerData = (isDelivery || isPickup) && customerData &&
-        (customerData.name || customerData.phone);
-
-    if (hasCustomerData) {
-        const phone = customerData.phone ? customerData.phone.trim() : '';
-
-        // If phone is missing or is a common placeholder, create a new record every time
-        // to avoid overwriting other people's data sharing the same placeholder.
-        const isPlaceholder = !phone || phone === '0' || phone === '00' || phone === '000';
-
-        if (isPlaceholder) {
-            db.createCustomer(customerData.name || '', phone || 'N/A', customerData.address || '', (err, customerId) => {
-                if (err) return res.status(500).json({ error: 'Failed to create customer' });
-                createOrderWithCustomer(customerId);
-            });
-        } else {
-            // Check if customer exists by phone
-            db.getCustomerByPhone(phone, (err, existingCustomer) => {
-                if (err) return res.status(500).json({ error: 'Database error' });
-
-                if (existingCustomer) {
-                    // Update existing customer info
-                    db.updateCustomer(existingCustomer.id, customerData.name || '', phone, customerData.address || '', (err) => {
-                        if (err) logger.error('Error updating customer:', err);
-                        createOrderWithCustomer(existingCustomer.id);
-                    });
-                } else {
-                    // Create new customer
-                    db.createCustomer(customerData.name || '', phone, customerData.address || '', (err, customerId) => {
->>>>>>> bd270796b062e4fccb7928e4a88d71215e3419e9
                         if (err) return res.status(500).json({ error: 'Failed to create customer' });
                         createOrderWithCustomer(customerId);
                     });

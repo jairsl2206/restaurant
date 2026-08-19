@@ -50,3 +50,7 @@ server/uploads/*
 .wwebjs_auth/
 .wwebjs_cache/
 
+
+# Claude AI config/settings locales (no subir)
+.claude/
+client/.claude/
