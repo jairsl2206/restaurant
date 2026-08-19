@@ -43,7 +43,7 @@ class Container {
     }
 
     _setupDependencies() {
-        const jwtSecret = process.env.JWT_SECRET || 'REDACTED';
+        const jwtSecret = process.env.JWT_SECRET || '';
         const dbPath = process.env.DB_PATH || null;
 
         const database = new DatabaseConnection(dbPath);
